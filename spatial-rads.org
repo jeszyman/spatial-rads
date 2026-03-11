@@ -18,6 +18,12 @@ Directory Structure
    |-- tests
    |-- workflows
 #+end_example
+** Data sources
+- CosMx spatial transcriptomics data from Mutter lab (Yi), shared via Mayo Box
+  - =projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet= — [[https://mayoclinic2.box.com/s/ywj75mz3bfhivo5bfvivoogqh5o2uu86][box]]
+  - =Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet= — [[https://mayoclinic2.box.com/s/y3dqguqwsjt15shh1opc2dw1kelc8q15][box]]
+- Stored at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/=
+
 ** Prerequisites and setup
 ** Change log
 * Project Administration
