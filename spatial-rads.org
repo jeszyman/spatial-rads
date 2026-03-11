@@ -136,6 +136,580 @@ file:resources/data_smk.png
 *** Functions
 *** All rule
 *** On success
+* Exploratory analysis
+** Scientific notes
+- Kinetics are more interesting than marginal statistical gain at one timepoint
+- Spatial ecotype for microbeam
+- idea jacob scott genome-based model for adjusting radiotherapy dose- bulk tissue GUARD
+
+** Literature and references
+- [[https://www.reddit.com/r/bioinformatics/comments/1rcvf1p/deg_genes_spatial_transcriptomic_xenium/][Reddit: DEG genes spatial transcriptomic Xenium]]
+- [[https://www-sciencedirect-com.mclibrary.idm.oclc.org/science/article/pii/S1368837526000400?via%3Dihub#s0045][ScienceDirect article]]
+- [[https://kb.10xgenomics.com/s/article/35468186410253-How-do-you-integrate-multiple-samples-for-Xenium-analysis][10x Genomics: Xenium multi-sample integration]]
+- [[https://www-nature-com.mclibrary.idm.oclc.org/articles/s41416-025-03088-0][Nature article]]
+- [[https://pubmed.ncbi.nlm.nih.gov/38648789/][PubMed 38648789]]
+- [[https://www-nature-com.mclibrary.idm.oclc.org/articles/s41368-023-00267-8][Nature article (spatial methods)]]
+- [[https://pubmed.ncbi.nlm.nih.gov/37596273/#full-view-affiliation-15][PubMed 37596273]]
+- [[https://chatgpt.com/c/692da348-0a48-8325-b257-46410f227998][ChatGPT analysis session]]
+- [[https://claude.ai/chat/163b2876-8164-4ff4-8005-3181ce4b2445][Claude analysis session]]
+
+** Raw data
+- Initial files shared by Yi are
+  - projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet, [[https://mayoclinic2.box.com/s/ywj75mz3bfhivo5bfvivoogqh5o2uu86][box]]
+  - Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet, [[https://mayoclinic2.box.com/s/y3dqguqwsjt15shh1opc2dw1kelc8q15][box]]
+- Files stored at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/=
+- A single parquet always corresponds to one table.
+
+** Parquet inspection and gene panel check
+#+begin_src python
+import pandas as pd
+
+df = pd.read_parquet("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet")
+
+print(df.dtypes)
+
+print(df.shape)
+
+
+# How many slides/samples?
+print(df['Slide'].value_counts())
+
+# FOVs per slide?
+print(df.groupby('Slide')['fov'].nunique())
+
+# Cells per slide?
+print(df.groupby('Slide')['cell_id'].count())
+
+#########1#########2#########3#########4#########5#########6#########7#########8
+
+
+meta = pd.read_parquet("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet")
+print(meta.shape)
+print(meta.columns.tolist())
+
+print(meta[['Slide', 'Condition', 'Block']].drop_duplicates())
+
+df.to_csv("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/tx_counts_matrix.tsv", sep="\t", index=False)
+
+df = pd.read_parquet("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet")
+
+df = pd.read_parquet("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet")
+
+print(df.dtypes)
+
+print(df.shape)
+
+df.to_csv("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/metadata.tsv", sep="\t", index=False)
+
+genes_to_check = [
+    "A2ml1", "Adcy8", "Akap5", "Bcl6", "Cr2", "Cpne4", "Dpyd", "Eya4",
+    "Gstm1", "Hopx", "Pwwp3a", "Nrp1", "Plau", "Plaur", "Porcn",
+    "Prkci", "Scd1", "Sdc1", "Slc35f1", "Xist", "Cdkn2a"
+]
+
+panel_genes = set(df.columns)
+
+for g in genes_to_check:
+    print(f"{g}: {'YES' if g in panel_genes else 'NO'}")
+
+for g in genes_to_check:
+    print(f"{g}: {'YES' if g in panel_genes else 'NO'}")
+#+end_src
+
+** Pathway and cell type analysis
+#+begin_src R
+library(data.table)
+
+meta <- fread("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/metadata.tsv")
+names(meta)
+
+unique(meta$Condition)
+library(tidyverse)
+
+meta <- meta |>
+  mutate(
+    model = if_else(str_detect(Condition, "^Tongue"), "tongue", "flank"),
+    treatment = case_when(
+      Condition == "Control" ~ "NT",
+      str_detect(Condition, "MBRT") ~ "MBRT",
+      str_detect(Condition, "SBRT") ~ "SBRT"
+    ),
+    timepoint_h = case_when(
+      Condition == "Control" ~ 0,
+      str_detect(Condition, "1h") ~ 1,
+      str_detect(Condition, "4h") ~ 4,
+      str_detect(Condition, "day2") ~ 48,
+      str_detect(Condition, "day6") ~ 144,
+      str_detect(Condition, "day8") ~ 192,
+      str_detect(Condition, "day10") ~ 240
+    )
+  )
+
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  group_by(timepoint_h, treatment) |>
+  summarise(across(c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+                   mean, na.rm = TRUE), .groups = "drop") |>
+  pivot_longer(cols = -c(timepoint_h, treatment)) |>
+  pivot_wider(names_from = treatment, values_from = value) |>
+  mutate(delta = MBRT - SBRT)
+
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  group_by(timepoint_h, treatment) |>
+  summarise(across(c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+                   mean, na.rm = TRUE), .groups = "drop") |>
+  pivot_longer(cols = -c(timepoint_h, treatment), names_to = "pathway", values_to = "score") |>
+  ggplot(aes(x = factor(timepoint_h), y = score, color = treatment, group = treatment)) +
+  #ggplot(aes(x = timepoint_h, y = score, color = treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  facet_wrap(~pathway, scales = "free_y") +
+  scale_x_continuous(breaks = c(1, 4, 48, 144)) +
+  labs(x = "Hours post-radiation", y = "Mean pathway score", color = "Treatment") +
+  theme_bw()
+
+# Option 1: Categorical (clearest)
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  group_by(timepoint_h, treatment) |>
+  summarise(across(c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+                   mean, na.rm = TRUE), .groups = "drop") |>
+  pivot_longer(cols = -c(timepoint_h, treatment), names_to = "pathway", values_to = "score") |>
+  ggplot(aes(x = factor(timepoint_h), y = score, color = treatment, group = treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  facet_wrap(~pathway, scales = "free_y") +
+  labs(x = "Hours post-radiation", y = "Mean pathway score", color = "Treatment") +
+  theme_bw()
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  pivot_longer(cols = c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+               names_to = "pathway", values_to = "score") |>
+  ggplot(aes(x = factor(timepoint_h), y = score, fill = treatment)) +
+  geom_violin(alpha = 0.7, scale = "width") +
+  geom_boxplot(width = 0.2, outlier.shape = NA, alpha = 0.8) +
+  facet_wrap(~pathway, scales = "free_y") +
+  coord_cartesian(ylim = c(-2, 5)) +
+  labs(x = "Hours post-radiation", y = "Pathway score", fill = "Treatment") +
+  theme_bw()
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  pivot_longer(cols = c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+               names_to = "pathway", values_to = "score") |>
+  ggplot(aes(x = factor(timepoint_h), y = score, fill = treatment)) +
+  geom_boxplot(notch = TRUE, outlier.shape = NA, alpha = 0.8) +
+  facet_wrap(~pathway, scales = "free_y") +
+  coord_cartesian(ylim = c(-2, 4)) +
+  labs(x = "Hours post-radiation", y = "Pathway score", fill = "Treatment") +
+  theme_bw()
+
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  pivot_longer(cols = c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+               names_to = "pathway", values_to = "score") |>
+  slice_sample(n = 50000) |>
+  ggplot(aes(x = factor(timepoint_h), y = score, color = treatment)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.5),
+             alpha = 0.1, size = 0.5) +
+  facet_wrap(~pathway, scales = "free_y") +
+  coord_cartesian(ylim = c(-2, 4)) +
+  labs(x = "Hours post-radiation", y = "Pathway score", color = "Treatment", fill = "Treatment") +
+  theme_bw()
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  pivot_longer(cols = c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+               names_to = "pathway", values_to = "score") |>
+  slice_sample(n = 50000) |>
+  ggplot(aes(x = factor(timepoint_h), y = score, color = treatment)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.6),
+             alpha = 0.15, size = 0.5) +
+  stat_summary(aes(group = treatment), fun = median, geom = "crossbar",
+               position = position_dodge(width = 0.6), width = 0.4, linewidth = 0.8) +
+  facet_wrap(~pathway, scales = "free_y") +
+  coord_cartesian(ylim = c(-2, 5)) +
+  labs(x = "Hours post-radiation", y = "Pathway score", color = "Treatment") +
+  theme_bw()
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  pivot_longer(cols = c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+               names_to = "pathway", values_to = "score") |>
+  slice_sample(n = 50000) |>
+  ggplot(aes(x = factor(timepoint_h), y = score, color = treatment)) +
+  geom_point(position = position_jitterdodge(jitter.width = 0.2, dodge.width = 0.6),
+             alpha = 0.1, size = 0.3) +
+  stat_summary(aes(group = treatment), fun = median, geom = "crossbar",
+               position = position_dodge(width = 0.6), width = 0.5, linewidth = 1, color = "black") +
+  facet_wrap(~pathway, scales = "free_y") +
+  coord_cartesian(ylim = c(-2, 5)) +
+  scale_color_manual(values = c("MBRT" = "#E74C3C", "SBRT" = "#3498DB")) +
+  labs(x = "Hours post-radiation", y = "Pathway score", color = "Treatment") +
+  theme_bw(base_size = 12) +
+  theme(legend.position = "bottom")
+
+
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  pivot_longer(cols = c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+               names_to = "pathway", values_to = "score") |>
+  group_by(timepoint_h, treatment, pathway) |>
+  summarise(mean = mean(score), se = sd(score)/sqrt(n()), .groups = "drop") |>
+  ggplot(aes(x = factor(timepoint_h), y = mean, fill = treatment)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                position = position_dodge(0.8), width = 0.2) +
+  facet_wrap(~pathway, scales = "free_y") +
+  labs(x = "Hours post-radiation", y = "Mean pathway score ± SEM", fill = "Treatment") +
+  theme_bw()
+
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank") |>
+  pivot_longer(cols = c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+               names_to = "pathway", values_to = "score") |>
+  group_by(timepoint_h, treatment, pathway) |>
+  summarise(mean = mean(score), .groups = "drop") |>
+  ggplot(aes(x = factor(timepoint_h), y = mean, fill = treatment)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  facet_wrap(~pathway, scales = "free_y") +
+  labs(x = "Hours post-radiation", y = "Mean pathway score", fill = "Treatment",
+       caption = "n=1 animal per condition") +
+  theme_bw()
+
+
+
+#########1#########2#########3#########4#########5#########6#########7#########8
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank", timepoint_h %in% c(48, 144)) |>
+  group_by(timepoint_h, treatment, ImmuneAtlas_ImmGen_Main_cell_Types) |>
+  summarise(TypeI_interferon = mean(TypeI_interferon), .groups = "drop") |>
+  pivot_wider(names_from = treatment, values_from = TypeI_interferon) |>
+  mutate(delta = MBRT - SBRT) |>
+  arrange(desc(abs(delta)))
+
+
+meta |>
+  filter(treatment %in% c("MBRT", "SBRT"), model == "flank", timepoint_h %in% c(48, 144)) |>
+  group_by(timepoint_h, treatment, ImmuneAtlas_ImmGen_Main_cell_Types) |>
+  summarise(TypeI_interferon = mean(TypeI_interferon), .groups = "drop") |>
+  pivot_wider(names_from = treatment, values_from = TypeI_interferon) |>
+  mutate(delta = MBRT - SBRT) |>
+  ggplot(aes(x = delta, y = reorder(ImmuneAtlas_ImmGen_Main_cell_Types, delta))) +
+  geom_col() +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  facet_wrap(~timepoint_h) +
+  labs(x = "MBRT - SBRT (Type I Interferon)", y = NULL) +
+  theme_bw()
+
+#########1#########2#########3#########4#########5#########6#########7#########8
+
+meta |>
+  filter(model == "flank") |>
+  group_by(timepoint_h, treatment) |>
+  summarise(
+    n_cells = n(),
+    x_range = max(x_slide_mm) - min(x_slide_mm),
+    y_range = max(y_slide_mm) - min(y_slide_mm),
+    approx_area = x_range * y_range,
+    .groups = "drop"
+  ) |>
+  mutate(cells_per_mm2 = n_cells / approx_area)
+
+meta |>
+  filter(model == "flank") |>
+  count(timepoint_h, treatment) |>
+  ggplot(aes(x = factor(timepoint_h), y = n, fill = treatment)) +
+  geom_col(position = position_dodge(0.8), width = 0.7) +
+  geom_text(aes(label = scales::comma(n)), position = position_dodge(0.8), vjust = -0.5, size = 3) +
+  labs(x = "Hours post-radiation", y = "Number of cells", fill = "Treatment") +
+  theme_bw()
+
+meta |>
+  filter(model == "flank") |>
+  group_by(timepoint_h, treatment) |>
+  summarise(
+    n_cells = n(),
+    x_range = max(x_slide_mm) - min(x_slide_mm),
+    y_range = max(y_slide_mm) - min(y_slide_mm),
+    approx_area = x_range * y_range,
+    cells_per_mm2 = n_cells / approx_area,
+    .groups = "drop"
+  ) |>
+  ggplot(aes(x = factor(timepoint_h), y = cells_per_mm2, color = treatment, group = treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  labs(x = "Hours post-radiation", y = "Cell density (cells/mm²)", color = "Treatment") +
+  theme_bw()
+#########1#########2#########3#########4#########5#########6#########7#########8
+
+density_data |>
+  pivot_longer(cols = c(n_cells, cells_per_mm2), names_to = "metric", values_to = "value") |>
+  mutate(metric = recode(metric, n_cells = "Cell count", cells_per_mm2 = "Density (cells/mm²)")) |>
+  ggplot(aes(x = factor(timepoint_h), y = value, color = treatment, group = treatment)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 3) +
+  geom_hline(data = data.frame(metric = "Cell count", yint = 50000),
+             aes(yintercept = yint), linetype = "dashed", color = "red") +
+  facet_wrap(~metric, scales = "free_y") +
+  labs(x = "Hours post-radiation", y = NULL, color = "Treatment") +
+  theme_bw()
+#########1#########2#########3#########4#########5#########6#########7#########8
+
+unique(meta$Run_Tissue_name)
+unique(meta$Condition)
+unique(meta$Block)
+unique(meta$Slide)
+unique(meta$Panel)
+
+# one row per "sample" with basic stats
+sample_summary <- meta[
+  ,
+  .(
+    n_cells       = .N,
+    median_nCount = median(nCount_RNA),
+    median_nFeat  = median(nFeature_RNA)
+  ),
+  by = .(Run_Tissue_name, Slide, Condition, Block)
+][order(Condition, Block, Slide)]
+
+sample_summary
+
+#########1#########2#########3#########4#########5#########6#########7#########8
+
+# 1) Per-cell metadata (already loaded)
+meta <- fread("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/metadata.tsv")
+
+# 2) Counts
+counts_dt <- fread("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/tx_counts_matrix.tsv")
+
+# Sanity check: do cell_ids line up?
+all(counts_dt$cell_id %in% meta$cell_id)
+all(meta$cell_id %in% counts_dt$cell_id)  # may be TRUE or FALSE depending on export
+
+# columns that are not genes
+non_gene_cols <- c("Slide", "fov", "cell_id")
+
+gene_cols <- setdiff(colnames(counts_dt), non_gene_cols)
+
+# counts matrix: genes x cells
+count_mat <- t(as.matrix(counts_dt[, ..gene_cols]))
+colnames(count_mat) <- counts_dt$cell_id
+rownames(count_mat) <- gene_cols
+
+dim(count_mat)  # ~ (#genes x #cells)
+
+meta_df <- as.data.frame(meta)
+rownames(meta_df) <- meta_df$cell_id
+
+# Optionally, add parsed treatment/timepoint info as we discussed earlier
+meta_dt <- as.data.table(meta_df)
+meta_dt[, c("site", "rt_type", "timepoint") := {
+  parts <- tstrsplit(Condition, "_", fixed = TRUE)
+  is_tongue <- parts[[1]] == "Tongue"
+  list(
+    site      = ifelse(is_tongue, "Tongue", NA_character_),
+    rt_type   = ifelse(is_tongue, parts[[2]], parts[[1]]),
+    timepoint = ifelse(is_tongue, parts[[3]], parts[[2]])
+  )
+}]
+meta_df <- as.data.frame(meta_dt)
+rownames(meta_df) <- meta_df$cell_id
+
+
+library(Seurat)
+
+obj <- CreateSeuratObject(
+  counts    = count_mat,
+  meta.data = meta_df,
+  project   = "CosMx_Mutter"
+)
+
+obj
+
+# keep only cells that pass Yi's overall QC
+obj <- subset(obj, subset = qcFlagsCell == "Pass")
+
+# optional extra guardrails:
+obj <- subset(
+  obj,
+  subset = nCount_RNA > 20 & nFeature_RNA > 10 & propNegative < 0.5
+)
+
+obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = 1e4)
+obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = 2000)
+obj <- ScaleData(obj, features = VariableFeatures(obj))
+
+obj <- RunPCA(obj, features = VariableFeatures(obj))
+
+library(future)
+
+## allow up to e.g. 10 GB of globals
+options(future.globals.maxSize = 10 * 1024^3)   # 10 GiB
+
+## (optional but recommended) set the plan explicitly
+plan(multicore, workers = 48)  # or whatever makes sense for your box
+
+obj <- FindNeighbors(obj, dims = 1:20)
+
+options(future.globals.maxSize = 50 * 1024^3)  # 50 GiB, or even Inf
+obj <- FindClusters(obj, resolution = 0.4)
+
+
+plan(sequential)
+
+obj <- RunUMAP(obj, dims = 1:20, n.neighbors = 30, min.dist = 0.3)
+
+# If it finishes:
+DimPlot(obj, group.by = "seurat_clusters", raster = TRUE)
+
+
+# Clusters across treatments
+DimPlot(obj, group.by = "Condition", raster = TRUE)
+
+# Cell-type annotation vs clusters (using Insitutype labels)
+DimPlot(obj, group.by = "ImmuneAtlas_ImmGen_Main_cell_Types", raster = TRUE, label = TRUE, repel = TRUE)
+
+# Composition by condition
+cluster_by_condition <- table(obj$seurat_clusters, obj$Condition)
+cluster_by_condition[ , ]
+
+
+#########1#########2#########3#########4#########5#########6#########7#########8
+DimPlot(
+  obj,
+  group.by = "ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types",
+  raster   = TRUE,
+  label    = TRUE, repel = TRUE
+)
+
+
+#########1#########2#########3#########4#########5#########6#########7#########8
+
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+df <- obj@meta.data %>%
+  as.data.frame() %>%
+  select(
+    Condition,
+    cell_family = ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types,
+    TypeI_interferon,
+    TypeII_interferon,
+    STING,
+    DNA_Damage_Repair
+  )
+
+summary_long <- df %>%
+  group_by(Condition, cell_family) %>%
+  summarise(
+    n_cells = n(),
+    across(
+      c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+      ~ median(.x, na.rm = TRUE),
+      .names = "{.col}"
+    ),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+    names_to = "pathway",
+    values_to = "score"
+  )
+
+ggplot(summary_long,
+       aes(x = Condition, y = cell_family)) +
+  geom_point(aes(size = n_cells, color = score)) +
+  facet_wrap(~ pathway, nrow = 1) +
+  coord_flip() +
+  labs(
+    title = "Pathway scores by condition and cell family",
+    x = "Condition",
+    y = "ImmGen cell family",
+    size = "Cells",
+    color = "Median score"
+  ) +
+  theme_bw()
+#########1#########2#########3#########4#########5#########6#########7#########8
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+summary_long <- obj@meta.data %>%
+  as.data.frame() %>%
+  select(
+    Condition,
+    cell_family = ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types,
+    TypeI_interferon,
+    TypeII_interferon,
+    STING,
+    DNA_Damage_Repair
+  ) %>%
+  group_by(Condition, cell_family) %>%
+  summarise(
+    n_cells = n(),
+    across(
+      c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+      ~ median(.x, na.rm = TRUE),
+      .names = "{.col}"
+    ),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair),
+    names_to = "pathway",
+    values_to = "score"
+  )
+
+cond_levels <- c(
+  "Control",              # baseline
+
+  "MBRT_1h",              # 1h
+
+  "MBRT_4h", "SBRT_4h",   # 4h
+
+  "MBRT_day2", "SBRT_day2",   # day 2
+  "MBRT_day6", "SBRT_day6",   # day 6
+
+  "Tongue_MBRT_day8",         # day 8 (tongue only)
+
+  "Tongue_MBRT_day10",        # day 10
+  "Tongue_SBRT_day10"
+)
+
+summary_long$Condition <- factor(summary_long$Condition,
+                                 levels = cond_levels)
+
+ggplot(summary_long,
+       aes(x = cell_family, y = Condition)) +
+  geom_point(aes(size = n_cells, color = score)) +
+  facet_wrap(~ pathway, nrow = 1) +
+  labs(
+    title = "Pathway scores by condition and cell family",
+    x = "ImmGen cell family",
+    y = "Condition",
+    size = "Cells",
+    color = "Median score"
+  ) +
+  theme_bw() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)
+  )
+
+str(meta)
+#+end_src
+
 * Results
 ** [[file:workflows/results.smk][Snakefile]]
 *** Preamble
