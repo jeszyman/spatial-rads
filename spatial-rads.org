@@ -1,0 +1,145 @@
+# Created 2025-02-24 Mon 08:20
+#+title: Scientific Project Repository Template
+#+author: Jeffrey Szymanski
+* Search spatial-rads for needed manual updates?
+* README
+box readme must be word doc
+
+- Structured as a dependent repo meaning full functionality depends on submodules
+
+Directory Structure
+#+begin_example
+-- Main
+   |-- config
+   |-- resources
+   |-- results
+     |--<RES_OBJ_ID>
+   |-- scripts
+   |-- tests
+   |-- workflows
+#+end_example
+** Prerequisites and setup
+** Change log
+* Project Administration
+** Configuration
+*** Yaml
+**** Common
+*** Languages
+**** Bash
+**** Python
+**** R
+*** Emacs
+**** Todo states for code
+#+todo: TODO TEST(t) DEBUG(g) REFACTOR(r) DOCUMENT(m) BLOCKED(b&) WAITING(w&) | DONE DELEGATED
+
+- TODO: Initial task entry, indicating a new or unstarted task.
+- TEST: A stage for verifying functionality, often running tests to confirm code works as intended.
+- DEBUG: Focused on identifying and fixing errors or bugs after testing reveals issues.
+- REFACTOR: Time for code cleanup or optimization without changing functionality, improving readability or performance.
+- DOCUMENT: Adding comments, README updates, or other documentation to clarify usage and details for future reference.
+- BLOCKED: Work can't proceed due to external dependencies or unresolved issues.
+- WAITING: Waiting for input, review, or other dependency but not fully blocked.
+- DONE: Task is fully completed, tested, and documented.
+- DELEGATED: Task is assigned to another person or team for completion.
+
+** Snakemake
+*** Configuration YAMLs
+**** Common
+*** Variable naming
+*** Load packages
+*** Load configuration
+*** Functions
+**** Sample lists
+*** Include statements
+* Biological model
+* Data model
+** [[file:workflows/data.smk][Snakefile]]
+*** [[file:resources/data_smk.pdf][Rulegraph]]
+#+ATTR_ORG :width 600px
+file:resources/data_smk.png
+*** Preamble
+*** spatial-rads LINK to Load packages
+*** spatial-rads LINK to Load configuation
+*** spatial-rads LINK to variable naming
+*** Onstart
+*** Functions
+*** All rule
+*** On success
+*** Development
+*** Ideas
+* Methods
+** Process data inputs
+
+** Analysis 1
+*** Preamble
+*** spatial-rads LINK to Load packages
+*** spatial-rads LINK to Load configuration
+*** spatial-rads LINK to variable naming
+*** Functions
+*** All rule
+*** On success
+* Results
+** [[file:workflows/results.smk][Snakefile]]
+*** Preamble
+*** spatial-rads LINK to Load packages
+*** spatial-rads LINK to Load configuration
+*** spatial-rads LINK to variable naming
+*** Functions
+*** All rule
+*** On success
+** Running results report
+\newcommand{\datadir}{spatial-rads}
+\setcounter{secnumdepth}{0}
+\vspace{5mm}
+\hfill Last compiled 2025-02-24.
+\setcounter{tocdepth}{2}
+\tableofcontents
+
+
+** Scientific Figure
+[[file:/tmp/cars/cars.png]]
+- Make tables from low-level data
+- Table
+- Make figure
+* Reference
+- tag:sci_repo
+- External examples
+  - https://www.reddit.com/r/orgmode/comments/q7gkya/new_video_scimax_electronic_notebook_in_emacs/
+  - https://gitlab.com/-/ide/project/salotz/Lotz2017sEHTPPUUnbinding/tree/master/-/drafts/draft1_salotz.pdf/
+  - https://github.com/spacegraphcats/2018-paper-spacegraphcats
+- https://twitter.com/nicholaszaorsky/status/1479549305623035904?s=21
+- [[id:6475bbfa-39b8-4223-b511-67e91c0d144a][org-mark-readonly and org-remove-readonly]]
+
+* Ideas
+**** Ideas
+quick run latex build
+- Study design, additional method information and support
+  - similar previous studies
+  - method justification, alternative methods
+- DataExplorer::plot_missing()
+- ideas
+  - [[https://www.google.com/search?sxsrf=ALeKk00_F2fZ3QGrxd5neO3dgb5c-0kkDg:1612801488739&source=univ&tbm=isch&q=tikz+experiment+schema+time+course&fir=7WNScExT7ckfiM%252CdadDlzM_l2CTbM%252C_%253B3e93MxQ35WVajM%252CTMa9UPLD88jxnM%252C_%253BwntzEHWMY0qmrM%252Cy76bM6LDcKiD5M%252C_%253BhhJGDj2h6VcV6M%252CTMa9UPLD88jxnM%252C_%253BqMw2FY_NN7QnoM%252CKlzE-ttrS75_cM%252C_%253BeexmR1AFOpN0PM%252Co1wQu3BDPYP_JM%252C_%253BwkI62qDKH45G3M%252CTMa9UPLD88jxnM%252C_%253BUALDpe22HEpjWM%252CTMa9UPLD88jxnM%252C_%253B5B_d--doate1WM%252CxYTdyWKQj7_0YM%252C_%253B8UCMRmDimPmEHM%252CTMa9UPLD88jxnM%252C_&usg=AI4_-kQCrrGY-tXullU19l1yBWlBtpd6FA&sa=X&ved=2ahUKEwjt69De2druAhVuB50JHWcmCPEQ7Al6BAgIEBI&cshid=1612801520870&biw=412&bih=718&dpr=2.63][tikz experimental design timeline]]
+  - structure dot file
+  - version control (check with magit-log-current)
+
+***** Report structure and compilation
+My intent is, where possible, to follow the structure of a published manuscript. The text and figures are not necessarily publication-ready, but that is aim. More detailed information, not appropriate for a manuscript, may be found in appendices, and this is usually structured like supplemental information for a publication. Additional common report elements include:
+- First page with table of contents and last compile (i.e. update) date- look here to see when report was last updated.
+- Progress report showing current status of project tasks.
+
+
+
+Reports are generated programmatically from repository (repo) data and text files. The repository is a git version controlled directory. All text, images, and code used in the project may be found in the repo. Common repo structure includes:
+
+.|----Repo \linebreak
+......|---- .org file - literate programming plain text file \linebreak
+......|---- data - small data files used in project \linebreak
+......|---- figures - composed figures for publication \linebreak
+......|---- funding \linebreak
+......|---- imgs - simple images, not yet refined for publication \linebreak
+......|---- pubs \linebreak
+......|---- reports \linebreak
+......|---- src - contains validated code used in project \linebreak
+
+Upon report update, the entire repo is pushed to the shared Wustl Box folder.
+* [[id:14780b6a-e3d7-44b1-bb04-0272f9466166][Makefile]]
