@@ -1,5 +1,5 @@
 # Created 2025-02-24 Mon 08:20
-#+title: Scientific Project Repository Template
+#+title: Mutter Spatial Radiation (CosMx)
 #+author: Jeffrey Szymanski
 * Search spatial-rads for needed manual updates?
 * README
@@ -53,6 +53,44 @@ Directory Structure
 *** Include statements
 * Biological model
 * Data model
+** make_data_model.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/make_data_model.R :comments org
+:END:
+
+#+begin_src R
+library(readxl)
+library(dplyr)
+
+# Assumes working directory is repo root (~/repos/spatial-rads/)
+metadata <- read_excel("metadata.xlsx")
+
+metadata <- metadata |>
+  mutate(
+    model = case_when(
+      grepl("^Tongue", condition) ~ "tongue",
+      condition == "Control" ~ NA_character_,
+      TRUE ~ "flank"
+    ),
+    treatment = case_when(
+      condition == "Control" ~ "NT",
+      grepl("MBRT", condition) ~ "MBRT",
+      grepl("SBRT", condition) ~ "SBRT"
+    ),
+    timepoint_h = case_when(
+      condition == "Control" ~ 0,
+      grepl("1h", condition) ~ 1,
+      grepl("4h", condition) ~ 4,
+      grepl("day2", condition) ~ 48,
+      grepl("day6", condition) ~ 144,
+      grepl("day8", condition) ~ 192,
+      grepl("day10", condition) ~ 240
+    )
+  )
+
+save(metadata, file = "data/data_model.rda")
+#+end_src
+
 ** [[file:workflows/data.smk][Snakefile]]
 *** [[file:resources/data_smk.pdf][Rulegraph]]
 #+ATTR_ORG :width 600px
