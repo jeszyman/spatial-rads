@@ -24,6 +24,26 @@ Directory Structure
 ** Configuration
 *** Yaml
 **** Common
+:PROPERTIES:
+:header-args:yaml: :tangle no
+:END:
+
+#+begin_src yaml
+# Project-level runtime configuration. Not tangled — reference only.
+repo-dir: ${HOME}/repos/spatial-rads
+machines:
+  - name: jeff-beast
+    type: metal
+machine-data-dirs:
+  - machine: jeff-beast
+    dir: /mnt/gcs/jeszyman/projects/spatial-rads
+data-subdirs: [analysis, inputs, logs, qc, ref]
+conda-env: spatial-rads
+sourced-conda-envs:
+  - {name: biotools, version: TBD}
+  - {name: basecamp, version: TBD}
+#+end_src
+
 *** Languages
 **** Bash
 **** Python
