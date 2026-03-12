@@ -132,16 +132,618 @@ file:resources/data_smk.png
 *** Development
 *** Ideas
 * Methods
-** Process data inputs
+** Layer 1 -- QC & Landscape
+:PROPERTIES:
+:header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
+:END:
 
-** Analysis 1
-*** Preamble
-*** spatial-rads LINK to Load packages
-*** spatial-rads LINK to Load configuration
-*** spatial-rads LINK to variable naming
-*** Functions
-*** All rule
-*** On success
+Process raw CosMx data into a clean, annotated Seurat object. Establish the cellular landscape across all 11 samples. ~1000-gene targeted panel, 1.4M raw cells across 4 slides.
+
+*** Data loading and QC
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle dev/00_load_data.R
+:END:
+
+Load parquet count matrix and metadata, build Seurat object, apply QC filters (qcFlagsCell == "Pass", nCount_RNA > 20, nFeature_RNA > 10, propNegative < 0.5), add parsed treatment/timepoint metadata.
+
+#+begin_src jupyter-R
+library(data.table)
+library(Seurat)
+library(arrow)
+library(dplyr)
+
+# --- Load counts ---
+counts_df <- read_parquet("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet")
+counts_dt <- as.data.table(counts_df)
+
+non_gene_cols <- c("Slide", "fov", "cell_id")
+gene_cols <- setdiff(colnames(counts_dt), non_gene_cols)
+cat(sprintf("Panel size: %d genes\n", length(gene_cols)))
+cat(sprintf("Total cells in counts: %d\n", nrow(counts_dt)))
+stopifnot(!anyDuplicated(counts_dt$cell_id))
+
+# --- Load metadata ---
+meta_df <- read_parquet("/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet")
+meta_dt <- as.data.table(meta_df)
+cat(sprintf("Total cells in metadata: %d\n", nrow(meta_dt)))
+
+# --- Build count matrix (genes x cells) ---
+count_mat <- t(as.matrix(counts_dt[, ..gene_cols]))
+colnames(count_mat) <- counts_dt$cell_id
+rownames(count_mat) <- gene_cols
+
+meta_for_seurat <- as.data.frame(meta_dt)
+rownames(meta_for_seurat) <- meta_for_seurat$cell_id
+stopifnot(all(colnames(count_mat) %in% rownames(meta_for_seurat)))
+
+# --- Create Seurat object ---
+obj <- CreateSeuratObject(
+  counts    = count_mat,
+  meta.data = meta_for_seurat,
+  project   = "CosMx_Mutter"
+)
+cat(sprintf("Raw Seurat: %d genes x %d cells\n", nrow(obj), ncol(obj)))
+
+# --- QC filtering ---
+pre_qc <- table(obj$Condition)
+obj <- subset(obj, subset = qcFlagsCell == "Pass")
+obj <- subset(obj, subset = nCount_RNA > 20 & nFeature_RNA > 10 & propNegative < 0.5)
+post_qc <- table(obj$Condition)
+
+qc_summary <- data.frame(
+  condition = names(pre_qc),
+  pre_filter = as.integer(pre_qc),
+  post_filter = as.integer(post_qc[names(pre_qc)]),
+  pct_retained = round(as.integer(post_qc[names(pre_qc)]) / as.integer(pre_qc) * 100, 1)
+)
+print(qc_summary)
+write.csv(qc_summary, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/qc_summary.csv", row.names = FALSE)
+cat(sprintf("Post-QC: %d cells retained\n", ncol(obj)))
+
+# --- Add parsed metadata ---
+obj$model <- ifelse(grepl("^Tongue", obj$Condition), "tongue", "flank")
+obj$treatment <- case_when(
+  obj$Condition == "Control" ~ "NT",
+  grepl("MBRT", obj$Condition) ~ "MBRT",
+  grepl("SBRT", obj$Condition) ~ "SBRT"
+)
+obj$timepoint_h <- case_when(
+  obj$Condition == "Control" ~ 0,
+  grepl("1h", obj$Condition) ~ 1,
+  grepl("4h", obj$Condition) ~ 4,
+  grepl("day2", obj$Condition) ~ 48,
+  grepl("day6", obj$Condition) ~ 144,
+  grepl("day8", obj$Condition) ~ 192,
+  grepl("day10", obj$Condition) ~ 240
+)
+
+# --- Verify pathway columns exist ---
+pathway_cols <- c("TypeI_interferon", "TypeII_interferon", "STING", "DNA_Damage_Repair")
+stopifnot(all(pathway_cols %in% colnames(obj@meta.data)))
+cat("Pathway score columns confirmed present.\n")
+
+# --- Save ---
+saveRDS(obj, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_qc.rds")
+cat("QC'd Seurat object saved.\n")
+#+end_src
+
+971,818 cells retained post-QC (68% of 1.4M raw). Retention ranges from 44% (Tongue_MBRT_day8) to 84% (Control). All four pre-computed pathway score columns confirmed present in metadata.
+
+*** Normalization, clustering, and UMAP
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle dev/01_normalize_cluster.R
+:END:
+
+LogNormalize (scale 1e4), VST variable features, PCA (20 dims), Louvain clustering (resolution 0.4), UMAP. Panel has 1000 genes so all are used as variable features.
+
+#+begin_src jupyter-R
+library(Seurat)
+library(future)
+
+obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_qc.rds")
+cat(sprintf("Loaded: %d genes x %d cells\n", nrow(obj), ncol(obj)))
+
+# --- Normalize ---
+obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = 1e4)
+obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = 2000)
+cat(sprintf("Variable features: %d (requested 2000, panel has %d genes)\n",
+            length(VariableFeatures(obj)), nrow(obj)))
+
+obj <- ScaleData(obj, features = VariableFeatures(obj))
+obj <- RunPCA(obj, features = VariableFeatures(obj))
+
+pdf("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/elbow_plot.pdf", width = 6, height = 4)
+ElbowPlot(obj, ndims = 30)
+dev.off()
+cat("Elbow plot saved.\n")
+
+# --- Cluster (parallel) ---
+options(future.globals.maxSize = 50 * 1024^3)
+plan(multicore, workers = 48)
+obj <- FindNeighbors(obj, dims = 1:20)
+obj <- FindClusters(obj, resolution = 0.4)
+plan(sequential)
+
+# --- UMAP ---
+obj <- RunUMAP(obj, dims = 1:20, n.neighbors = 30, min.dist = 0.3)
+cat(sprintf("Clusters: %d | Cells: %d\n", length(levels(obj$seurat_clusters)), ncol(obj)))
+
+# --- Save ---
+saveRDS(obj, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+cat("Clustered object saved.\n")
+#+end_src
+
+9 clusters identified. PCA loadings biologically sensible: PC1 separates epithelial (S100a6, Krt8) from muscle (Mb, Tcap); PC2 separates tumor from immune lineages (Cd3d, Cd68, Apoe).
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/elbow_plot.pdf]]
+
+*** Cell type validation
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle no
+:END:
+
+Validate Yi's pre-computed insitutype labels against canonical markers. Characterize the "a" population (~36% of cells) using epithelial markers.
+
+#+begin_src jupyter-R
+library(Seurat)
+library(tidyverse)
+
+obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+
+# --- Tabulate Yi's labels ---
+ct_table <- sort(table(obj$ImmuneAtlas_ImmGen_Main_cell_Types), decreasing = TRUE)
+cat("Cell type frequencies:\n")
+print(ct_table)
+
+ct_family <- sort(table(obj$ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types), decreasing = TRUE)
+cat("\nCell family frequencies:\n")
+print(ct_family)
+
+# --- Check available canonical markers ---
+marker_candidates <- c(
+  "Cd3e", "Cd3d", "Cd4", "Cd8a", "Cd8b1",
+  "Cd68", "Adgre1", "Csf1r", "Itgam",
+  "Epcam", "Krt8", "Krt18", "Krt14",
+  "Cd19", "Ms4a1",
+  "Ncr1", "Klrb1c",
+  "Pecam1", "Cdh5"
+)
+available_markers <- marker_candidates[marker_candidates %in% rownames(obj)]
+cat(sprintf("\nAvailable markers: %d / %d\n", length(available_markers), length(marker_candidates)))
+cat(paste(available_markers, collapse = ", "), "\n")
+
+# --- Dot plot: markers vs cell types ---
+p <- DotPlot(obj, features = available_markers,
+             group.by = "ImmuneAtlas_ImmGen_Main_cell_Types") +
+  RotatedAxis() +
+  labs(title = "Marker validation: Yi's cell type labels")
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/celltype_marker_validation.pdf",
+       plot = p, width = 14, height = 8)
+cat("Marker validation dot plot saved.\n")
+
+# --- Characterize "a" population ---
+epi_markers <- available_markers[available_markers %in% c("Epcam", "Krt8", "Krt18", "Krt14")]
+cat(sprintf("\nEpithelial markers available: %s\n", paste(epi_markers, collapse = ", ")))
+
+if (length(epi_markers) > 0) {
+  p2 <- VlnPlot(obj, features = epi_markers,
+                 group.by = "ImmuneAtlas_ImmGen_Main_cell_Types", pt.size = 0)
+  ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/a_population_markers.pdf",
+         plot = p2, width = 12, height = 6)
+  cat("'a' population marker plot saved.\n")
+
+  # Summary stats for "a" vs others (Seurat v5 compatible)
+  a_cells <- which(obj$ImmuneAtlas_ImmGen_Main_cell_Types == "a")
+  non_a <- which(obj$ImmuneAtlas_ImmGen_Main_cell_Types != "a")
+  norm_data <- GetAssayData(obj, layer = "data")
+  for (m in epi_markers) {
+    a_mean <- mean(norm_data[m, a_cells])
+    other_mean <- mean(norm_data[m, non_a])
+    cat(sprintf("  %s: 'a' mean=%.3f, others mean=%.3f, ratio=%.1f\n",
+                m, a_mean, other_mean, a_mean / max(other_mean, 0.001)))
+  }
+}
+
+# --- Relabel "a" as tumor_epithelial ---
+obj$cell_type_validated <- obj$ImmuneAtlas_ImmGen_Main_cell_Types
+obj$cell_type_validated[obj$cell_type_validated == "a"] <- "tumor_epithelial"
+saveRDS(obj, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+cat("Relabeled a -> tumor_epithelial. Saved.\n")
+#+end_src
+
+18/19 canonical markers available in panel (Adgre1 absent). Epithelial markers modestly enriched in "a" cells (1.4-2.2x over background). The "a" population comprises 46-65% of 4h samples but drops to 15-18% at day 6, consistent with tumor cell death post-radiation. Tongue samples have only 2-4% "a" cells. Relabeled as =tumor_epithelial=.
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/celltype_marker_validation.pdf]]
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/a_population_markers.pdf]]
+
+*** Batch assessment and landscape plots
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle no
+:END:
+
+UMAP colored by slide to check for batch effects. Landscape views by cluster, condition, cell type, and treatment. Spatial cell type maps for flank samples.
+
+#+begin_src jupyter-R
+library(Seurat)
+library(tidyverse)
+library(patchwork)
+
+obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+
+# --- Batch assessment ---
+p_batch <- DimPlot(obj, group.by = "Slide", raster = TRUE) +
+  labs(title = "UMAP by Slide -- batch check")
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/umap_by_slide.pdf",
+       plot = p_batch, width = 8, height = 6)
+cat("Batch assessment plot saved.\n")
+
+# --- Landscape UMAPs ---
+p1 <- DimPlot(obj, group.by = "seurat_clusters", raster = TRUE, label = TRUE) + labs(title = "Clusters")
+p2 <- DimPlot(obj, group.by = "Condition", raster = TRUE) + labs(title = "Condition")
+p3 <- DimPlot(obj, group.by = "ImmuneAtlas_ImmGen_Main_cell_Types",
+              raster = TRUE, label = TRUE, repel = TRUE) + labs(title = "Cell type")
+p4 <- DimPlot(obj, group.by = "treatment", raster = TRUE) + labs(title = "Treatment")
+p_landscape <- (p1 | p2) / (p3 | p4)
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/umap_landscape.pdf",
+       plot = p_landscape, width = 16, height = 12)
+cat("Landscape UMAP saved.\n")
+
+# --- Spatial cell type maps (flank) ---
+p_spatial <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(model == "flank") %>%
+  ggplot(aes(x = x_slide_mm, y = y_slide_mm, color = ImmuneAtlas_ImmGen_Main_cell_Types)) +
+  geom_point(size = 0.1, alpha = 0.3) +
+  facet_wrap(~Condition, scales = "free") +
+  labs(title = "Spatial cell type distribution (flank)", color = "Cell type") +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_celltype_flank.pdf",
+       plot = p_spatial, width = 16, height = 12)
+cat("Spatial cell type map saved.\n")
+
+# --- Cell count summary ---
+cell_counts <- obj@meta.data %>%
+  as.data.frame() %>%
+  count(Condition, ImmuneAtlas_ImmGen_Main_cell_Types) %>%
+  pivot_wider(names_from = ImmuneAtlas_ImmGen_Main_cell_Types, values_from = n, values_fill = 0)
+write.csv(cell_counts, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/cell_counts_by_condition_celltype.csv", row.names = FALSE)
+cat("Cell count table saved.\n")
+print(cell_counts)
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/umap_by_slide.pdf]]
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/umap_landscape.pdf]]
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_celltype_flank.pdf]]
+
+** Layer 2 -- MBRT vs SBRT vs Control Comparative Kinetics
+:PROPERTIES:
+:header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
+:END:
+
+Characterize how MBRT and SBRT differ in transcriptomic response over time across cell types. All comparisons are descriptive (n=1 per condition); effect sizes are the primary metric.
+
+*** Differential expression
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle dev/02_deg_analysis.R
+:END:
+
+DEG analysis comparing MBRT vs Control, SBRT vs Control, and MBRT vs SBRT at matched timepoints. Wilcoxon rank sum via Seurat FindMarkers, ranked by effect size (log2FC), not p-value. Per-cell-type DEGs at 4h for MBRT vs SBRT.
+
+#+begin_src jupyter-R
+library(Seurat)
+library(tidyverse)
+library(future)
+
+obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+cat(sprintf("Loaded: %d genes x %d cells\n", nrow(obj), ncol(obj)))
+
+# --- DEG function (effect-size ranked, NOT p-value based) ---
+run_deg <- function(obj, ident.1, ident.2, group.by = "Condition") {
+  Idents(obj) <- group.by
+  markers <- FindMarkers(obj, ident.1 = ident.1, ident.2 = ident.2,
+                         min.pct = 0.1, logfc.threshold = 0.1)
+  markers$gene <- rownames(markers)
+  markers$comparison <- paste0(ident.1, "_vs_", ident.2)
+  markers %>% arrange(desc(abs(avg_log2FC)))
+}
+
+# --- MBRT vs Control ---
+cat("Running MBRT vs Control DEGs...\n")
+mbrt_tp <- c("MBRT_1h", "MBRT_4h", "MBRT_day2", "MBRT_day6")
+deg_mbrt_ctrl <- map_dfr(mbrt_tp, function(tp) {
+  cat(sprintf("  %s vs Control...\n", tp))
+  sub <- subset(obj, cells = colnames(obj)[obj$Condition %in% c(tp, "Control")])
+  run_deg(sub, tp, "Control")
+})
+cat(sprintf("MBRT vs Control: %d DEGs\n", nrow(deg_mbrt_ctrl)))
+
+# --- SBRT vs Control ---
+cat("Running SBRT vs Control DEGs...\n")
+sbrt_tp <- c("SBRT_4h", "SBRT_day2", "SBRT_day6")
+deg_sbrt_ctrl <- map_dfr(sbrt_tp, function(tp) {
+  cat(sprintf("  %s vs Control...\n", tp))
+  sub <- subset(obj, cells = colnames(obj)[obj$Condition %in% c(tp, "Control")])
+  run_deg(sub, tp, "Control")
+})
+cat(sprintf("SBRT vs Control: %d DEGs\n", nrow(deg_sbrt_ctrl)))
+
+# --- MBRT vs SBRT at matched timepoints ---
+cat("Running MBRT vs SBRT DEGs...\n")
+matched <- list(c("MBRT_4h", "SBRT_4h"), c("MBRT_day2", "SBRT_day2"), c("MBRT_day6", "SBRT_day6"))
+deg_mbrt_sbrt <- map_dfr(matched, function(pair) {
+  cat(sprintf("  %s vs %s...\n", pair[1], pair[2]))
+  sub <- subset(obj, cells = colnames(obj)[obj$Condition %in% pair])
+  run_deg(sub, pair[1], pair[2])
+})
+cat(sprintf("MBRT vs SBRT: %d DEGs\n", nrow(deg_mbrt_sbrt)))
+
+# --- Combine and save ---
+all_degs <- bind_rows(
+  mbrt_vs_ctrl = deg_mbrt_ctrl,
+  sbrt_vs_ctrl = deg_sbrt_ctrl,
+  mbrt_vs_sbrt = deg_mbrt_sbrt,
+  .id = "comparison_type"
+)
+write.csv(all_degs, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/deg_all_cells.csv", row.names = FALSE)
+cat(sprintf("Total DEG rows: %d\n", nrow(all_degs)))
+
+# --- Per-cell-type DEGs (MBRT vs SBRT at 4h) ---
+cat("\nRunning per-cell-type DEGs (MBRT vs SBRT at 4h)...\n")
+ct_counts <- table(obj$cell_type_validated[obj$Condition %in% c("MBRT_4h", "SBRT_4h")])
+major_cts <- names(ct_counts[ct_counts > 500])
+cat(sprintf("Cell types with >500 cells at 4h: %s\n", paste(major_cts, collapse = ", ")))
+
+deg_by_ct <- map_dfr(major_cts, function(ct) {
+  cells <- colnames(obj)[obj$Condition %in% c("MBRT_4h", "SBRT_4h") &
+                          obj$cell_type_validated == ct]
+  if (length(cells) < 50) return(NULL)
+  cat(sprintf("  %s (%d cells)...\n", ct, length(cells)))
+  sub <- subset(obj, cells = cells)
+  tryCatch(run_deg(sub, "MBRT_4h", "SBRT_4h") %>% mutate(cell_type = ct),
+           error = function(e) { cat(sprintf("    Error: %s\n", e$message)); NULL })
+})
+write.csv(deg_by_ct, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/deg_by_celltype_4h.csv", row.names = FALSE)
+cat(sprintf("Per-cell-type DEGs: %d rows across %d cell types\n",
+            nrow(deg_by_ct), length(unique(deg_by_ct$cell_type))))
+cat("DEG analysis complete.\n")
+#+end_src
+
+2,160 bulk DEG rows across all comparisons. Top MBRT vs SBRT findings: at 4h, MBRT upregulates myeloid recruitment genes (Ccl8 log2FC 1.59, Mrc1, Cd74, Arg1). At day 2, the myeloid signal amplifies (Ccl8 log2FC 2.43, Cd163 1.74) while SBRT upregulates Cxcl10 (-1.53, IFN-stimulated). At day 6, MBRT shows massive Igkc (log2FC 3.47, B/plasma cell signature) while SBRT has Nkg7 (-1.31, cytotoxic). Per-cell-type DEGs: 2,534 rows across 25 cell types.
+
+*** DEG visualization
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle no
+:END:
+
+#+begin_src jupyter-R
+library(tidyverse)
+
+all_degs <- read.csv("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/deg_all_cells.csv")
+cat(sprintf("Loaded %d DEG rows\n", nrow(all_degs)))
+
+# --- Volcano: MBRT vs SBRT ---
+all_degs %>%
+  filter(comparison_type == "mbrt_vs_sbrt") %>%
+  ggplot(aes(x = avg_log2FC, y = -log10(p_val), color = abs(avg_log2FC) > 0.5)) +
+  geom_point(alpha = 0.5, size = 0.5) +
+  facet_wrap(~comparison) +
+  scale_color_manual(values = c("grey60", "red3"), guide = "none") +
+  geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "grey40") +
+  labs(title = "MBRT vs SBRT DEGs (effect size ranked)",
+       x = "log2FC", y = "-log10(p)",
+       caption = "n=1 per condition; p-values for visualization only") +
+  theme_bw()
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_sbrt.pdf",
+       width = 12, height = 5)
+
+# --- Volcano: MBRT vs Control ---
+all_degs %>%
+  filter(comparison_type == "mbrt_vs_ctrl") %>%
+  ggplot(aes(x = avg_log2FC, y = -log10(p_val), color = abs(avg_log2FC) > 0.5)) +
+  geom_point(alpha = 0.5, size = 0.5) +
+  facet_wrap(~comparison) +
+  scale_color_manual(values = c("grey60", "red3"), guide = "none") +
+  geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "grey40") +
+  labs(title = "MBRT vs Control DEGs",
+       x = "log2FC", y = "-log10(p)",
+       caption = "n=1 per condition; p-values for visualization only") +
+  theme_bw()
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_ctrl.pdf",
+       width = 14, height = 5)
+cat("Volcano plots saved.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_sbrt.pdf]]
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_ctrl.pdf]]
+
+*** Pathway score kinetics
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle no
+:END:
+
+Yi's pre-computed pathway scores (TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair) summarized per sample x cell family x timepoint. Kinetic line plots for MBRT vs SBRT.
+
+#+begin_src jupyter-R
+library(Seurat)
+library(tidyverse)
+
+obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+pathway_cols <- c("TypeI_interferon", "TypeII_interferon", "STING", "DNA_Damage_Repair")
+
+# --- By cell family ---
+kinetics <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(model == "flank") %>%
+  group_by(timepoint_h, treatment,
+           cell_family = ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types) %>%
+  summarise(n_cells = n(),
+            across(all_of(pathway_cols), \(x) mean(x, na.rm = TRUE)),
+            .groups = "drop") %>%
+  pivot_longer(cols = all_of(pathway_cols), names_to = "pathway", values_to = "score")
+
+kinetics %>%
+  filter(treatment %in% c("MBRT", "SBRT", "NT")) %>%
+  ggplot(aes(x = factor(timepoint_h), y = score, color = treatment, group = treatment)) +
+  geom_line(linewidth = 0.8) + geom_point(size = 2) +
+  facet_grid(pathway ~ cell_family, scales = "free_y") +
+  labs(x = "Hours post-RT", y = "Mean pathway score", caption = "n=1 per condition") +
+  theme_bw(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/pathway_kinetics_by_celltype.pdf",
+       width = 20, height = 12)
+
+# --- All cells (simplified) ---
+obj@meta.data %>%
+  as.data.frame() %>%
+  filter(model == "flank", treatment %in% c("MBRT", "SBRT")) %>%
+  group_by(timepoint_h, treatment) %>%
+  summarise(across(all_of(pathway_cols), \(x) mean(x, na.rm = TRUE)), .groups = "drop") %>%
+  pivot_longer(cols = all_of(pathway_cols), names_to = "pathway", values_to = "score") %>%
+  ggplot(aes(x = factor(timepoint_h), y = score, color = treatment, group = treatment)) +
+  geom_line(linewidth = 1) + geom_point(size = 3) +
+  facet_wrap(~pathway, scales = "free_y") +
+  scale_color_manual(values = c("MBRT" = "#E74C3C", "SBRT" = "#3498DB")) +
+  labs(x = "Hours post-RT", y = "Mean pathway score", caption = "n=1 per condition") +
+  theme_bw()
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/pathway_kinetics_all_cells.pdf",
+       width = 10, height = 8)
+
+write.csv(kinetics, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/pathway_kinetics.csv", row.names = FALSE)
+cat("Pathway kinetics saved.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/pathway_kinetics_by_celltype.pdf]]
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/pathway_kinetics_all_cells.pdf]]
+
+*** Immune composition shifts
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle no
+:END:
+
+Cell type proportions by condition and timepoint. Stacked bar chart and per-cell-type trajectory plots tracking composition changes over time for MBRT vs SBRT.
+
+#+begin_src jupyter-R
+library(Seurat)
+library(tidyverse)
+
+obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+
+# --- Proportions ---
+composition <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(model == "flank") %>%
+  count(Condition, timepoint_h, treatment,
+        cell_type = cell_type_validated) %>%
+  group_by(Condition) %>%
+  mutate(prop = n / sum(n)) %>%
+  ungroup()
+
+# --- Stacked bar ---
+cond_levels <- c("Control", "MBRT_1h", "MBRT_4h", "SBRT_4h",
+                 "MBRT_day2", "SBRT_day2", "MBRT_day6", "SBRT_day6")
+composition %>%
+  filter(Condition %in% cond_levels) %>%
+  mutate(Condition = factor(Condition, levels = cond_levels)) %>%
+  ggplot(aes(x = Condition, y = prop, fill = cell_type)) +
+  geom_col() +
+  labs(x = NULL, y = "Proportion", fill = "Cell type",
+       title = "Cell type composition (flank)") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/composition_stacked.pdf",
+       width = 10, height = 6)
+
+# --- Trajectories for key cell types ---
+composition %>%
+  filter(treatment %in% c("MBRT", "SBRT")) %>%
+  ggplot(aes(x = factor(timepoint_h), y = prop, color = treatment, group = treatment)) +
+  geom_line(linewidth = 0.8) + geom_point(size = 2) +
+  facet_wrap(~cell_type, scales = "free_y") +
+  labs(x = "Hours post-RT", y = "Proportion", color = "Treatment",
+       caption = "n=1 per condition") +
+  theme_bw()
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/composition_trajectories.pdf",
+       width = 14, height = 10)
+
+write.csv(composition, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/composition.csv", row.names = FALSE)
+cat("Composition analysis saved.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/composition_stacked.pdf]]
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/composition_trajectories.pdf]]
+
+*** Spatial neighborhood analysis
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle no
+:END:
+
+k-nearest neighbor (k=20) analysis of spatial immune neighborhoods at 4h. For each cell, compute the fraction of its 20 nearest spatial neighbors that are immune (non-tumor_epithelial). Compare MBRT vs SBRT.
+
+#+begin_src jupyter-R
+library(Seurat)
+library(RANN)
+library(tidyverse)
+
+obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+
+# --- Nearest-neighbor immune fraction at 4h ---
+cat("Computing spatial nearest neighbors at 4h...\n")
+nn_results <- map_dfr(c("MBRT_4h", "SBRT_4h"), function(cond) {
+  cat(sprintf("  %s...\n", cond))
+  meta_sub <- obj@meta.data %>% as.data.frame() %>% filter(Condition == cond)
+  coords <- as.matrix(meta_sub[, c("x_slide_mm", "y_slide_mm")])
+  ct <- meta_sub$cell_type_validated
+
+  nn <- nn2(coords, k = 21)
+  nn_idx <- nn$nn.idx[, -1]
+
+  # Fraction of neighbors that are immune (not tumor_epithelial)
+  immune_frac <- rowMeans(matrix(ct[nn_idx] != "tumor_epithelial", nrow = nrow(nn_idx)))
+
+  tibble(condition = cond, cell_type = ct, immune_neighbor_frac = immune_frac)
+})
+
+nn_results %>%
+  ggplot(aes(x = immune_neighbor_frac, fill = condition)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~cell_type, scales = "free_y") +
+  labs(x = "Fraction immune neighbors (k=20)",
+       title = "Spatial immune neighborhoods: MBRT vs SBRT at 4h") +
+  theme_bw()
+ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_nn_immune_frac.pdf",
+       width = 14, height = 10)
+cat("Spatial NN analysis saved.\n")
+#+end_src
+
+MBRT shows consistently higher immune neighbor fractions than SBRT at 4h across every cell type. Dendritic cells: 0.69 vs 0.52; microglia: 0.72 vs 0.59; spleen red pulp macs: 0.75 vs 0.62; even tumor cells: 0.37 vs 0.31. This suggests MBRT's spatial heterogeneity (peaks/valleys) promotes more spatially mixed immune/tumor neighborhoods compared to the uniform dose of SBRT.
+
+#+ATTR_ORG: :width 800
+[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_nn_immune_frac.pdf]]
+
+** Layer 3 -- Peak/Valley at 4h (BLOCKED)
+Blocked on per-cell gamma-H2AX IF intensity data from lab. PPTX images confirm stripe pattern visible at 4h (see [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]]).
+
+** Layer 4 -- Signature Projection (BLOCKED)
+Depends on Layer 3 signatures.
 * Exploratory analysis
 ** Scientific notes
 - Kinetics are more interesting than marginal statistical gain at one timepoint
