@@ -1,6 +1,6 @@
 if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-library(officer)
-library(magick)
+has_officer <- requireNamespace("officer", quietly = TRUE) && requireNamespace("magick", quietly = TRUE)
+if (has_officer) { library(officer); library(magick) }
 
 obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
 stripe_model <- readRDS(file.path(DATA_DIR, "stripe_model.rds"))
@@ -16,12 +16,19 @@ mbrt4h <- mbrt4h %>% mutate(y_corr = y_slide_mm + x_slide_mm * tan(rad))
 # ---- Part A: Extract H2AX image from PPTX ----
 pptx_path <- file.path(INPUT_DIR, "Gamma H2AX + FOVs.pptx")
 cat(sprintf("Reading PPTX: %s\n", pptx_path))
+h2ax_extracted <- FALSE
 
-tryCatch({
+if (!has_officer) {
+  cat("officer/magick not installed — skipping PPTX extraction. Using zone map only.\n")
+} else tryCatch({
   pptx <- read_pptx(pptx_path)
   slide_summary <- pptx_summary(pptx)
-  cat(sprintf("PPTX has %d slides, %d content elements\n",
-              max(slide_summary$slide_index), nrow(slide_summary)))
+  n_slides <- if (nrow(slide_summary) > 0 && "slide_index" %in% names(slide_summary)) {
+    as.integer(max(slide_summary$slide_index, na.rm = TRUE))
+  } else {
+    length(pptx)
+  }
+  cat(sprintf("PPTX has %d slides, %d content elements\n", n_slides, nrow(slide_summary)))
 
   # Extract images from PPTX media
   img_files <- list.files(
