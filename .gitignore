@@ -345,3 +345,7 @@ TSWLatexianTemp*
 # Uncomment the next line to have this generated file ignored.
 #*Notes.bib
 docs/superpowers/
+
+###   Analysis outputs (large)   ###
+dev/peak_valley_analysis/data/mbrt4h_peak_valley.tsv
+*.html
