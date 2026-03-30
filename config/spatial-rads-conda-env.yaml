@@ -1,0 +1,30 @@
+name: spatial-rads
+channels:
+  - conda-forge
+  - bioconda
+
+dependencies:
+  # --- R core ---
+  - r-base>=4.4
+  - r-irkernel
+  # --- Seurat & spatial ---
+  - r-seurat>=5.0
+  - r-seuratobject
+  # --- Tidyverse & data ---
+  - r-tidyverse
+  - r-data.table
+  - r-arrow
+  - r-readxl
+  # --- Visualization ---
+  - r-ggplot2
+  - r-patchwork
+  - bioconductor-complexheatmap
+  # --- Spatial analysis ---
+  - r-rann
+  # --- Signal processing ---
+  - r-zoo
+  # --- PPTX/image handling (H2AX validation) ---
+  - r-officer
+  - r-magick
+  # --- Parallel ---
+  - r-future
