@@ -35,6 +35,42 @@ BRANCH="autonomous/mbrt-signatures-$TIMESTAMP"
 mkdir -p "$RESULTS/data" "$RESULTS/plots" "$RESULTS/tables"
 
 # ============================================================
+# Claude session jsonl pointer — primary observability channel
+# ============================================================
+# Each `claude -p` phase writes a jsonl transcript to
+# ~/.claude/projects/<escaped-cwd>/<session-uuid>.jsonl. This is the
+# real activity log — stdout tee'd to executor.log is heavily buffered
+# by Node and can lag by many minutes. Capture the phase's jsonl path
+# into $RESULTS/<phase>.jsonl.path so the watchdog and any nanny SSH
+# can read a stable pointer.
+PROJECT_DIR_ESC="$(pwd | sed 's|/|-|g')"
+JSONL_DIR="$HOME/.claude/projects/$PROJECT_DIR_ESC"
+
+capture_jsonl_path() {
+  # Wait for a NEW jsonl to appear after a phase launches, then record
+  # its path. Call as `capture_jsonl_path <phase> &` just before the
+  # claude -p invocation — it baselines immediately and polls for a
+  # new file for up to 60s.
+  local phase="$1"
+  local pointer="$RESULTS/${phase}.jsonl.path"
+  local baseline
+  baseline=$(ls -t "$JSONL_DIR"/*.jsonl 2>/dev/null | head -1 || true)
+  local waited=0
+  while (( waited < 60 )); do
+    sleep 5
+    waited=$((waited + 5))
+    local current
+    current=$(ls -t "$JSONL_DIR"/*.jsonl 2>/dev/null | head -1 || true)
+    if [[ -n "$current" && "$current" != "$baseline" ]]; then
+      echo "$current" > "$pointer"
+      return 0
+    fi
+  done
+  # Fall back to whatever newest jsonl exists — better than nothing.
+  [[ -n "$baseline" ]] && echo "$baseline" > "$pointer" || true
+}
+
+# ============================================================
 # Preflight checks
 # ============================================================
 echo "[$(date)] Preflight checks..."
@@ -84,6 +120,23 @@ echo "[$(date)] Working on branch: $BRANCH" | tee -a "$RESULTS/orchestrator.log"
       pgrep -fa "claude" 2>/dev/null | head -3 || echo "No claude process"
       # Check for R processes (pipeline running)
       pgrep -fa "Rscript" 2>/dev/null | head -3 || echo "No R process"
+      # JSONL heartbeat — the real "is claude -p alive" signal.
+      # tee'd stdout buffers for many minutes; the session jsonl is
+      # appended to on every turn boundary, so mtime/size tell us
+      # whether the agent is actively working.
+      for jp in "$RESULTS"/*.jsonl.path; do
+        [[ -f "$jp" ]] || continue
+        phase_name=$(basename "$jp" .jsonl.path)
+        jsonl=$(cat "$jp" 2>/dev/null)
+        if [[ ! -f "$jsonl" ]]; then
+          echo "$phase_name jsonl: path missing ($jsonl)"
+          continue
+        fi
+        jsz=$(stat -c%s "$jsonl" 2>/dev/null || echo 0)
+        jmt=$(stat -c%Y "$jsonl" 2>/dev/null || echo 0)
+        jage=$(( $(date +%s) - jmt ))
+        echo "$phase_name jsonl: ${jsz}B age=${jage}s file=$(basename "$jsonl")"
+      done
       echo ""
     } >> "$RESULTS/watchdog.log"
     sleep 300
@@ -137,7 +190,10 @@ SYSTEM_RULES="MANDATORY RULES:
 # ============================================================
 echo "[$(date)] === PHASE 1: EXECUTOR ===" | tee -a "$RESULTS/orchestrator.log"
 
-timeout 8h claude -p "$(cat "$PLAN")
+# Capture this phase's jsonl pointer as soon as it appears (runs in bg)
+capture_jsonl_path executor &
+
+timeout 8h stdbuf -oL claude -p "$(cat "$PLAN")
 
 You are the EXECUTOR agent. Follow Executor Tasks 1-7 in the plan above, in order. All setup (data staging, conda env) is already complete — do not redo it.
 
@@ -184,7 +240,9 @@ fi
 # ============================================================
 echo "[$(date)] === PHASE 2: REVIEWER ===" | tee -a "$RESULTS/orchestrator.log"
 
-timeout 2h claude -p "You are an ADVERSARIAL REVIEWER of an MBRT spatial transcriptomics analysis.
+capture_jsonl_path reviewer &
+
+timeout 2h stdbuf -oL claude -p "You are an ADVERSARIAL REVIEWER of an MBRT spatial transcriptomics analysis.
 
 An executor agent processed Mutter_02 CosMx data (4 slides, ~1000-gene panel, 2-day timepoint ONLY, 3 samples per slide: 0 Gy / MBRT 2d / SBRT 20 Gy 2d, NO H2AX ground truth), integrated it with existing Mutter_01 analysis, and tested whether MBRT peak/valley transcriptomic signatures (derived from spatially validated Mutter_01 4h data) persist at 2d and replicate in independent biological samples.
 
@@ -236,7 +294,9 @@ fi
 # ============================================================
 echo "[$(date)] === PHASE 3: REVISER ===" | tee -a "$RESULTS/orchestrator.log"
 
-timeout 3h claude -p "You are the REVISER agent.
+capture_jsonl_path reviser &
+
+timeout 3h stdbuf -oL claude -p "You are the REVISER agent.
 
 Two agents already ran on an MBRT spatial transcriptomics signature analysis:
 1. EXECUTOR: processed Mutter_02, scored signatures, wrote SUMMARY.md
