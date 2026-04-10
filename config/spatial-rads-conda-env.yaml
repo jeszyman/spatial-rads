@@ -21,6 +21,9 @@ dependencies:
   - bioconductor-complexheatmap
   # --- Spatial analysis ---
   - r-rann
+  - r-ape            # Moran.I() for spatial autocorrelation
+  # --- Signature scoring ---
+  - bioconductor-ucell  # rank-based signature scoring (primary)
   # --- Signal processing ---
   - r-zoo
   # --- PPTX/image handling (H2AX validation) ---
