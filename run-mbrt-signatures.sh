@@ -19,6 +19,12 @@ set -euo pipefail
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
+# Source conda so `conda run -n spatial-rads ...` works under non-interactive bash.
+# Try common install locations; nohup/login shells don't inherit interactive PATH.
+for CONDA_SH in /opt/conda/etc/profile.d/conda.sh "$HOME/miniconda3/etc/profile.d/conda.sh" "$HOME/miniforge3/etc/profile.d/conda.sh"; do
+  [ -f "$CONDA_SH" ] && . "$CONDA_SH" && break
+done
+
 REPO="$HOME/repos/spatial-rads"
 RESULTS="$REPO/results/signatures"
 PLAN="$REPO/plan-mbrt-signatures.md"
