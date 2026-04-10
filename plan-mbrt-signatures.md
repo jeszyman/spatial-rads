@@ -32,17 +32,26 @@ Staged on VM local disk at `$SCRATCH/mutter02/`:
 
 **Gene panel**: 950 main panel (Mouse UCC) + 21 custom add-on genes. Same panel as Mutter_01.
 
-**Expected conditions (per Jenn Fazzari Mar 2 2026 email):**
-- Blocks 1-3: 0 Gy controls
-- Blocks 16, 18: 20 Gy 4h (= CRT/SBRT uniform dose)
-- Blocks 19, 20: MBRT 4h
-- Blocks 28, 30: 20 Gy 2d (= CRT/SBRT uniform dose)
-- Blocks 34, 35: MBRT 2d
+**Confirmed sample layout (Jenn Fazzari 2026-04-09):** Each of the 4 slides contains 3 samples: 0 Gy control, MBRT 2 days, SBRT 20 Gy 2 days. **All Mutter_02 samples are at 2-day timepoint — no 4h data.**
 
-**Slides 1-2**: 4T1 model (same as Mutter_01) — primary replication target.
-**Slides 3-4**: New tumor model pilot — analyze separately, do NOT pool with 4T1.
+| Slide | Sample ID | Treatment         |
+|-------|-----------|-------------------|
+| 1     | 1         | 0 Gy              |
+| 1     | 34        | MBRT 2 days       |
+| 1     | 28        | SBRT 20 Gy 2 days |
+| 2     | 2         | 0 Gy              |
+| 2     | 35        | MBRT 2 days       |
+| 2     | 30        | SBRT 20 Gy 2 days |
+| 3     | 3         | 0 Gy              |
+| 3     | 19        | MBRT 2 days       |
+| 3     | 16        | SBRT 20 Gy 2 days |
+| 4     | 1         | 0 Gy              |
+| 4     | 20        | MBRT 2 days       |
+| 4     | 18        | SBRT 20 Gy 2 days |
 
-**FOV-to-condition mapping**: Provided by Rob/Jenn (file: `$SCRATCH/mutter02/fov_condition_map.tsv`). Yi confirmed she does not have this mapping. The executor MUST use this file to label cells. If the file is missing, STOP.
+**No FOV-level map**: Jenn confirmed no FOV maps exist for this run. The executor MUST infer sample-to-FOV assignment from the raw Seurat object metadata (Sample ID field, tissue region annotations, or spatial clustering of FOVs on each slide). Save the inferred mapping as `$RESULTS/data/mutter02_fov_sample_map.tsv` and document the inference method in SUMMARY.md.
+
+**H2AX IHC for Mutter_02**: Not available in this run but adjacent tissue sections were cut during original prep. Jenn received them back from Florida 2026-04-09 and is arranging staining at Mayo. Not blocking this run — stripe validation on Mutter_02 must use p21/Cdkn1a as the optimization signal like Mutter_01, but H2AX validation can be added in a follow-up run once staining is complete.
 
 **Important**: These are RAW Seurat objects — no QC, no cell type annotation, no pathway scores. The executor must compute everything from scratch. Pathway scores should be computed using NanoString standard gene modules (see Pathway Gene Lists below).
 
@@ -108,14 +117,14 @@ These must be completed interactively on the VM before launching `run-mbrt-signa
 - [ ] Install additional packages: `r-harmony`, `bioconductor-deseq2` (or `r-limma`), `r-ucell`
 - [ ] Mutter_02 RDS files copied from Box to `$SCRATCH/mutter02/` (cp, NOT symlink)
 - [ ] Mutter_01 `seurat_clustered.rds` copied from GCS FUSE to `$SCRATCH/`
-- [ ] FOV-to-condition mapping from Rob/Jenn saved as `$SCRATCH/mutter02/fov_condition_map.tsv`
+- [ ] Sample layout TSV (from Jenn Fazzari 2026-04-09 email) saved as `$SCRATCH/mutter02/sample_layout.tsv` (3 columns: slide, sample_id, treatment). FOV-to-sample inference is done by the executor from Seurat metadata — no FOV map exists.
 - [ ] Gene list XLSX copied to VM: `$REPO/config/CosMx-Mouse-Universal-Cell-Characterization-Gene-List-(1).XLSX`
 - [ ] Load each Mutter_02 RDS, verify: cell counts match QC email (~999K, 649K, 352K, 793K), spatial coordinates present, gene panel size ~971 genes
 - [ ] Verify gene panel overlap with Mutter_01 (expect >95%)
-- [ ] Verify FOV-condition mapping covers all FOVs in data
+- [ ] Verify raw Seurat object metadata contains Sample ID or equivalent field that can be mapped to the sample layout
 - [ ] Disk budget confirmed (>=15 GB free)
 - [ ] `~/.claude/settings.local.json` with `{"hooks": {}}` (VM has no Emacs)
-- [ ] H2AX IHC status confirmed (from Rob) — document whether available for Mutter_02
+- [x] H2AX IHC status confirmed: NOT available for Mutter_02 in this run (adjacent sections being stained at Mayo, Jenn 2026-04-09). Stripe validation on Mutter_02 uses p21 only.
 
 ## Executor Tasks
 
@@ -124,7 +133,7 @@ These must be completed interactively on the VM before launching `run-mbrt-signa
 Process each Mutter_02 slide:
 
 1. Load raw Seurat objects from `$SCRATCH/mutter02/`.
-2. Apply FOV-to-condition mapping from `fov_condition_map.tsv`. Parse treatment (MBRT/SBRT/NT) and timepoint_h. If mapping is ambiguous, document assumptions.
+2. **Infer FOV-to-sample assignment from metadata.** No FOV map exists. Inspect each raw Seurat object for a Sample ID field (check fields like `Sample`, `sample_id`, `tissue`, `slide_sample`, or integer codes). Cross-reference with `sample_layout.tsv` (Jenn 2026-04-09) which gives Slide × Sample ID × Treatment for all 12 samples. If no Sample ID field exists, fall back to spatial clustering of FOVs into 3 groups per slide and assign sample IDs by tissue position. Save the inferred map as `$RESULTS/data/mutter02_fov_sample_map.tsv`. Document inference method. All Mutter_02 samples are at the 2-day timepoint.
 3. **QC filter** (same criteria as Mutter_01): nCount_RNA > 20, nFeature_RNA > 10. If `qcFlagsCell` column exists, require "Pass". If `propNegative` exists, require < 0.5. Adapt if columns differ and document.
 4. **Normalize**: LogNormalize, scale factor 1e4.
 5. **Variable features**: VST, 2000 requested.
@@ -212,49 +221,45 @@ Apply the Mutter_01-derived signatures to the independent dataset:
 - `results/signatures/plots/mutter02_signature_violins.png`
 - `results/signatures/plots/concordance_scatter.png`
 
-### Task 6: Stripe model validation on Mutter_02 4h MBRT (if available)
+### Task 6: Exploratory stripe detection on Mutter_02 2d MBRT (p21-only, no H2AX)
 
-If Mutter_02 contains an MBRT 4h condition with spatial coordinates:
+**Important constraints:** (a) Mutter_02 has no 4h timepoint — all MBRT samples are at 2 days. (b) No H2AX IHC is available for Mutter_02 in this run (adjacent sections being stained at Mayo, deferred to a follow-up). This task is therefore exploratory and interpretively weaker than the Mutter_01 4h stripe model.
 
-1. Re-fit the stripe model for this slide: conserve ~1.02mm spacing but optimize tilt angle and offset fresh (different tissue mounting angle).
-2. Use p21/Cdkn1a as the optimization signal (same as Mutter_01 script 05).
-3. If a clear periodic pattern emerges: classify cells as peak/valley using the new fit. Check whether peak/valley DEGs match Mutter_01 direction.
-4. If H2AX IHC is available for this slide (check `$SCRATCH/mutter02/` for PPTX or image files): validate against external ground truth.
-5. If no clear periodic pattern or if p21 contrast is weak: report as negative finding. Do NOT force-fit.
+For each Mutter_02 MBRT 2d sample (one per slide, 4 total):
 
-**Outputs (conditional):**
-- `results/signatures/plots/mutter02_stripe_validation.png`
-- `results/signatures/data/mutter02_stripe_model.rds`
-- `results/signatures/data/mutter02_4h_peak_valley.tsv`
-
-### Task 7: New tumor model exploratory analysis
-
-For Mutter_02 slides 3-4 (new tumor model, separate from 4T1):
-
-1. Basic QC, normalize, cluster, annotate (same pipeline as Task 1).
-2. Score with peak/valley signatures.
-3. Compare signature scores: new model MBRT vs Control.
-4. Report as exploratory — do NOT pool with 4T1 results.
+1. Extract the cells belonging to that sample using the inferred FOV-to-sample map.
+2. Re-fit the stripe model: conserve ~1.02mm spacing (same collimator) but optimize tilt angle and offset fresh per sample (different tissue mounting angle).
+3. Use p21/Cdkn1a as the optimization signal (same as Mutter_01 script 05). **p21 is induced early and decays**, so at 2d the contrast will likely be weaker than at 4h. If p21 contrast is not significantly above a random-stripe null, report as "no detectable stripe pattern at 2d" — this is an expected and interpretable negative finding, NOT a failure.
+4. If a stripe pattern IS detected at 2d: classify cells as peak/valley using the new fit. Check whether the peak/valley signatures (from Task 3) are enriched in the corresponding classes. Frame as "consistent with persistent spatial memory of original beam geometry" — do NOT claim this validates the 4h classification, because there is no independent ground truth (no H2AX) at 2d.
+5. Do NOT force-fit. If 2/4 samples show stripes and 2/4 do not, report honestly.
+6. Random-null baseline: permute y-coordinates within each sample and re-run the stripe fit 100 times. Report the observed p21 peak/valley contrast against this null distribution.
 
 **Outputs:**
-- `results/signatures/data/new_model_signature_scores.tsv`
-- `results/signatures/plots/new_model_signatures.png`
+- `results/signatures/plots/mutter02_stripe_exploration.png` (4-panel, one per MBRT 2d sample)
+- `results/signatures/data/mutter02_stripe_fits.tsv` (tilt, offset, p21 contrast, null percentile for each sample)
+- `results/signatures/data/mutter02_2d_peak_valley.tsv` (only populated for samples with detected stripes)
 
-### Task 8: Write SUMMARY.md
+### Task 7: Write SUMMARY.md
 
 Write `results/signatures/SUMMARY.md` addressing:
 
-1. **Data inventory**: what Mutter_02 actually contained after loading (conditions, cell counts, gene overlap).
+1. **Data inventory**: what Mutter_02 actually contained after loading (samples, cell counts, gene overlap, FOV-to-sample inference method).
 2. **Batch assessment**: was integration needed? What was done?
-3. **Signature definition**: which genes, how many, rationale for inclusion/exclusion, DDR genes excluded.
+3. **Signature definition**: which genes, how many, rationale for inclusion/exclusion, DDR genes excluded. Cell-type-stratified signatures primary.
 4. **Signature persistence (Mutter_01)**: do peak/valley signatures decay, persist, or evolve over time? Spatial striping patterns? Frame correctly per interpretive boundary.
-5. **Replication (Mutter_02)**: do signatures score differently in MBRT vs Control? Concordance with Mutter_01?
-6. **SBRT distinction**: is SBRT distinguishable from MBRT peak/valley biology? (Descriptive, Mutter_01 only.)
-7. **Stripe model validation** (if applicable).
-8. **New tumor model** (exploratory).
-9. **Answer to scientific intention**: one clear paragraph.
-10. **Limitations**: n=1 within Mutter_01, targeted panel blind spots, interpretive boundary for >4h results, FOV pseudobulk is not true biological replication, STING gene list uncertainty.
-11. **Recommended next steps**.
+5. **Replication (Mutter_02 at 2d only)**: do signatures score differently in MBRT vs Control vs SBRT at 2 days? Concordance with Mutter_01 2d effect sizes.
+6. **SBRT distinction**: is SBRT distinguishable from MBRT peak/valley biology at 2d, both within Mutter_01 (descriptive, n=1) and Mutter_02 (pseudobulk with caveats)?
+7. **Mutter_02 stripe exploration (2d, p21-only)**: did p21-based stripe detection find periodic patterns at 2d? Frame honestly — absence of stripes is an informative negative finding consistent with p21 decay between 4h and 2d.
+8. **Answer to scientific intention**: one clear paragraph.
+9. **Limitations**:
+   - n=1 within Mutter_01
+   - Targeted ~1000-gene panel blind spots
+   - Interpretive boundary for >4h results (scoring, not classification)
+   - FOV pseudobulk is not true biological replication
+   - STING gene list uncertainty
+   - **No H2AX validation for Mutter_02** — stripe fits at 2d rely solely on p21, which has decayed from its 4h peak; negative stripe detection at 2d cannot distinguish "no spatial memory" from "p21 too low for detection". Adjacent-section H2AX IHC is in process at Mayo (Jenn Fazzari, 2026-04-09) and will enable follow-up validation.
+   - **No 4h Mutter_02 data** — cannot directly replicate the 4h peak/valley classification; replication is at 2d only
+10. **Recommended next steps**: (a) re-run stripe validation on Mutter_02 once H2AX staining is complete, (b) consider non-DDR contrast signals for 2d stripe detection if p21 is too weak, (c) if 2d replication is strong, design a Mutter_03 experiment with 4h + 2d timepoints AND H2AX on Cos slides.
 
 Reference all figures and tables by path. Commit everything to git.
 
@@ -272,11 +277,13 @@ Reference all figures and tables by path. Commit everything to git.
 - Circularity: were ALL 18 DDR genes excluded from signatures? Check the excluded list against the actual signature genes.
 - Cell type composition confound: are cell-type-stratified signatures used as primary (not bulk)? Could apparent signature persistence be driven by changing cell type proportions rather than within-cell-type transcriptional changes?
 - STING gene list: was it documented? Is it defensible?
-- New tumor model: were results appropriately separated from 4T1?
+- Mutter_02 H2AX absence: was the lack of ground-truth peak/valley validation clearly stated? Were Mutter_02 stripe results explicitly framed as exploratory / pattern-detection only, never as validated peak-vs-valley biology?
+- p21 decay at 2d: was the expectation of weaker stripe signal acknowledged? Was a null-distribution baseline (random angle/spacing permutations) used to judge whether any detected stripes exceed chance?
 
 ### Methodological issues
 - Batch correction: if Harmony was applied, did it remove biological signal along with batch?
-- Stripe model re-fit: for Mutter_02 4h, was tilt re-fit (not transferred from Mutter_01)?
+- Stripe model re-fit: for Mutter_02 2d, was tilt re-fit per-slide (not transferred from Mutter_01)? Was spacing held fixed at 1.02mm (collimator-conserved)?
+- FOV-to-sample inference: was the method for recovering 3-samples-per-slide structure from metadata documented and sanity-checked (expected ~equal FOV counts per sample)?
 - Signature size: was sensitivity to signature size assessed?
 - Spatial analysis: were coordinate systems consistent? Was Moran's I computed for spatial autocorrelation?
 

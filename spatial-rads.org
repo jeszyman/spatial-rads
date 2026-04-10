@@ -42,16 +42,29 @@ Gamma-H2AX staining in PPTX ([[file:/mnt/gcs/jeszyman/projects/spatial-rads/inpu
   - =Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet= — [[https://mayoclinic2.box.com/s/y3dqguqwsjt15shh1opc2dw1kelc8q15][box]]
   - Metadata columns 90-93 are signaling pathway scores (TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair). Type I IFN (19 genes), Type II IFN (17 genes), and DDR (18 genes) are NanoString standard Mouse UCC panel modules — gene lists in [[file:config/CosMx-Mouse-Universal-Cell-Characterization-Gene-List-(1).XLSX][gene list XLSX]], Annotations sheet. STING is not a standard NanoString module; Yi may have defined it custom or from a subset of Pattern Recognition Receptors (30 genes).
 - Stored at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/=
-*** Mutter_02 (upcoming, 4 slides)
-Per Rob's Jan 30 2026 email, tentative design:
-| Slide | Condition                                     |
-|-------+-----------------------------------------------|
-|     1 | 4T1 NT and MBRT/CRT 48h (merge w/ prior)      |
-|     2 | 4T1 NT and MBRT/CRT 48h (merge w/ prior)      |
-|     3 | New tumor model pilot, NT and MBRT/CRT 4h     |
-|     4 | Tumor model OR mouse skin, NT and MBRT/CRT 4h |
+*** Mutter_02 (raw data received, 4 slides, 12 samples)
+Confirmed sample layout per Jenn Fazzari's 2026-04-09 reply ([[https://mail.google.com/mail/u/0/#all/19d202d7827d05ad][Gmail thread: MutterRobert_02_CosMmR - QC results]]). Each slide contains three samples: 0 Gy control, MBRT 2 days, SBRT 20 Gy 2 days. **All Mutter_02 samples are at the 2-day timepoint — no 4h data in this run.** Earlier tentative designs from Rob (Jan 30) and Jenn (Mar 2) are superseded.
 
-Per Jenn Fazzari's Mar 2 2026 email, updated slide layouts include 0 Gy controls (blocks 1-3), 20 Gy 4h (blocks 16, 18), MBRT 4h (blocks 19, 20), 20 Gy 2d (blocks 28, 30), MBRT 2d (blocks 34, 35). Nothing processed yet — Yi offered raw Seurat objects (2026-03-27).
+| Slide | Sample ID | Treatment         |
+|-------+-----------+-------------------|
+|     1 | 1         | 0 Gy              |
+|     1 | 34        | MBRT 2 days       |
+|     1 | 28        | SBRT 20 Gy 2 days |
+|     2 | 2         | 0 Gy              |
+|     2 | 35        | MBRT 2 days       |
+|     2 | 30        | SBRT 20 Gy 2 days |
+|     3 | 3         | 0 Gy              |
+|     3 | 19        | MBRT 2 days       |
+|     3 | 16        | SBRT 20 Gy 2 days |
+|     4 | 1         | 0 Gy              |
+|     4 | 20        | MBRT 2 days       |
+|     4 | 18        | SBRT 20 Gy 2 days |
+
+**No FOV-level map**: Jenn confirmed she has no FOV maps for this run. Sample boundaries on each slide must be inferred from Seurat object metadata (sample ID or tissue region annotations) or from spatial coordinates.
+
+**H2AX IHC in process for Mutter_02**: no yH2AX included in this run, but adjacent tissue sections were cut during original sample prep. Jenn received them back from Florida on 2026-04-09 and is arranging staining at Mayo. Will enable stripe model validation on Mutter_02 once complete.
+
+Raw Seurat objects staged at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mutter02/= (copied from Box 2026-04-10): =seuratObject_01..04_Mutter_02_CosMmR.RDS= (1.0 GB total, ~2.8M cells across 1586 FOVs).
 *** Data transfer
 - Transfer mechanism: Yi uploaded via Mayo Media Shuttle (mc-ondemand-securefiletransfer.mediashuttle.com), which emails download links to recipients. GCS bucket access (=chaudhuri-lab-share-bucket1/po1-spatial=) was attempted but Yi got permission denied — never resolved. Faridi Qaium (Qaium.Faridi@mayo.edu) manages GCS bucket IAM.
 - Email threads:

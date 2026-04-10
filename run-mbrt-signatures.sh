@@ -14,6 +14,11 @@
 #
 set -euo pipefail
 
+# Source nvm so `claude` (nvm-installed) is on PATH under non-interactive bash.
+# Without this, nohup/login shells miss nvm's shims and the claude CLI appears missing.
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+
 REPO="$HOME/repos/spatial-rads"
 RESULTS="$REPO/results/signatures"
 PLAN="$REPO/plan-mbrt-signatures.md"
@@ -128,23 +133,25 @@ echo "[$(date)] === PHASE 1: EXECUTOR ===" | tee -a "$RESULTS/orchestrator.log"
 
 timeout 8h claude -p "$(cat "$PLAN")
 
-You are the EXECUTOR agent. Follow Executor Tasks 1-8 in the plan above, in order. All setup (data staging, conda env, FOV mapping) is already complete — do not redo it.
+You are the EXECUTOR agent. Follow Executor Tasks 1-7 in the plan above, in order. All setup (data staging, conda env) is already complete — do not redo it.
 
 Key paths:
 - Mutter_01 Seurat object: $SCRATCH/seurat_clustered.rds
 - Mutter_01 analysis data: $REPO/dev/peak_valley_analysis/data/
 - Mutter_02 RDS files: $SCRATCH/mutter02/
-- FOV-to-condition mapping: $SCRATCH/mutter02/fov_condition_map.tsv
+- Mutter_02 sample layout: $SCRATCH/mutter02/sample_layout.tsv (slide → sample_id → treatment; per Jenn Fazzari 2026-04-09)
 - Gene list XLSX: $REPO/config/CosMx-Mouse-Universal-Cell-Characterization-Gene-List-(1).XLSX
 - Write deliverables to: $RESULTS/
 
 Write R scripts to $RESULTS/ and execute them. Save output data to $RESULTS/data/ and plots to $RESULTS/plots/.
 
-INTERPRETIVE BOUNDARY: At 4h MBRT, peak/valley labels are validated ground truth. At ALL other timepoints, you SCORE cells with AddModuleScore (seed=42) — do NOT classify them as peak/valley. Frame results as 'signature persistence', not 'peak/valley identity'. If spatial striping of scores appears, report as 'consistent with persistent spatial patterning' — never claim cells were in peaks.
+FOV-TO-SAMPLE INFERENCE: Mutter_02 has NO FOV-level map. Each slide holds 3 samples (0 Gy / MBRT 2d / SBRT 20 Gy 2d). Recover the 3-sample grouping from Seurat metadata (FOV spatial coordinates or fov field), document the method in SUMMARY.md, and sanity-check that FOV counts per inferred sample are roughly balanced.
+
+INTERPRETIVE BOUNDARY: Mutter_01 4h MBRT is the ONLY dataset with validated peak/valley ground truth (H2AX IHC). Mutter_02 has NO H2AX — stripe/peak-valley results there are exploratory pattern-detection only, never validated biology. At all non-4h timepoints (Mutter_01 later timepoints AND all of Mutter_02), you SCORE cells with UCell (primary) and AddModuleScore (secondary, seed=42) — do NOT classify them as peak/valley. Frame results as 'signature persistence' or 'consistent with persistent spatial patterning' — never claim cells were in peaks.
 
 CIRCULARITY: Exclude ALL 18 DDR genes from peak/valley signatures (listed in plan under Circularity Rules). These were used to fit the stripe model.
 
-STRIPE MODEL: The 15-deg tilt is tissue mounting angle, NOT beam angle. If re-fitting stripes on Mutter_02, conserve ~1.02mm spacing but re-fit tilt and offset fresh.
+STRIPE MODEL (Mutter_02 2d, exploratory): The 15-deg tilt is tissue mounting angle, NOT beam angle. Conserve 1.02mm spacing (collimator-fixed), but RE-FIT tilt and offset per Mutter_02 slide using Cdkn1a/p21 only (H2AX unavailable). Expect weaker signal than Mutter_01 4h (p21 decays by 2d). Include a random-null baseline (100 permutations of angle/offset) to judge whether any detected stripes exceed chance. A negative result is informative — report it plainly.
 
 $SYSTEM_RULES
 
@@ -173,7 +180,7 @@ echo "[$(date)] === PHASE 2: REVIEWER ===" | tee -a "$RESULTS/orchestrator.log"
 
 timeout 2h claude -p "You are an ADVERSARIAL REVIEWER of an MBRT spatial transcriptomics analysis.
 
-An executor agent processed Mutter_02 CosMx data (4 slides, ~1000-gene panel), integrated it with existing Mutter_01 analysis, and tested whether MBRT peak/valley transcriptomic signatures (derived from spatially validated 4h data) persist at later timepoints and replicate in independent biological samples.
+An executor agent processed Mutter_02 CosMx data (4 slides, ~1000-gene panel, 2-day timepoint ONLY, 3 samples per slide: 0 Gy / MBRT 2d / SBRT 20 Gy 2d, NO H2AX ground truth), integrated it with existing Mutter_01 analysis, and tested whether MBRT peak/valley transcriptomic signatures (derived from spatially validated Mutter_01 4h data) persist at 2d and replicate in independent biological samples.
 
 Read these files:
 - ~/repos/spatial-rads/plan-mbrt-signatures.md (the plan — see Reviewer Checklist section)
@@ -186,12 +193,15 @@ Read these files:
 Find problems. Be ruthless and specific.
 
 Key concerns to investigate:
-- Circularity: are zone-classification genes in the scoring signature?
+- Circularity: are zone-classification genes in the scoring signature? All 18 DDR genes excluded?
+- Cell-type-stratified signatures: used as primary (not bulk)? Could apparent persistence be a cell-composition artifact?
+- UCell primary: is UCell the primary scorer? Is AddModuleScore reported as a secondary comparison?
 - Batch effects: did Mutter_01 vs Mutter_02 integration distort biology?
-- Pseudobulk independence: are FOVs from the same slide treated as independent biological replicates? (They should NOT be.)
-- AddModuleScore background: appropriate control genes?
-- Interpretive boundary: was >4h data framed as 'scoring' not 'classification'?
-- Cell type composition confound: could signature score changes reflect shifting cell proportions?
+- Pseudobulk independence: are FOVs from the same slide treated as independent biological replicates? (They should NOT be — they are technical, not biological, replicates.)
+- FOV-to-sample inference: was the 3-samples-per-slide recovery method documented and sanity-checked?
+- H2AX-absent stripe caveat: are Mutter_02 stripe results framed as exploratory/pattern-detection only, never validated peak-vs-valley biology?
+- p21-only stripe fitting at 2d: was a random-null baseline used? Was the weaker-signal expectation acknowledged?
+- Interpretive boundary: was all non-Mutter_01-4h data framed as 'scoring' not 'classification'?
 - Multiple testing: FDR correction on all gene-level tests?
 - n=1 caveat: did any Mutter_01 comparisons use formal p-values?
 
