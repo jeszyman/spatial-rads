@@ -219,6 +219,7 @@ $SYSTEM_RULES
 
 Your final output MUST include results/signatures/SUMMARY.md answering the scientific intention." \
   --dangerously-skip-permissions \
+  --max-budget-usd 50 \
   -n "spatial-sigs-executor-$TIMESTAMP" \
   < /dev/null 2>&1 | tee "$RESULTS/executor.log"
 
@@ -273,6 +274,7 @@ Write numbered findings (R1, R2, ...) to ~/repos/spatial-rads/results/signatures
 
 $SYSTEM_RULES" \
   --dangerously-skip-permissions \
+  --max-budget-usd 50 \
   -n "spatial-sigs-reviewer-$TIMESTAMP" \
   < /dev/null 2>&1 | tee "$RESULTS/reviewer.log"
 
@@ -322,6 +324,7 @@ Commit when done.
 
 $SYSTEM_RULES" \
   --dangerously-skip-permissions \
+  --max-budget-usd 50 \
   -n "spatial-sigs-reviser-$TIMESTAMP" \
   < /dev/null 2>&1 | tee "$RESULTS/reviser.log"
 
