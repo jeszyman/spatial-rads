@@ -347,5 +347,4 @@ TSWLatexianTemp*
 docs/superpowers/
 
 ###   Analysis outputs (large)   ###
-dev/peak_valley_analysis/data/mbrt4h_peak_valley.tsv
 *.html
