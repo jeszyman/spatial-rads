@@ -43,7 +43,9 @@ mkdir -p "$RESULTS/data" "$RESULTS/plots" "$RESULTS/tables"
 # by Node and can lag by many minutes. Capture the phase's jsonl path
 # into $RESULTS/<phase>.jsonl.path so the watchdog and any nanny SSH
 # can read a stable pointer.
-PROJECT_DIR_ESC="$(pwd | sed 's|/|-|g')"
+# Claude escapes cwd by replacing any non-alphanumeric char (/, _, ., etc.)
+# with '-', not just slashes. sed class must match that.
+PROJECT_DIR_ESC="$(pwd | sed 's|[^a-zA-Z0-9]|-|g')"
 JSONL_DIR="$HOME/.claude/projects/$PROJECT_DIR_ESC"
 
 capture_jsonl_path() {

@@ -53,6 +53,17 @@ First-in-field spatial transcriptomics study of MBRT peak/valley biology. MBRT d
 - Rob Mutter — Lab PI
 - Jenn Fazzari — slide layout coordination
 
+## Autonomous VM Runs
+
+Layer 4 (signature projection) runs on **jeff-frag-test** GCP VM via the virtual-scientist skill. See memory `reference_vm_frag_test.md` for gcloud coords (project `aif-usr-p-chaudhuri-lab-83f0`, zone `us-west4-b`, user `ext_szymanski_jeffrey_mayo_edu`).
+
+- **Orchestrator**: `run-mbrt-signatures.sh` — three sequential `claude -p` phases (executor → reviewer → reviser) with validation gates
+- **Scratch data on VM**: `/mnt/data/spatial-rads/` (staged with `cp`, NOT symlink from `/mnt/gcs/`)
+- **Mutter_02 slides on VM**: `/mnt/data/spatial-rads/mutter02/seuratObject_0[1-4]_Mutter_02_CosMmR.RDS`
+- **Results**: written to `results/signatures/` on the VM's feature branch, retrieved via `git format-patch` + `scp` (Mayo VMs cannot push)
+- **Max plan overage**: `claude -p` must include `--max-budget-usd 50` or the headless API stream closes with `UND_ERR_SOCKET` when the overage wall is hit
+- **Observability**: `executor.log` is unreliable (Node buffers stdout). Ground truth is the session jsonl at `~/.claude/projects/<escaped-cwd>/*.jsonl`; the launcher captures the active jsonl pointer to `results/signatures/<phase>.jsonl.path`. Tail filter is documented in the virtual-scientist skill.
+
 ## Statistical Caveats
 
 - All Mutter_01 analyses are descriptive (n=1). Formal testing awaits Mutter_02 replicates.
