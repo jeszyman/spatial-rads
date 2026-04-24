@@ -2,29 +2,74 @@
 #+title: Mutter Spatial Radiation (CosMx)
 #+author: Jeffrey Szymanski
 
-new bioinfo dev to work up is pathway-composition-h2ax-analysis
+- peak valley id
+  - near section gh2ax overlayed by FOV grid. mostly h2ax pos vs negative sets.
+  -
+● γ-H2AX is the phosphorylated form of histone H2AX at serine 139. It's phosphorylated by the DNA
+  damage kinases ATM, ATR, and DNA-PKcs within minutes of a DNA double-strand break (DSB). Each
+  nuclear focus corresponds to roughly one DSB, so γ-H2AX is the gold-standard immunohistochemical
+  marker for DSBs.
 
-https://mail.google.com/mail/u/0/#inbox/FMfcgzQgKvNpcmpzmxNJvtdZcZGJhVzp
-* Search spatial-rads for needed manual updates?
+  Kinetics after irradiation:
+
+  - 15–30 min: γ-H2AX foci appear at break sites as the kinases phosphorylate H2AX for ~1–2 Mb of
+  chromatin flanking each DSB.
+  - 30 min–1 hour: peak foci density. This is the optimal window for quantifying dose delivered.
+  - 1–4 hours: foci gradually resolve as non-homologous end joining (NHEJ, dominant in G0/G1) and
+  homologous recombination (HR, S/G2 only) repair breaks. Repaired DSBs dephosphorylate H2AX.
+  - 24 hours: >90% of foci resolved in normally-repairing cells; residual foci mark unrepaired complex
+   lesions, heterochromatic breaks, or cells entering apoptosis.
+  - >24 hours: persistent foci = biomarker of genomic instability / failed repair.
+
+  Implications for MBRT peak/valley detection:
+
+  The IHC staining was done at 4h. That's past peak signal (by a factor of 2–3×) and into the repair
+  phase. Peaks are still visible (why you could label FOVs from it), but signal is dimmer than it
+  would be at 30 min. Valleys at 4h may also show some residual foci from low-dose exposure (~1 Gy in
+  valleys still produces measurable DSBs).
+
+  So the 4h H2AX image is a damped and repair-smeared snapshot of the dose distribution, not a crisp
+  dose map. This matters for two things:
+
+  1. Peak-valley contrast on the stain is lower at 4h than it would have been at 1h — your manual FOV
+  labels may carry some noise from this.
+  2. Transcriptional peak-valley contrast (what we're analyzing) lags H2AX by several hours, since
+  transcriptional programs take time to activate. 4h is actually reasonable for the transcriptional
+  response (DDR genes, p21, IFN response all peak 4–24h). But it's sub-optimal for dose readout via
+  H2AX.
+
+  This is a good argument for correcting peak/valley geometry computationally (stripe model) rather
+  than fully trusting the 4h H2AX intensity directly — which is what we've been doing.
+
+
+
+- [ ] h2ax scanner tiff
+
+* Key results
+- [[file:dev/peak_valley_analysis/plots/morphology_nuc_kinetics.png][Nuclear area kinetics diverge: MBRT shrinks, SBRT swells]] — CosMx cell-segmentation morphology metrics across all flank timepoints. MBRT nuclei progressively shrink from baseline (3192→2568→2412 px median) while SBRT nuclei enlarge at day2 (3460 px) then partially recover (2968 px at day6), yielding 23% MBRT-vs-SBRT nuclear area divergence at day2. Cell area shows the expected SBRT day2 swelling (median 105 vs 82 µm² control) consistent with G2/M arrest-driven hypertrophy at 48h; MBRT cell area is modestly elevated but flat across timepoints. Peak/valley comparison at 4h shows no morphological difference (median 87.6 vs 87.3 µm²), consistent with Harada et al. (J Radiat Res 2025) finding no morphological stripe pattern until 12-16h in minibeam time-lapse imaging. Nuclear condensation in MBRT may reflect apoptosis/pyknosis predominating over arrest-driven swelling — a qualitatively different damage response than SBRT.
+- [[file:dev/if_channel_check/cdkn1a_kinetics_mean.png][p21 / Cdkn1a kinetics per cell class, MBRT vs SBRT]] — log-normalized mean Cdkn1a across 0 Gy control, MBRT (1h, 4h, 2d, 6d), and SBRT (4h, 2d, 6d) in six radiobiology-defined cell classes (tumor, macrophages, monocytes/DC, T cells, B cells, stroma). MBRT peak and valley subsets at 4h overlaid as star and cross. Myeloid cells show the largest MBRT-vs-SBRT and peak-vs-valley separation; tumor cells show minimal peak/valley p21 difference despite strong bulk induction.
+- [[file:dev/if_channel_check/block21_extrapolated_pv.png][Cell-level peak/valley label extrapolation, Block_21 (MBRT 4h)]] — stripe geometry fit empirically from manual peak FOV centroids: −25° angle from horizontal, 1.046 mm spacing, 0.27 mm beam half-width. Cells labeled by perpendicular distance to nearest peak centerline. 87.5% concordance with manual FOV labels on the labeled subset. Yields 3765 peak + 4235 valley cells across the full tumor, ~5× more than manual FOV labeling. Framework transferable to Mutter_02.
+- [[file:dev/if_channel_check/tumor_pv_rotation_null.png][Tumor peak/valley MBRT-specific signature, validated with within-block rotation null]] — rigorous control for spatial architecture confounding: the real stripe geometry (−25° angle, 1.04 mm spacing, 0.27 mm half-width) is rotated to 175 random angles on the same MBRT Block_21 tumor, and peak-valley deltas are recomputed at each angle. This preserves all of the tumor's own spatial biology (core vs edge, stromal infiltrate, TLS) while scrambling the dose labels. Rotation-null sd = 0.027, ~1.7× wider than the SBRT-block null (0.016), confirming that using SBRT on a *different* tumor under-estimated the architecture floor. Top density panel: three overlaid distributions across all 670 tumor-expressed genes — SBRT null (grey, narrowest), MBRT rotation null (green, wider, centered at 0), MBRT real (red, widest, shifted right). MBRT real clearly exceeds the rotation null, establishing that real zonation exists above and beyond architecture. Bottom scatter: real MBRT peak-valley delta vs per-gene rotation-null sd. Genes outside ±2 × per-gene null sd (dashed cones) survive the rotation null (red); those inside do not (grey). 37 of 670 genes survive (empirical p<0.05 AND |delta|>2 × overall null sd). Surviving peak-enriched tumor genes at 4h: Clu, Tpt1, Uba52, B2m, H2-D1, H2-K1 (MHC class I), Ifitm2 (IFN response), Gpx1, Ppia, Itm2b, Fau, Tpm1, Gstp1/2. Rejected as architecture artifacts (large MBRT delta but also large rotation-null sd): S100a6, S100a10, S100a4, Lgals1, Vim, Hsp90ab1, Naca. The surviving signature is dominated by MHC class I induction, IFN-response, damage/stress response, and translation-machinery genes, consistent with direct DNA damage at beam peaks. The S100 calcium-binding cluster, initially flagged as peak-enriched, was core-vs-edge tumor architecture contaminating the peak label. No valley-enriched genes survive at this threshold. Descriptive (n=1 per arm); replication pending in Mutter_02.
+
 * README
-box readme must be word doc
 
-- Structured as a dependent repo meaning full functionality depends on submodules
 
-Directory Structure
-#+begin_example
--- Main
-   |-- config
-   |-- resources
-   |-- results
-     |--<RES_OBJ_ID>
-   |-- scripts
-   |-- tests
-   |-- workflows
-#+end_example
 ** Data sources
+*** Metadata
+Experimental design metadata at [[file:data/metadata.xlsx][data/metadata.xlsx]]. Relational sheet capturing sample-level treatment, timepoint, and model assignments across both Mutter_01 and Mutter_02 runs. Consumed by =make_data_model.R= to build =data/data_model.rda=.
+*** Source documents
+Write-protected vendor documents under [[file:data/sources/][data/sources/]], all received as attachments on Yi Liu's 2026-01-30 email ([[https://mail.google.com/mail/u/0/#all/19c0fac78dda6cca][Gmail thread: MutterRobert_02_CosMmR - Project Update and Timeline]]):
+
+- [[file:data/sources/2026-01-30-nanostring-mouse-ucc-gene-list.xlsx][2026-01-30-nanostring-mouse-ucc-gene-list.xlsx]] — NanoString Mouse UCC panel documentation. All ~1000 genes with pathway/annotation columns (Annotations sheet drives IFN-I, IFN-II, DDR module gene lists). "Add-On" column here is NanoString's internal panel categorization — distinct from the 21 custom genes below.
+- [[file:data/sources/2026-01-30-nanostring-alan-fields-21-custom-panel-design.xlsx][2026-01-30-nanostring-alan-fields-21-custom-panel-design.xlsx]] — NanoString custom RNA probe design report (Oct 16 2024) for the 21 Alan Fields add-on genes, with per-probe sequences and isoform coverage. Canonical list of which 21 genes constitute the custom add-on: A2ml1, Adcy8, Akap5, Bcl6, Cd21, Cpne4, Dpyd, Eya4, Gstm1, Hopx, Mum1, Nrp1, Plau, Plaur, Porcn, Prkci (ex2), Scd1, Sdc1, Slc35f1, Xist, p16.
+- [[file:data/sources/2026-01-30-nanostring-alan-fields-21-custom-quote.pdf][2026-01-30-nanostring-alan-fields-21-custom-quote.pdf]] — NanoString quote for Mouse UCC + 21 custom (~$7,000). Reagents were purchased under Dr. Alan Fields' account for his mouse experiment and donated to the Mutter Lab. Included in Mutter_01; planned for Mutter_02.
+*** External reference documents
+Large reference PPTX files kept on GCS (not checked into repo due to size):
+
+- [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]] (11 MB) — Mutter_01 gamma-H2AX chromogenic IHC images on adjacent tissue sections, with FOV overlays. Ground truth for 4h peak/valley stripe geometry validation. Received from Evelyn Han (Han.Yiqun@mayo.edu) on 2025-12-08 ([[https://mail.google.com/mail/u/0/#all/19affb8105f16df7][Gmail thread: Spatial MBRT peak valley fov]]).
+- [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Mutter02_Slide Powerpoint .pptx][Mutter02_Slide Powerpoint.pptx]] (58 MB) — Mutter_02 slide layout and FOV reference images for the 4-slide × 3-sample run (0 Gy / MBRT 2d / SBRT 20 Gy 2d). Source: MutterRobert_02_CosMmR - QC results thread ([[https://mail.google.com/mail/u/0/#all/19d202d7827d05ad][Gmail thread]]).
 *** Gene panel
-CosMx Mouse Universal Cell Characterization (Mouse UCC) panel + 21 custom add-on genes from Dr. Alan Fields' mouse experiment. Add-on gene list attached to Yi's Jan 30 2026 email as =CosMx Mouse Universal Cell Characterization Gene List (1).XLSX=. Add-on reagents were included in Mutter_01 and are planned for Mutter_02. Mouse UCC reference profiles for insitutype cell typing are publicly available from NanoString.
+CosMx Mouse Universal Cell Characterization (Mouse UCC) panel + 21 custom add-on genes originally designed by Dr. Alan Fields for his mouse experiment. See [[*Source documents][Source documents]] above for canonical panel files and the 21-gene list. Mouse UCC reference profiles for insitutype cell typing are publicly available from NanoString.
 *** IF channels
 CosMx IF channels capture protein markers on the same tissue section as RNA. Mutter_01 IF channels were used for cell segmentation and lineage, not H2AX:
 - PanCK (=Mean.PanCK=, =Max.PanCK=) — epithelial marker
@@ -40,25 +85,25 @@ Gamma-H2AX staining in PPTX ([[file:/mnt/gcs/jeszyman/projects/spatial-rads/inpu
 - Delivered as processed parquet files (339.1 MB total):
   - =projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet= — [[https://mayoclinic2.box.com/s/ywj75mz3bfhivo5bfvivoogqh5o2uu86][box]]
   - =Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet= — [[https://mayoclinic2.box.com/s/y3dqguqwsjt15shh1opc2dw1kelc8q15][box]]
-  - Metadata columns 90-93 are signaling pathway scores (TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair). Type I IFN (19 genes), Type II IFN (17 genes), and DDR (18 genes) are NanoString standard Mouse UCC panel modules — gene lists in [[file:config/CosMx-Mouse-Universal-Cell-Characterization-Gene-List-(1).XLSX][gene list XLSX]], Annotations sheet. STING is not a standard NanoString module; Yi may have defined it custom or from a subset of Pattern Recognition Receptors (30 genes).
+  - Metadata columns 90-93 are signaling pathway scores (TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair). Type I IFN (19 genes), Type II IFN (17 genes), and DDR (18 genes) are NanoString standard Mouse UCC panel modules — gene lists in [[file:data/sources/2026-01-30-nanostring-mouse-ucc-gene-list.xlsx][gene list XLSX]], Annotations sheet. STING is not a standard NanoString module; Yi may have defined it custom or from a subset of Pattern Recognition Receptors (30 genes).
 - Stored at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/=
 *** Mutter_02 (raw data received, 4 slides, 12 samples)
 Confirmed sample layout per Jenn Fazzari's 2026-04-09 reply ([[https://mail.google.com/mail/u/0/#all/19d202d7827d05ad][Gmail thread: MutterRobert_02_CosMmR - QC results]]). Each slide contains three samples: 0 Gy control, MBRT 2 days, SBRT 20 Gy 2 days. **All Mutter_02 samples are at the 2-day timepoint — no 4h data in this run.** Earlier tentative designs from Rob (Jan 30) and Jenn (Mar 2) are superseded.
 
 | Slide | Sample ID | Treatment         |
 |-------+-----------+-------------------|
-|     1 | 1         | 0 Gy              |
-|     1 | 34        | MBRT 2 days       |
-|     1 | 28        | SBRT 20 Gy 2 days |
-|     2 | 2         | 0 Gy              |
-|     2 | 35        | MBRT 2 days       |
-|     2 | 30        | SBRT 20 Gy 2 days |
-|     3 | 3         | 0 Gy              |
-|     3 | 19        | MBRT 2 days       |
-|     3 | 16        | SBRT 20 Gy 2 days |
-|     4 | 1         | 0 Gy              |
-|     4 | 20        | MBRT 2 days       |
-|     4 | 18        | SBRT 20 Gy 2 days |
+|     1 |         1 | 0 Gy              |
+|     1 |        34 | MBRT 2 days       |
+|     1 |        28 | SBRT 20 Gy 2 days |
+|     2 |         2 | 0 Gy              |
+|     2 |        35 | MBRT 2 days       |
+|     2 |        30 | SBRT 20 Gy 2 days |
+|     3 |         3 | 0 Gy              |
+|     3 |        19 | MBRT 2 days       |
+|     3 |        16 | SBRT 20 Gy 2 days |
+|     4 |         1 | 0 Gy              |
+|     4 |        20 | MBRT 2 days       |
+|     4 |        18 | SBRT 20 Gy 2 days |
 
 **No FOV-level map**: Jenn confirmed she has no FOV maps for this run. Sample boundaries on each slide must be inferred from Seurat object metadata (sample ID or tissue region annotations) or from spatial coordinates.
 
@@ -129,7 +174,10 @@ sourced-conda-envs:
 **** Sample lists
 *** Include statements
 * Biological model
+- Tumor types?
+
 * Data model
+[[file:data/metadata.xlsx]]
 ** make_data_model.R
 :PROPERTIES:
 :header-args:R: :tangle scripts/make_data_model.R :comments org
@@ -140,7 +188,7 @@ library(readxl)
 library(dplyr)
 
 # Assumes working directory is repo root (~/repos/spatial-rads/)
-metadata <- read_excel("metadata.xlsx")
+metadata <- read_excel("data/metadata.xlsx")
 
 metadata <- metadata |>
   mutate(
@@ -168,29 +216,55 @@ metadata <- metadata |>
 save(metadata, file = "data/data_model.rda")
 #+end_src
 
-** [[file:workflows/data.smk][Snakefile]]
-*** [[file:resources/data_smk.pdf][Rulegraph]]
-#+ATTR_ORG :width 600px
-file:resources/data_smk.png
-*** Preamble
-*** spatial-rads LINK to Load packages
-*** spatial-rads LINK to Load configuation
-*** spatial-rads LINK to variable naming
-*** Onstart
-*** Functions
-*** All rule
-*** On success
-*** Development
-*** Ideas
 * Methods
-** Layer 1 -- QC & Landscape
+** Animal model and radiation
+*** Mutter_01 flank series
+Balb/c mice received subcutaneous flank implants of 4T1 mouse mammary carcinoma. 4T1 is a triple-negative / claudin-low breast cancer line that co-expresses epithelial markers (Krt8, Krt18, Epcam, Cdh1) and mesenchymal markers (Vim, S100a4, S100a6) natively, so the baseline expression of mesenchymal genes in tumor cells is real 4T1 biology rather than contamination. Eight blocks, one tumor per treatment × timepoint cell (n=1). Treatments: Control 0 Gy (Block_3, S2); MBRT at 1h, 4h, 2d, 6d post-treatment (Blocks 12, 21, 36, 54 on S4 and S1); SBRT at 4h, 2d, 6d (Blocks 17, 29, 48 on S4 and S2). MBRT delivers dose as approximately 1 mm-spaced parallel minibeams, producing alternating high-dose peak stripes and low-dose valley gaps across the tumor. SBRT delivers uniform high-dose coverage. Block_21 (MBRT 4h) is the only block with ground-truth peak/valley annotation because it is the only flank block with gamma-H2AX chromogenic IHC on an adjacent serial section. The Block_21 stripe geometry is −25° from horizontal, 1.04 mm spacing, 0.27 mm beam half-width, fit empirically from manual peak-FOV centroids.
+
+*** Mutter_01 tongue series (secondary study)
+Three blocks on slide S3 at late timepoints. Tumor model not yet confirmed (open question for Yi and Rob): the cell composition is immune-dominated with 36% CD8 T cells, 13% fibroblastic reticular cells, 9% B and plasma cells, and only 7% epithelial "a" bucket — very different from the flank profile. Candidate tumor lines are orthotopic mouse oral carcinoma (MOC1, MOC2, or MEER). The immune-rich profile could reflect late-timepoint adaptive immune infiltration, intrinsic oral tumor microenvironment, or draining submandibular lymph node contamination. Blocks: MBRT day 8 (TNG-6082); MBRT day 10 (TNG-1271); SBRT day 10 (NTB5696). Differing animal-ID prefixes (TNG vs NTB) suggest separate cohorts. Not part of the current peak/valley analysis.
+
+*** Mutter_02 (in production)
+Designed per Rob Mutter's 2026-01-28 email: 4 CosMx slides × 3 sections each = approximately 12 tumors. Same 4T1 flank model as Mutter_01. Biological replicates at 2 animals per condition. Candidate designs under discussion include NT + MBRT + CRT at 4h and 48h across the 4 slides, or alternatively three slides concentrated at 4h (6 animals) plus one slide at 1h or 48h. Rob's abbreviation CRT is equivalent to SBRT (conventional uniform radiation). Han Evelyn (2025-12-20 email) additionally proposed including abscopal tumors in a future cohort to test systemic immune effects in distant non-irradiated tumors.
+
+*** Open radiation dose parameters
+Radiation dose specifics not yet confirmed in reviewed Gmail threads: MBRT peak dose in Gy, SBRT matched dose, MBRT valley-to-peak dose ratio, field geometry at the tumor, and fractionation scheme (likely single fraction from context but unconfirmed). These should be clarified with Rob Mutter before methods-section writing.
+
+** Single cell spatial transcriptomics
+*** Platform and gene panel
+Spatial transcriptomics was performed on the NanoString CosMx Spatial Molecular Imager (SMI) at the Mayo Clinic Spatial Biology Core (Jacksonville, FL). The probe panel combined the NanoString Mouse Universal Cell Characterization (UCC) panel of approximately 950 genes with 21 custom add-on targets: A2ml1, Adcy8, Akap5, Bcl6, Cd21, Cpne4, Dpyd, Eya4, Gstm1, Hopx, Mum1, Nrp1, Plau, Plaur, Porcn, Prkci, Scd1, Sdc1, Slc35f1, Xist, and p16. The custom add-on was originally designed by Dr. Alan Fields for an unrelated B-cell mouse experiment. Reagents were donated to the Mutter Lab and reused for this radiotherapy project. Cross-project reuse of the panel means a subset of add-on genes has limited prior relevance to radiation biology. The core Mouse UCC panel is immune and stromal cell biased, with known coverage gaps for radiation-specific pathway genes.
+
+*** Immunofluorescence and cell segmentation
+CosMx acquires immunofluorescence (IF) images on the same tissue section as the RNA probes and uses them for computational cell boundary detection. Mutter_02 used the standard four-marker NanoString Cell Segmentation Kit: DAPI (nuclear, anchors each cell), PanCK (epithelial and tumor cytoplasm), CD45 (immune cell cytoplasm), and CD298/B2M (pan-membrane, captures stromal and endothelial cells). Mutter_01 carried these four markers plus an additional channel labeled only "G" in the delivered metadata (Mean.G, Max.G). Per-cell Mean.G correlates with Mean.PanCK at Pearson r = 0.924 across all 1.43M cells, while correlation with the other three channels is near zero. The G channel therefore reports PanCK-channel green signal, most likely spectral bleed from the PanCK fluor or a redundant readout of the same stain. Dropping the channel in Mutter_02 is consistent with that interpretation.
+
+Gamma-H2AX was not imaged on CosMx. Mutter_01 gamma-H2AX data came from chromogenic IHC on an adjacent serial section, used only for independent validation of the beam peak and valley stripe geometry at 4 h. Mutter_02 gamma-H2AX staining is pending on adjacent sections held at Mayo.
+
+**** TODO Ask Yi what the Mean.G / Max.G channel was in Mutter_01
+Mean.G correlates with Mean.PanCK at r = 0.924 per cell (n = 1.43M) and near-zero with DAPI, CD45, CD298/B2M. Working hypothesis is PanCK spectral bleed into the green filter, but could also be a second epithelial-biased stain (e.g., E-cadherin, EpCAM) that Yi's pipeline did not label. Mutter_02 dropped the channel, so resolving this matters mainly for completeness of the Mutter_01 methods section and for confirming Mean.G can be ignored in downstream IF-based QC.
+
+**** TODO Register H2AX IHC to CosMx coordinate frame (deferred until scanner TIFF arrives)
+Current peak/valley labels come from manual Inkscape rotation of the cropped H2AX PNG onto the CosMx-native FOV grid. The FOV grid positions are correct (from =x_slide_mm= / =y_slide_mm= in CosMx metadata), but the H2AX rotation is eyeballed at ±3–5° precision. Page 5 of =Gamma H2AX + FOVs.pptx= has FOV numbers hand-transferred onto the H2AX image but with the same eyeball precision. Automated shape-matching registration failed on PPTX-resolution images due to FOV text labels confounding tumor silhouette segmentation. Proper fix requires either (a) the full-resolution H2AX scanner TIFF for pixel-level feature matching against the CosMx IF composite, or (b) manual landmark picking on both panels followed by affine transform fitting. Deferred until Mutter_02 data arrives with adjacent-section H2AX IHC — at which point formal registration becomes the standard per-slide pipeline step.
+
+*** FOV layout
+Fields of view (FOVs) are fixed ~510 × 510 µm imaging tiles. Mayo Spatial Biology Core staff placed FOV boxes manually in NanoString AtoMx over a pre-run tissue preview, and the instrument assigned sequential IDs continuing across all four slides in the run (Slide 4 covers FOVs 154 to 233). FOV placement is not a strict grid, and adjacent tiles frequently overlap. On Mutter_01 Block_21, 22 of 80 FOV pairs have center-to-center distance below 510 µm, and roughly 4% of cells physically sit inside two or three FOV boxes. The NanoString delivery pipeline deduplicates these by assigning each cell to a single FOV, approximately the FOV whose centroid is closest (95.8% agreement with a strict nearest-centroid rule). Cell IDs and coordinates are unique in the delivered data, so no cell is double-counted. Cells in overlap zones inherit whichever FOV's label the pipeline assigned, which matters only when two overlapping FOVs receive different peak or valley annotations.
+
+*** Experimental design
+Mutter_01 comprised 11 conditions sampled across four CosMx slides, with one biological replicate per condition. The flank tumor model contributed eight conditions: 0 Gy control, MBRT at 1 h, 4 h, 48 h, and 144 h, and SBRT 20 Gy at 4 h, 48 h, and 144 h. The tongue tumor model contributed three conditions sampled at 192 h and 240 h for MBRT, and 240 h for SBRT 20 Gy. MBRT delivered dose through approximately 1 mm-spaced parallel beams, producing alternating peak and valley dose zones on the tissue. SBRT 20 Gy delivered uniform dose. The 4 h timepoint was the anchor for spatial peak vs valley analyses because direct DNA damage signatures are maximal before cell death, migration, or infiltration redistribute the affected cells.
+
+Mutter_02 comprised 12 samples across four CosMx slides, with three biological replicates at a single timepoint. Each slide carried one 0 Gy control, one MBRT tumor at 48 h, and one SBRT 20 Gy tumor at 48 h. All Mutter_02 samples are flank tumors at the day 2 timepoint. No 4 h or late timepoints were collected in this run. Slide and FOV layout was confirmed by Jenn Fazzari on 2026-04-09.
+
+*** Data processing
+Secondary analysis through cell typing was performed by Yi Liu at the Mayo Spatial Biology Core. Raw transcript counts and per-cell metadata were delivered as parquet files for Mutter_01 and as Seurat RDS objects for Mutter_02. QC filters were applied to remove low-quality cells: qcFlagsCell set to "Pass", nCount_RNA greater than 20, nFeature_RNA greater than 10, and propNegative less than 0.5. Counts were log-normalized with a scale factor of 10,000. Cell types were assigned by insitutype against the ImmGen mouse reference atlas. Pathway activity scores for Type I interferon (19 genes), Type II interferon (17 genes), DNA damage repair (18 genes), and a custom STING score were precomputed and delivered as metadata columns on Mutter_01. Pathway scores for Mutter_02 are recomputed locally using the same NanoString Mouse UCC module definitions.
+
+** Bioinformatics
+*** Quality control
 :PROPERTIES:
 :header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
 :END:
 
 Process raw CosMx data into a clean, annotated Seurat object. Establish the cellular landscape across all 11 samples. ~1000-gene targeted panel, 1.4M raw cells across 4 slides.
 
-*** Data loading and QC
+**** Data loading and QC
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle dev/00_load_data.R
 :END:
@@ -280,7 +354,7 @@ cat("QC'd Seurat object saved.\n")
 
 971,818 cells retained post-QC (68% of 1.4M raw). Retention ranges from 44% (Tongue_MBRT_day8) to 84% (Control). All four pre-computed pathway score columns confirmed present in metadata.
 
-*** Normalization, clustering, and UMAP
+**** Normalization, clustering, and UMAP
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle dev/01_normalize_cluster.R
 :END:
@@ -329,7 +403,7 @@ cat("Clustered object saved.\n")
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/elbow_plot.pdf]]
 
-*** Cell type validation
+**** Cell type validation
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -411,7 +485,7 @@ cat("Relabeled a -> tumor_epithelial. Saved.\n")
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/a_population_markers.pdf]]
 
-*** Batch assessment and landscape plots
+**** Batch assessment and landscape plots
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -477,14 +551,14 @@ print(cell_counts)
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_celltype_flank.pdf]]
 
-** Layer 2 -- MBRT vs SBRT vs Control Comparative Kinetics
+*** Layer 2 -- MBRT vs SBRT vs Control Comparative Kinetics
 :PROPERTIES:
 :header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
 :END:
 
 Characterize how MBRT and SBRT differ in transcriptomic response over time across cell types. All comparisons are descriptive (n=1 per condition); effect sizes are the primary metric.
 
-*** Differential expression
+**** Differential expression
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle dev/02_deg_analysis.R
 :END:
@@ -572,7 +646,7 @@ cat("DEG analysis complete.\n")
 
 2,160 bulk DEG rows across all comparisons. Top MBRT vs SBRT findings: at 4h, MBRT upregulates myeloid recruitment genes (Ccl8 log2FC 1.59, Mrc1, Cd74, Arg1). At day 2, the myeloid signal amplifies (Ccl8 log2FC 2.43, Cd163 1.74) while SBRT upregulates Cxcl10 (-1.53, IFN-stimulated). At day 6, MBRT shows massive Igkc (log2FC 3.47, B/plasma cell signature) while SBRT has Nkg7 (-1.31, cytotoxic). Per-cell-type DEGs: 2,534 rows across 25 cell types.
 
-*** DEG visualization
+**** DEG visualization
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -621,7 +695,7 @@ cat("Volcano plots saved.\n")
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_ctrl.pdf]]
 
-*** Pathway score kinetics
+**** Pathway score kinetics
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -683,7 +757,7 @@ cat("Pathway kinetics saved.\n")
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/pathway_kinetics_all_cells.pdf]]
 
-*** Immune composition shifts
+**** Immune composition shifts
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -742,7 +816,7 @@ cat("Composition analysis saved.\n")
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/composition_trajectories.pdf]]
 
-*** Spatial neighborhood analysis
+**** Spatial neighborhood analysis
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -790,7 +864,7 @@ MBRT shows consistently higher immune neighbor fractions than SBRT at 4h across 
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_nn_immune_frac.pdf]]
 
-** Layer 3 -- Peak/Valley at 4h
+*** Layer 3 -- Peak/Valley at 4h
 Geometric classification of microbeam peaks vs valleys using H2AX IHC stripe pattern from [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]]. Per-cell H2AX IF intensity does not exist for Mutter_01 — the CosMx IF channels were used for segmentation markers (PanCK, CD298/B2M, CD45, DAPI), not H2AX. The PPTX images are separate chromogenic IHC on an adjacent section.
 
 Current best-fit stripe model (dev/03k_4peak_classify.R):
@@ -802,9 +876,9 @@ Current best-fit stripe model (dev/03k_4peak_classify.R):
 - Validation: peaks show higher Cdkn1a/p21 (0.632 vs 0.586)
 - Pending: final visual verification of =mbrt4h_4peak_zones_labels.pdf= against H2AX image
 
-** Layer 4 -- Signature Projection (BLOCKED)
+*** Layer 4 -- Signature Projection (BLOCKED)
 Virtual scientist plan created: =plan-mbrt-signatures.md=, =review-mbrt-signatures.md=, =run-mbrt-signatures.sh=. Session: =spatial-ucell-scoring-plan=. Key decisions: UCell (rank-based) as primary scoring method over AddModuleScore for targeted panel; cell-type-stratified signatures primary, bulk secondary; Moran's I for formal spatial autocorrelation. Blocked on FOV-to-condition mapping from Rob/Jenn for Mutter_02.
-** Microbeam Peak Valley Analysis                               :bioinfo_dev:
+*** Microbeam Peak Valley Analysis                              :bioinfo_dev:
 :PROPERTIES:
 :ID: 945d9096-1a17-4b99-acfd-058f606cbd24
 :header-args:jupyter-R: :session spatial-rads :kernel spatial-rads :async yes :dir ./dev/peak_valley_analysis
@@ -816,13 +890,25 @@ Virtual scientist plan created: =plan-mbrt-signatures.md=, =review-mbrt-signatur
 
 Consolidation of spatial-rads exploratory analysis into a single bioinfo-dev module workbook. Layers 1-2 condensed as infrastructure, Layer 3 stripe model with curated highlights, H2AX validation as critical gate, then new peak/valley DEG/pathway/composition/neighborhood/SBRT analyses. All comparisons are descriptive (n=1 per condition) using effect sizes rather than formal significance testing.
 
-*** Background
+**** Background
 
 Microbeam radiation therapy (MBRT) delivers radiation through an array of parallel, planar beams with sub-millimeter spacing. Unlike conventional spatially uniform (SBRT) irradiation, MBRT creates alternating high-dose peaks and low-dose valleys in tissue. This spatial fractionation pattern may differentially engage DNA damage repair, innate immune signaling, and bystander effects. The CosMx spatial transcriptomics panel (~1000 genes) captures single-cell resolution across 11 conditions spanning MBRT, SBRT, and untreated controls at multiple timepoints (1h, 4h, day 2, day 6) in both flank tumor and tongue normal tissue models.
 
 The central question of this workbook is whether MBRT peak zones (direct beam exposure) and valley zones (bystander) show distinct transcriptomic signatures at 4 hours post-irradiation, and how these compare to the uniform-dose SBRT response.
 
-*** Data
+***** Related work and first-in-field positioning
+
+A targeted literature search across Scopus and PubMed [2026-04-11] returned zero published studies applying spatial transcriptomics to any spatially-fractionated radiation therapy modality (MBRT, GRID, lattice, or SFRT). Full query strings, result counts, and API responses are captured in [[file:./docs/scopus_negative_result_2026-04-11.json][docs/scopus_negative_result_2026-04-11.json]]; the methodological framing for this gap lives at [[file:~/repos/biotools/biotools.org::*Spatial methods at the radiotherapy / tumor microenvironment interface][biotools.org: Spatial methods at the RT/TME interface]]. This project is accordingly first-in-field for MBRT peak/valley spatial transcriptomics.
+
+The closest published analogs all use uniform-dose exposure and can inform manuscript framing around RT-context spatial/single-cell transcriptomics, but none address a dose-gradient, peak/valley, or vertex dimension:
+
+- [cite:@oyoshi2023] — comprehensive single-cell analysis of radiotherapy-induced macrophage infiltration with immunosuppressive phenotype in esophageal squamous cell carcinoma. Tightest RT analog of the three: explicitly characterizes a radiotherapy-induced immune-cell response, though single-cell rather than spatial and restricted to a single tumor type at uniform dose.
+- [cite:@shiau2024] — spatially resolved analysis of therapy-associated tumor microenvironment remodeling in pancreatic cancer (Nat Genet). Brings the spatial dimension but "therapy" in PDAC typically bundles chemotherapy with chemoradiation; the paper does not isolate RT-specific effects and does not manipulate dose geometry.
+- [cite:@zhou2022pdac] — spatially restricted drivers and transitional cell populations cooperating with the TME in untreated vs chemo-resistant pancreatic cancer (Nat Genet). Establishes the spatially-resolved treatment-response framework but contrasts chemotherapy resistance rather than radiotherapy response; included as the foundational methods template for spatial analysis of therapy-associated TME shifts.
+
+None of these three establishes a precedent for the core peak/valley contrast this project addresses: within-slide comparison of sub-millimeter-spaced high-dose and low-dose zones at cellular resolution. The combined absence of (a) any spatially-fractionated RT spatial-omics study and (b) a dose-geometry-aware analysis framework means the methods used in this workbook are being developed de novo.
+
+**** Data
 
 | File                   | Description                                                         | Location              |
 |------------------------+---------------------------------------------------------------------+-----------------------|
@@ -831,7 +917,7 @@ The central question of this workbook is whether MBRT peak zones (direct beam ex
 | Gamma H2AX + FOVs.pptx | H2AX immunofluorescence images with FOV overlay                     | GCS inputs/           |
 | seurat_clustered.rds   | Pre-computed Seurat object (QC'd, normalized, clustered)            | GCS analysis/objects/ |
 
-*** Data Loading
+**** Data Loading
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/00_load_data.R
 :END:
@@ -923,7 +1009,7 @@ PATHWAY_LABELS <- c(
 cat(sprintf("Raw object ready: %d genes x %d cells\n", nrow(obj), ncol(obj)))
 #+end_src
 
-*** QC Filtering
+**** QC Filtering
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/01_qc_filter.R
 :END:
@@ -963,7 +1049,7 @@ cat("QC'd Seurat object saved.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/qc_violins.png]]
 
-*** Normalization and Clustering
+**** Normalization and Clustering
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/02_normalize_cluster.R
 :END:
@@ -1015,7 +1101,7 @@ cat("Clustered object saved.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/umap_landscape.png]]
 
-*** Cell Type Validation
+**** Cell Type Validation
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/03_cell_type_validation.R
 :END:
@@ -1103,7 +1189,7 @@ cat("Updated object saved with validated cell types.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/spatial_celltype_flank.png]]
 
-*** DEGs and Kinetics Overview
+**** DEGs and Kinetics Overview
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/04_deg_kinetics.R
 :END:
@@ -1244,7 +1330,7 @@ cat("Layer 2 condensed analysis complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/spatial_nn_immune_frac.png]]
 
-*** Stripe Detection
+**** Stripe Detection
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/05_stripe_detection.R
 :END:
@@ -1425,7 +1511,7 @@ cat("Stripe detection complete. Model saved to data/stripe_model.rds\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/stripe_4pathway_heatmaps.png]]
 
-*** H2AX Image Validation
+**** H2AX Image Validation
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/06_h2ax_validation.R
 :END:
@@ -1613,7 +1699,7 @@ cat("\nH2AX validation complete. Review plots/h2ax_zone_map_labeled.png\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/h2ax_intensity_vs_model.png]]
 
-*** Peak Valley Classification
+**** Peak Valley Classification
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/07_peak_valley_classify.R
 :END:
@@ -1697,7 +1783,7 @@ cat("Zone added to Seurat metadata and saved.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/peak_valley_zones.png]]
 
-*** Peak vs Valley DEGs
+**** Peak vs Valley DEGs
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/08_pv_degs.R
 :END:
@@ -1769,12 +1855,12 @@ cat("Peak vs valley DEG analysis complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pv_volcano_bulk.png]]
 
-*** Peak vs Valley Pathway Scores
+**** Peak vs Valley Pathway Scores
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/09_pv_pathways.R
 :END:
 
-Compare DDR, IFN-I, IFN-II, and STING pathway scores between peak and valley zones, both overall and stratified by cell type family. Key question: do valleys show elevated IFN/STING consistent with bystander immune priming? DDR (18 genes), Type I IFN (19 genes), and Type II IFN (17 genes) are standard NanoString Mouse UCC panel modules (see =config/CosMx-Mouse-Universal-Cell-Characterization-Gene-List-(1).XLSX=). STING is not a standard module; scored from available cGAS-STING genes (Irf3, Ifna, Isg15, Cxcl10).
+Compare DDR, IFN-I, IFN-II, and STING pathway scores between peak and valley zones, both overall and stratified by cell type family. Key question: do valleys show elevated IFN/STING consistent with bystander immune priming? DDR (18 genes), Type I IFN (19 genes), and Type II IFN (17 genes) are standard NanoString Mouse UCC panel modules (see =data/sources/2026-01-30-nanostring-mouse-ucc-gene-list.xlsx=). STING is not a standard module; scored from available cGAS-STING genes (Irf3, Ifna, Isg15, Cxcl10).
 
 #+begin_src jupyter-R
 if (!exists("PATHWAY_COLS")) source("00_load_data.R")
@@ -1841,7 +1927,7 @@ cat("Pathway comparison complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pv_pathway_by_celltype.png]]
 
-*** Peak vs Valley Composition
+**** Peak vs Valley Composition
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/10_pv_composition.R
 :END:
@@ -1900,7 +1986,7 @@ cat("Composition analysis complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pv_composition_diff.png]]
 
-*** Peak vs Valley Spatial Neighborhoods
+**** Peak vs Valley Spatial Neighborhoods
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/11_pv_spatial_neighborhoods.R
 :END:
@@ -1954,7 +2040,7 @@ cat("Spatial neighborhood analysis complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pv_spatial_nn.png]]
 
-*** SBRT Comparison
+**** SBRT Comparison
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/12_sbrt_comparison.R
 :END:
@@ -2046,11 +2132,11 @@ cat("SBRT comparison complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pv_sbrt_pathway_comparison.png]]
 
-*** Result Summary
+**** Result Summary
 
 This workbook consolidates 21 standalone R scripts into 13 modular analysis steps spanning data loading through SBRT comparison. Key findings pending script execution: (1) stripe model parameters (15-degree tilt, ~1.02mm spacing, 4 peaks) require H2AX image validation; (2) peak vs valley DEGs, pathway scores, composition, and spatial neighborhoods will characterize the distinct biology of direct-beam vs bystander zones; (3) SBRT comparison will establish whether MBRT valleys resemble uniform-dose irradiation or represent a transcriptomically distinct bystander state.
 
-*** Ideas                                                          :noexport:
+**** Ideas                                                         :noexport:
 
 - Layer 4: project peak/valley gene signatures onto other timepoints (MBRT_1h, MBRT_day2, MBRT_day6) to track signature evolution
 - Integrate Mutter_02 dataset when available for replication
@@ -2059,7 +2145,7 @@ This workbook consolidates 21 standalone R scripts into 13 modular analysis step
 - Spatial ligand-receptor interaction analysis (CellChat/NicheNet) between peak and valley zones
 - Machine learning classifier trained on peak/valley gene signatures for de novo zone prediction
 
-*** Limitations                                                    :noexport:
+**** Limitations                                                   :noexport:
 
 - n=1 per condition: all comparisons are exploratory and descriptive, using effect sizes rather than formal significance testing
 - Geometric stripe model assumes uniform beam spacing and parallel planar geometry; real beam profiles may have penumbra effects
@@ -2068,11 +2154,13 @@ This workbook consolidates 21 standalone R scripts into 13 modular analysis step
 - Peak/valley classification uses a hard threshold (spacing/4) rather than a continuous dose gradient model
 - CosMx panel (~1000 genes) may miss key pathway genes not represented in the targeted panel
 
-*** Method                                                         :noexport:
+**** Method                                                        :noexport:
 
 The stripe model classifies MBRT_4h cells into peak (direct beam) and valley (bystander) zones using a geometric approach. Cell positions are expressed in tilt-corrected coordinates: y_corr = y_slide_mm + x_slide_mm * tan(theta), where theta = 15 degrees is the optimal tilt angle determined by maximizing p21 (Cdkn1a) contrast between putative peak and valley zones across a parameter sweep (5-35 degrees, 2-degree steps). Beam spacing is determined by grid search over 0.8-1.3mm with a forced 4-peak constraint, optimizing for peak-valley p21 contrast. The best-fit model (spacing ~1.02mm, beam centers at corrected-y ~1.14, 2.16, 3.18, 4.20mm) is validated against gamma-H2AX immunofluorescence images extracted from the lab-provided PPTX. Cells are classified as peak if their tilt-corrected y-distance to the nearest beam center is less than spacing/4, and valley otherwise. Differential expression uses Seurat FindMarkers with effect-size ranking (no formal significance testing given n=1 per condition). Spatial neighborhoods use k=20 nearest neighbors via RANN.
 
 * Exploratory analysis
+- https://jef.works/blog/2024/08/29/the-many-ways-to-detect-svgs-using-moransI/
+
 ** Scientific notes
 - Kinetics are more interesting than marginal statistical gain at one timepoint
 - Spatial ecotype for microbeam
@@ -2670,6 +2758,7 @@ str(meta)
 - Table
 - Make figure
 * Reference
+- Alan Fields https://www.mayo.edu/research/faculty/fields-alan-p-ph-d/bio-00028181
 - tag:sci_repo
 - External examples
   - https://www.reddit.com/r/orgmode/comments/q7gkya/new_video_scimax_electronic_notebook_in_emacs/
