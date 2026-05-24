@@ -1,51 +1,25 @@
-# Created 2025-02-24 Mon 08:20
+/# Created 2025-02-24 Mon 08:20
 #+title: Mutter Spatial Radiation (CosMx)
 #+author: Jeffrey Szymanski
 
-- peak valley id
-  - near section gh2ax overlayed by FOV grid. mostly h2ax pos vs negative sets.
-  -
-● γ-H2AX is the phosphorylated form of histone H2AX at serine 139. It's phosphorylated by the DNA
-  damage kinases ATM, ATR, and DNA-PKcs within minutes of a DNA double-strand break (DSB). Each
-  nuclear focus corresponds to roughly one DSB, so γ-H2AX is the gold-standard immunohistochemical
-  marker for DSBs.
+to check on next open the repo data structure and locations and addition of other relevant metadata such as beam width the biological model Consolidate all the previous one-off analyses structuring for all subsequent analysis to run locally on Jeff Beast
 
-  Kinetics after irradiation:
+when analyzing, where is the tumor per section? should we subset?
 
-  - 15–30 min: γ-H2AX foci appear at break sites as the kinases phosphorylate H2AX for ~1–2 Mb of
-  chromatin flanking each DSB.
-  - 30 min–1 hour: peak foci density. This is the optimal window for quantifying dose delivered.
-  - 1–4 hours: foci gradually resolve as non-homologous end joining (NHEJ, dominant in G0/G1) and
-  homologous recombination (HR, S/G2 only) repair breaks. Repaired DSBs dephosphorylate H2AX.
-  - 24 hours: >90% of foci resolved in normally-repairing cells; residual foci mark unrepaired complex
-   lesions, heterochromatic breaks, or cells entering apoptosis.
-  - >24 hours: persistent foci = biomarker of genomic instability / failed repair.
+each fov is 510 x 510 um, about 6k cells- confirm and add to qc
 
-  Implications for MBRT peak/valley detection:
-
-  The IHC staining was done at 4h. That's past peak signal (by a factor of 2–3×) and into the repair
-  phase. Peaks are still visible (why you could label FOVs from it), but signal is dimmer than it
-  would be at 30 min. Valleys at 4h may also show some residual foci from low-dose exposure (~1 Gy in
-  valleys still produces measurable DSBs).
-
-  So the 4h H2AX image is a damped and repair-smeared snapshot of the dose distribution, not a crisp
-  dose map. This matters for two things:
-
-  1. Peak-valley contrast on the stain is lower at 4h than it would have been at 1h — your manual FOV
-  labels may carry some noise from this.
-  2. Transcriptional peak-valley contrast (what we're analyzing) lags H2AX by several hours, since
-  transcriptional programs take time to activate. 4h is actually reasonable for the transcriptional
-  response (DDR genes, p21, IFN response all peak 4–24h). But it's sub-optimal for dose readout via
-  H2AX.
-
-  This is a good argument for correcting peak/valley geometry computationally (stripe model) rather
-  than fully trusting the 4h H2AX intensity directly — which is what we've been doing.
-
-
-
+https://claude.ai/design/p/019dd94c-82cc-7402-afca-9a1c4e96427f?file=CosMx+Graphical+Abstract.html
+https://mail.google.com/mail/u/0/#inbox/FMfcgzQgLXpfTcszfkdQDwMWvMnTKVzg
+- [ ] fov subdivision
+- [ ] Ask for neg probes
+- Jenn will share H2AX FOV overlay soon, [2026-04-24 Fri] [[https://mail.google.com/mail/u/0/#inbox/FMfcgzQgLXpfTcszfkdQDwMWvMnTKVzg][gmail]]
+- Mutter02_Slide Powerpoint.pptx [[https://mail.google.com/mail/u/0/#inbox/FMfcgzQgLXpfTcttgrXLmkHtZJVpmxfl][gmail]]
 - [ ] h2ax scanner tiff
-
+- [ ] beam angle per slide?
 * Key results
+:PROPERTIES:
+:ID:       af3003a4-dc06-4a49-8edf-c6660829cf13
+:END:
 - [[file:dev/peak_valley_analysis/plots/morphology_nuc_kinetics.png][Nuclear area kinetics diverge: MBRT shrinks, SBRT swells]] — CosMx cell-segmentation morphology metrics across all flank timepoints. MBRT nuclei progressively shrink from baseline (3192→2568→2412 px median) while SBRT nuclei enlarge at day2 (3460 px) then partially recover (2968 px at day6), yielding 23% MBRT-vs-SBRT nuclear area divergence at day2. Cell area shows the expected SBRT day2 swelling (median 105 vs 82 µm² control) consistent with G2/M arrest-driven hypertrophy at 48h; MBRT cell area is modestly elevated but flat across timepoints. Peak/valley comparison at 4h shows no morphological difference (median 87.6 vs 87.3 µm²), consistent with Harada et al. (J Radiat Res 2025) finding no morphological stripe pattern until 12-16h in minibeam time-lapse imaging. Nuclear condensation in MBRT may reflect apoptosis/pyknosis predominating over arrest-driven swelling — a qualitatively different damage response than SBRT.
 - [[file:dev/if_channel_check/cdkn1a_kinetics_mean.png][p21 / Cdkn1a kinetics per cell class, MBRT vs SBRT]] — log-normalized mean Cdkn1a across 0 Gy control, MBRT (1h, 4h, 2d, 6d), and SBRT (4h, 2d, 6d) in six radiobiology-defined cell classes (tumor, macrophages, monocytes/DC, T cells, B cells, stroma). MBRT peak and valley subsets at 4h overlaid as star and cross. Myeloid cells show the largest MBRT-vs-SBRT and peak-vs-valley separation; tumor cells show minimal peak/valley p21 difference despite strong bulk induction.
 - [[file:dev/if_channel_check/block21_extrapolated_pv.png][Cell-level peak/valley label extrapolation, Block_21 (MBRT 4h)]] — stripe geometry fit empirically from manual peak FOV centroids: −25° angle from horizontal, 1.046 mm spacing, 0.27 mm beam half-width. Cells labeled by perpendicular distance to nearest peak centerline. 87.5% concordance with manual FOV labels on the labeled subset. Yields 3765 peak + 4235 valley cells across the full tumor, ~5× more than manual FOV labeling. Framework transferable to Mutter_02.
@@ -88,6 +62,9 @@ Gamma-H2AX staining in PPTX ([[file:/mnt/gcs/jeszyman/projects/spatial-rads/inpu
   - Metadata columns 90-93 are signaling pathway scores (TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair). Type I IFN (19 genes), Type II IFN (17 genes), and DDR (18 genes) are NanoString standard Mouse UCC panel modules — gene lists in [[file:data/sources/2026-01-30-nanostring-mouse-ucc-gene-list.xlsx][gene list XLSX]], Annotations sheet. STING is not a standard NanoString module; Yi may have defined it custom or from a subset of Pattern Recognition Receptors (30 genes).
 - Stored at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/=
 *** Mutter_02 (raw data received, 4 slides, 12 samples)
+:PROPERTIES:
+:ID:       908fd83a-16ee-4ca5-9e2f-074d015b652d
+:END:
 Confirmed sample layout per Jenn Fazzari's 2026-04-09 reply ([[https://mail.google.com/mail/u/0/#all/19d202d7827d05ad][Gmail thread: MutterRobert_02_CosMmR - QC results]]). Each slide contains three samples: 0 Gy control, MBRT 2 days, SBRT 20 Gy 2 days. **All Mutter_02 samples are at the 2-day timepoint — no 4h data in this run.** Earlier tentative designs from Rob (Jan 30) and Jenn (Mar 2) are superseded.
 
 | Slide | Sample ID | Treatment         |
@@ -109,6 +86,8 @@ Confirmed sample layout per Jenn Fazzari's 2026-04-09 reply ([[https://mail.goog
 
 **H2AX IHC in process for Mutter_02**: no yH2AX included in this run, but adjacent tissue sections were cut during original sample prep. Jenn received them back from Florida on 2026-04-09 and is arranging staining at Mayo. Will enable stripe model validation on Mutter_02 once complete.
 
+**Alternative staining for later timepoints (2026-04-28)**: H2AX foci resolve by ~24-48h post-irradiation, so H2AX IHC on later timepoint blocks (day 2/6/8/10) would not show stripe geometry. If unstained adjacent sections exist for these blocks, alternative stains could provide ground truth: H&E (architectural damage), Ki67 (proliferation — expect higher in valleys per Hmgb2 finding), TUNEL or cleaved caspase-3 (cumulative apoptosis in peaks). Worth asking Jenn/Rob whether sections are available. For Mutter_02 at 48h, H2AX may still show residual signal — borderline timing.
+
 Raw Seurat objects staged at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mutter02/= (copied from Box 2026-04-10): =seuratObject_01..04_Mutter_02_CosMmR.RDS= (1.0 GB total, ~2.8M cells across 1586 FOVs).
 *** Data transfer
 - Transfer mechanism: Yi uploaded via Mayo Media Shuttle (mc-ondemand-securefiletransfer.mediashuttle.com), which emails download links to recipients. GCS bucket access (=chaudhuri-lab-share-bucket1/po1-spatial=) was attempted but Yi got permission denied — never resolved. Faridi Qaium (Qaium.Faridi@mayo.edu) manages GCS bucket IAM.
@@ -119,9 +98,150 @@ Raw Seurat objects staged at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mut
 
 ** Prerequisites and setup
 ** Change log
+:PROPERTIES:
+:ID:       2dc86037-02c7-4b51-b806-43dcc1bc1e9f
+:END:
 - [2026-03-11 Tue] Layer 3 peak/valley stripe detection: established 15-deg tilted stripe model with 1.02mm spacing and 4 peaks from H2AX image geometry. Transcript-based p21 validates peak > valley. Pending visual confirmation of zone overlay.
 - [2026-03-11 Tue] Layers 1-2 complete and committed: QC (971K cells), clustering (9 clusters), cell type validation, DEGs (2160 bulk + 2534 per-cell-type), pathway kinetics, composition, spatial NN analysis.
 - [2026-03-11 Tue] Initial project setup: data model, experimental design metadata, exploratory analysis migration from career.org.
+* Project Map
+:PROPERTIES:
+:ID:       8a364857-4350-4c1a-9cc9-7a1614dca51d
+:END:
+
+Forward-looking dashboard for this project. Convention defined under [[id:f9628d19-7816-45ba-aef4-a9ab766aaf3f][sci_proj_repo Project Map]]. Headline findings and named outputs live in [[id:af3003a4-dc06-4a49-8edf-c6660829cf13][Key results]]; past dated progress lives in [[id:2dc86037-02c7-4b51-b806-43dcc1bc1e9f][Change log]].
+
+** Visualization
+
+#+begin_src dot :file project-map.svg :results file :exports results
+digraph spatial_rads {
+  rankdir=TB;
+  ranksep=0.22;
+  fontname = "Helvetica";
+  node [shape=box, style=filled, fillcolor=white, fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9];
+
+  // --- PROJECT FOUNDATION ---
+  bio_model     [label="Biological model\n4T1 flank · MBRT vs SBRT\ntimepoints 1h/4h/d2/d6", shape=box, style=filled, fillcolor="#e8f0ff"];
+  data_model    [label="Data model\nmetadata.xlsx · data_model.rda", shape=box, style=filled, fillcolor="#e8f0ff"];
+
+  // --- INPUTS ---
+  mutter01      [label="Mutter_01\n971K cells\n11 conditions", shape=cylinder, style=filled, fillcolor=lightgray];
+  mutter02_raw  [label="Mutter_02\n3 conditions × 3 reps × 4 slides\nday-2 only", shape=cylinder, style=filled, fillcolor=lightgray];
+  h2ax_ihc      [label="H2AX IHC (Block_21)\nanchors peak/valley to a\nsingle 4h block", shape=cylinder, style=filled, fillcolor=lightgray];
+
+  // --- LEFT STREAM: cross-timepoint MBRT vs SBRT (primary), all [dev] = rounded ---
+  kinetics_m01  [label="MBRT vs SBRT comprehensive on Mutter_01\nDEGs · pathways · composition · spatial NN ·\ncell death · necrosis\n(5 findings landed; iteration continues)", shape=box, style="filled,rounded,bold", fillcolor=white];
+  morphology    [label="Cell morphology kinetics\n(nuclear & cell area, cross-timepoint)", shape=box, style="filled,rounded,bold", fillcolor=white];
+  m02_full      [label="Full Mutter_02 MBRT vs SBRT\nstatistical inference with biological replicates\n(gated on Yi insitutype labels)", shape=box, style="rounded,dashed,bold"];
+
+  // --- RIGHT STREAM: peak/valley (focused, 4h-bound), all [dev] = rounded ---
+  tumor_sig     [label="Tumor peak/valley signature\n(rotation-null validated;\nper-gene gradients)", shape=box, style="filled,rounded,bold", fillcolor=white];
+  sig_project   [label="Peak/valley signature projection\nMutter_01 → Mutter_02\n(still 4h-bound)", shape=box, style="rounded,dashed"];
+
+  // --- DELIVERABLE ---
+  paper         [label="First-in-field MBRT vs SBRT spatial paper", shape=ellipse, style="filled,bold", fillcolor="#fff3b0"];
+
+  // Foundation feeds inputs (light gray, no arrowhead — context, not flow)
+  bio_model  -> mutter01     [style=dashed, color=gray60, arrowhead=none];
+  bio_model  -> mutter02_raw [style=dashed, color=gray60, arrowhead=none];
+  data_model -> mutter01     [style=dashed, color=gray60, arrowhead=none];
+  data_model -> mutter02_raw [style=dashed, color=gray60, arrowhead=none];
+
+  // Analysis flow
+  mutter01 -> kinetics_m01 -> morphology;
+  kinetics_m01 -> m02_full [style=dashed, label="extends to"];
+  mutter02_raw -> m02_full;
+  mutter01 -> tumor_sig;
+  h2ax_ihc -> tumor_sig;
+  tumor_sig -> sig_project [style=dashed];
+  mutter02_raw -> sig_project [style=dashed];
+  morphology -> paper;
+  m02_full -> paper [style=dashed];
+  tumor_sig -> paper;
+  sig_project -> paper [style=dashed];
+
+  {rank=same; bio_model data_model}
+  {rank=same; mutter01 mutter02_raw h2ax_ihc}
+  {rank=same; kinetics_m01 tumor_sig}
+  {rank=same; morphology sig_project}
+
+  // --- Visual legend (single row at bottom, all 3 dimensions side-by-side) ---
+  // Maturity exemplars (shape)
+  lg_m_dev [label="[dev]",     shape=box,    style="rounded,filled", fillcolor=white, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
+  lg_m_tan [label="[tangled]", shape=box,    style=filled,            fillcolor=white, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
+  lg_m_smk [label="[smk]",     shape=box3d,  style=filled,            fillcolor=white, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
+  lg_m_frz [label="[frozen]",  shape=folder, style=filled,            fillcolor=white, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
+  // State exemplars (border)
+  lg_s_done [label="done",        shape=box, style=filled,        fillcolor=lightgray, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
+  lg_s_prog [label="in-progress", shape=box, style="filled,bold", fillcolor=white,     fontsize=7, width=0.55, height=0.18, margin="0.02,0.01"];
+  lg_s_next [label="next",        shape=box, style="dashed,bold", fillcolor=white,     fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
+  // Role exemplars (fill)
+  lg_r_input [label="input/done",  shape=box,    style=filled,         fillcolor=lightgray, fontsize=7, width=0.55, height=0.18, margin="0.02,0.01"];
+  lg_r_act   [label="active",      shape=box,    style="filled,bold",  fillcolor=white,     fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
+  lg_r_found [label="foundation",  shape=box,    style=filled,         fillcolor="#e8f0ff", fontsize=7, width=0.55, height=0.18, margin="0.02,0.01"];
+  lg_r_del   [label="deliverable", shape=ellipse,style="filled,bold",  fillcolor="#fff3b0", fontsize=7, width=0.6,  height=0.22, margin="0.02,0.01"];
+  // Group separators
+  lg_sep1 [label="|", shape=plaintext, fontsize=14, fontcolor=gray70];
+  lg_sep2 [label="|", shape=plaintext, fontsize=14, fontcolor=gray70];
+
+  // Single row at bottom — all 11 exemplars + 2 separators in one rank
+  {rank=sink; lg_m_dev lg_m_tan lg_m_smk lg_m_frz lg_sep1 lg_s_done lg_s_prog lg_s_next lg_sep2 lg_r_input lg_r_act lg_r_found lg_r_del}
+
+  // Anchor below paper, enforce left-to-right order with invisible chain
+  bio_model -> lg_m_dev [style=invis];  // anchor legend to LEFT, not under center paper
+  lg_m_dev -> lg_m_tan -> lg_m_smk -> lg_m_frz -> lg_sep1 -> lg_s_done -> lg_s_prog -> lg_s_next -> lg_sep2 -> lg_r_input -> lg_r_act -> lg_r_found -> lg_r_del [style=invis, minlen=0];
+}
+#+end_src
+
+** Current focus
+
+Cross-timepoint MBRT vs SBRT is the primary thread (broader, transferable, where the energy is going next). On Mutter_01 it's comprehensive; the next push is to extend it to the full Mutter_02 cohort once Yi's insitutype cell typing lands, giving us proper replicates and statistical inference. Cell morphology kinetics is the active fresh angle. Peak/valley is a focused side branch — interesting MBRT-specific tumor signature but bounded to 4h because H2AX ground truth exists only for Block_21.
+
+*Maturity*: all analyses are currently =[dev]= — exploratory =dev/= scripts. No =[tangled]= or =[smk]= production wrappers yet; per CLAUDE.md, Snakemake is deferred until analyses stabilize and Mutter_02 replicates arrive. The maturity ladder is =[dev]= → =[tangled]= (org→scripts/) → =[smk]= (Snakemake-orchestrated) → =[frozen]= (deliverable snapshotted, git-tagged).
+
+** Project foundation
+
+- [[id:ba78a9a7-f35f-478e-b47d-44e60ef306b2][Biological model]] — 4T1 flank tumor model, MBRT (microbeam) vs SBRT (uniform), timepoints 1h / 4h / d2 / d6, peak/valley anatomy from H2AX IHC ground truth on Block_21
+- [[id:5ece068f-b135-4897-9892-834aaa321d8b][Data model]] — =metadata.xlsx= as single source of truth, preprocessed into =data/data_model.rda= via =make_data_model.R=; subjects / samples / sequencing schema
+
+** Branches
+
+*** Cross-timepoint MBRT vs SBRT (primary thread)
+
+- =[dev]= [[id:49023d4a-a8ef-489d-811c-e0d902927cc3][Comprehensive MBRT vs SBRT on Mutter_01 (4T1 flank, all timepoints)]] — *goal*: full MBRT vs SBRT comparison — DEGs, pathways, composition, spatial NN, cell death, necrosis — across 1h/4h/d2/d6 · *deps*: Mutter_01 flank-only filtered, 4T1 purity filter applied · *status*: IN PROGRESS · *blockers*: none
+- =[dev]= *Cell morphology kinetics* (no dedicated heading yet) — *goal*: morphological readouts MBRT vs SBRT across all flank timepoints (nuclear & cell area) · *status*: IN PROGRESS (added 2026-04-23) · *blockers*: none
+- =[dev]= [[id:908fd83a-16ee-4ca5-9e2f-074d015b652d][Mutter_02 cell typing + normalization]] — *goal*: insitutype cell-type labels + LogNormalize on Mutter_02 · *deps*: Yi Liu's insitutype run · *status*: pending Yi; marker-based fallback in use · *blockers*: Yi's pipeline output
+- =[dev → planned]= *Full Mutter_02 MBRT vs SBRT comparison* — *goal*: rerun the comprehensive comparison on Mutter_02 with insitutype labels and proper biological replicates (3 per condition); enables statistical inference · *deps*: Mutter_02 cell typing above · *status*: NEXT · *blockers*: Mutter_02 cell typing
+
+*** Peak/valley (focused side branch, 4h-bound)
+
+- =[dev]= [[id:def10c5f-06d2-4313-850b-e37e55933b6a][Peak/valley classification at 4h]] — *goal*: stripe-geometry classification on the one MBRT 4h block with H2AX ground truth (Block_21) · *deps*: H2AX IHC Block_21 only · *status*: DONE · *limit*: cannot transfer across timepoints without additional H2AX-anchored blocks
+- =[dev]= [[id:945d9096-1a17-4b99-acfd-058f606cbd24][Tumor peak/valley signature with architecture-controlled validation]] — *goal*: MBRT-specific tumor signature controlled for tumor architecture via within-block rotation null · *deps*: peak/valley stripe model above · *status*: IN PROGRESS · *limit*: 4h, Block_21 only
+- =[dev → planned]= [[id:d6be2ccf-1371-4fac-baf0-89e2c983a9e6][Peak/valley signature projection Mutter_01 → Mutter_02]] — *goal*: project the signature into Mutter_02 for persistence + validation · *deps*: Mutter_02 cell typing · *status*: orchestrator + plan + reviewer scaffolded for autonomous VM run; UCell scoring chosen · *blockers*: Mutter_02 cell typing · *limit*: still bounded by ground-truth-at-4h-only; tests persistence, not whether peak/valley structure exists at other timepoints
+
+*** Past
+
+- QC + landscape (DONE 2026-03-11): 971K cells post-QC, 9 clusters, cell type validation
+- MBRT vs SBRT kinetics, condensed (DONE 2026-03-11, superseded by comprehensive version above): 2160 bulk DEGs, 2534 per-cell-type DEGs, pathway kinetics, composition, spatial NN
+- Mutter_02 FOV-to-condition mapping (RESOLVED 2026-04-09 per Jenn Fazzari): 0 Gy / MBRT 2d / SBRT 20 Gy 2d per slide; all samples at 2-day timepoint
+- VM autonomous-run hardening (2026-04-10): jsonl observability for headless =claude -p=, max-budget-usd guard, launcher conda init, PROJECT_DIR_ESC escape fix
+
+** Open decisions
+
+- *Radiation dose parameters*: MBRT peak dose in Gy, SBRT matched dose, valley-to-peak ratio, fractionation. Not yet confirmed in reviewed Gmail threads. Needs clarification with Rob Mutter before methods-section writing.
+- *Tongue series for v1 paper*: Mutter_01 tongue series (TNG-/NTB- blocks, S3) currently excluded from peak/valley analysis; immune-dominated composition, tumor model not yet confirmed. Decision deferred until Rob/Yi confirm cell-line identity.
+- *Han Evelyn abscopal cohort*: 2025-12-20 proposal to add abscopal tumors in a future cohort. Out of scope for v1; flag for v2.
+
+** Recent progress
+
+See [[id:2dc86037-02c7-4b51-b806-43dcc1bc1e9f][Change log]] for full detail (Change log is currently sparse; recent activity is better tracked via =git log= until the project-map skill backfills entries). Headline items, past 6 weeks:
+- Cell morphology kinetics analysis: MBRT nuclei shrink, SBRT nuclei swell at day2 (23% divergence); peak/valley shows no morphological difference at 4h (consistent with Harada et al. 2025)
+- Tumor peak/valley signature validated with within-block rotation null: 37 of 670 genes survive empirical p<0.05 + |delta|>2*null sd; MHC class I + IFN-response + damage/stress dominant
+- Cell-level peak/valley label extrapolation from manual FOVs: stripe geometry -25 deg, 1.046 mm spacing, 87.5% concordance; framework transferable to Mutter_02
+- Mutter_02 day2 concordance: tumor depletion replicates exactly (delta -0.082 vs -0.091); myeloid rho 0.44 cross-dataset
+- VM autonomous-run hardening for signature projection (jsonl observability, budget guard)
+
 * Project Administration
 ** Configuration
 *** Yaml
@@ -174,9 +294,27 @@ sourced-conda-envs:
 **** Sample lists
 *** Include statements
 * Biological model
+:PROPERTIES:
+:ID:       ba78a9a7-f35f-478e-b47d-44e60ef306b2
+:END:
 - Tumor types?
+- γ-H2AX
+  - gold-standard immunohistochemical
+  - phosphorylated form of histone H2AX at serine 139
+  - phosphorylated by the DNA damage kinases ATM, ATR, and DNA-PKcs within minutes of a DNA double-strand break (DSB) for ~1–2 Mb of chromatin flanking each DSB.
+  - Each nuclear focus corresponds to roughly one DSB
+  - Kinetics after irradiation:
+    - 15–30 min: γ-H2AX foci appear at break sites
+    - 30 min–1 hour: peak foci density. This is the optimal window for quantifying dose delivered.
+    - 1–4 hours: foci gradually resolve as non-homologous end joining (NHEJ, dominant in G0/G1) and homologous recombination (HR, S/G2 only) repair breaks. Repaired DSBs dephosphorylate H2AX.
+    - 24 hours: >90% of foci resolved in normally-repairing cells; residual foci mark unrepaired complex lesions, heterochromatic breaks, or cells entering apoptosis.
+  - >24 hours: persistent foci = biomarker of genomic instability / failed repair.
+
 
 * Data model
+:PROPERTIES:
+:ID:       5ece068f-b135-4897-9892-834aaa321d8b
+:END:
 [[file:data/metadata.xlsx]]
 ** make_data_model.R
 :PROPERTIES:
@@ -248,21 +386,45 @@ Current peak/valley labels come from manual Inkscape rotation of the cropped H2A
 *** FOV layout
 Fields of view (FOVs) are fixed ~510 × 510 µm imaging tiles. Mayo Spatial Biology Core staff placed FOV boxes manually in NanoString AtoMx over a pre-run tissue preview, and the instrument assigned sequential IDs continuing across all four slides in the run (Slide 4 covers FOVs 154 to 233). FOV placement is not a strict grid, and adjacent tiles frequently overlap. On Mutter_01 Block_21, 22 of 80 FOV pairs have center-to-center distance below 510 µm, and roughly 4% of cells physically sit inside two or three FOV boxes. The NanoString delivery pipeline deduplicates these by assigning each cell to a single FOV, approximately the FOV whose centroid is closest (95.8% agreement with a strict nearest-centroid rule). Cell IDs and coordinates are unique in the delivered data, so no cell is double-counted. Cells in overlap zones inherit whichever FOV's label the pipeline assigned, which matters only when two overlapping FOVs receive different peak or valley annotations.
 
+The FOV manual placement and 545×545 µm tile constraint that drives the overlap pattern documented above is a known CosMx platform property — Ozirmak Lermi et al. report that on a human TMA project, the same constraint (max 47 FOVs per slide there) precluded whole-tissue-core analysis on CosMx, while MERFISH and Xenium covered whole tissue area; FOV selection requires operator-driven placement at the time of the experimental run [cite:@ozirmaklermi2025].
+
 *** Experimental design
 Mutter_01 comprised 11 conditions sampled across four CosMx slides, with one biological replicate per condition. The flank tumor model contributed eight conditions: 0 Gy control, MBRT at 1 h, 4 h, 48 h, and 144 h, and SBRT 20 Gy at 4 h, 48 h, and 144 h. The tongue tumor model contributed three conditions sampled at 192 h and 240 h for MBRT, and 240 h for SBRT 20 Gy. MBRT delivered dose through approximately 1 mm-spaced parallel beams, producing alternating peak and valley dose zones on the tissue. SBRT 20 Gy delivered uniform dose. The 4 h timepoint was the anchor for spatial peak vs valley analyses because direct DNA damage signatures are maximal before cell death, migration, or infiltration redistribute the affected cells.
 
 Mutter_02 comprised 12 samples across four CosMx slides, with three biological replicates at a single timepoint. Each slide carried one 0 Gy control, one MBRT tumor at 48 h, and one SBRT 20 Gy tumor at 48 h. All Mutter_02 samples are flank tumors at the day 2 timepoint. No 4 h or late timepoints were collected in this run. Slide and FOV layout was confirmed by Jenn Fazzari on 2026-04-09.
 
 *** Data processing
-Secondary analysis through cell typing was performed by Yi Liu at the Mayo Spatial Biology Core. Raw transcript counts and per-cell metadata were delivered as parquet files for Mutter_01 and as Seurat RDS objects for Mutter_02. QC filters were applied to remove low-quality cells: qcFlagsCell set to "Pass", nCount_RNA greater than 20, nFeature_RNA greater than 10, and propNegative less than 0.5. Counts were log-normalized with a scale factor of 10,000. Cell types were assigned by insitutype against the ImmGen mouse reference atlas. Pathway activity scores for Type I interferon (19 genes), Type II interferon (17 genes), DNA damage repair (18 genes), and a custom STING score were precomputed and delivered as metadata columns on Mutter_01. Pathway scores for Mutter_02 are recomputed locally using the same NanoString Mouse UCC module definitions.
+CosMx instrument does cell segmentation (Cellpose)
+
+Secondary analysis through cell typing was performed by Yi Liu at the Mayo Spatial Biology Core for Mutter_01. Raw transcript counts and per-cell metadata were delivered as parquet files for Mutter_01 and as raw Seurat RDS objects for Mutter_02 (no secondary analysis from Yi on set 2). QC filters were applied to remove low-quality cells: qcFlagsCell set to "Pass", nCount_RNA greater than 20, nFeature_RNA greater than 10, and propNegative less than 0.5. Counts were log-normalized with a scale factor of 10,000. Cell types were assigned by insitutype against the ImmGen mouse reference atlas. Pathway activity scores for Type I interferon (19 genes), Type II interferon (17 genes), DNA damage repair (18 genes), and a custom STING score were precomputed and delivered as metadata columns on Mutter_01. Pathway scores for Mutter_02 are recomputed locally using the same NanoString Mouse UCC module definitions. Mutter_02 sample-to-cell assignment was resolved by k-means clustering on y_slide_mm (k=3 per slide), with top=Control, middle=MBRT, bottom=SBRT verified against CosMx Control Center FOV maps (Mutter02_Slide Powerpoint.pptx). 2.35M cells post-QC across 4 slides.
+
+A cross-platform FFPE benchmark of CosMx, MERFISH, and Xenium documented that CosMx human panels can carry target gene probes that express at negative-control levels — including canonical immune markers like CD3D, FOXP3, MS4A1 (8-31.9% of panel depending on TMA). For the Mouse UCC panel used here, an analogous probe-vs-negative-control QC should be run before relying on InsituType cell typing, since failed probes for lineage markers will collapse cell types into "unknown" clusters [cite:@ozirmaklermi2025].
 
 ** Bioinformatics
+
+*** Yi Mutter_01
+- QC filtering to flag and remove bad cells
+- Sample and condition labeling
+- log-norm (could consider SCTransform alternative)
+- Cell type annotation via insitutupe (NanoString's tool, uses pre-built reference profiles for their panels) with ImmGen reference atlas
+- Pathway scoring
 *** Quality control
 :PROPERTIES:
 :header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
 :END:
 
+
 Process raw CosMx data into a clean, annotated Seurat object. Establish the cellular landscape across all 11 samples. ~1000-gene targeted panel, 1.4M raw cells across 4 slides.
+
+
+- Cell-level QC-  nCount_RNA, nFeature_RNA, propNegative, and instrument flags. Thresholds vary by study; yours (nCount > 20, nFeature > 10, propNeg < 0.5) are reasonable defaults.
+**** TODO Run probe-vs-negative-control QC on Mouse UCC panel
+:PROPERTIES:
+:ID:       3aee569f-4833-4808-9fcb-eadc1dc9ff27
+:END:
+- Probe-level QC [cite:@ozirmaklermi2025] failed lineage marker probes can collapse cell types into "unknown"
+
+Compute mean per-cell expression of every target gene in the Mouse UCC panel relative to the panel's negative control probes (Mutter_01 and Mutter_02). Flag any target probe whose distribution is at or below the negative-control distribution. Cross-reference flagged probes against the InsituType ImmGen reference markers — failed probes for lineage markers (analogous to the CD3D/FOXP3/MS4A1 failures Ozirmak Lermi et al. document for human CosMx panels) will collapse those cell types into "unknown" clusters and bias downstream peak/valley analysis. Implement as a jupyter-R block under =*** Quality control= and re-run cell typing with flagged probes excluded if any are found. Motivation: [cite:@ozirmaklermi2025].
 
 **** Data loading and QC
 :PROPERTIES:
@@ -864,7 +1026,263 @@ MBRT shows consistently higher immune neighbor fractions than SBRT at 4h across 
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_nn_immune_frac.pdf]]
 
+*** Layer 2 Extended -- Comprehensive MBRT vs SBRT (4T1 flank)
+:PROPERTIES:
+:ID:       49023d4a-a8ef-489d-811c-e0d902927cc3
+:CUSTOM_ID: layer2-extended-mbrt-vs-sbrt
+:header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev/mbrt_vs_sbrt
+:END:
+
+Comprehensive MBRT vs SBRT comparison applied to all four Mutter_01 timepoints (1h, 4h, day2, day6), restricted to 4T1 flank tumors. Extends the condensed Layer 2 kinetics with per-cell-type DEGs at every timepoint, expanded pathway scoring (Hallmark + SenMayo + curated antigen-presentation + DAMP), composition trajectories, cell-type-stratified spatial neighborhoods over time, cell death and senescence kinetics, and a first-class necrosis quantification block addressing the central MBRT-vs-SBRT therapeutic-ratio question.
+
+Statistical posture: descriptive only (n=1 per condition × timepoint in Mutter_01). Effect sizes (log2FC, score deltas, ΔProp) are primary; p-values reported for ranking. Mutter_02 day2 (3 reps × 3 conditions × 4 slides) is used as a concordance validation panel via rank correlation against Mutter_01 day2 effects.
+
+**** Headline findings
+
+1. *MBRT engages adaptive-immunity signaling earlier than SBRT.* At 4h, MBRT tumor cells already express antigen presentation (Cd74, B2m), Type II IFN response, and IL-15/IL-24. SBRT tumor cells at 4h show pure stress/scar response (Spp1, Clu, Col18a1).
+2. *MBRT recruits more myeloid + skews toward M2c-like / wound-healing phenotype.* MBRT day2 myeloid 0.42 vs SBRT 0.31 (ΔProp +0.105); 2.3x more total myeloid cells than SBRT. Cross-dataset DEG concordance rho = 0.44 (best of all cell types). MBRT-up: Cd163 +2.51 log2FC, Mrc1/CD206 +2.12, Pf4 +2.44, Ccl8 +2.50, Il4ra +1.50, Arg1 +0.74. M2/M1 polarization ratio: MBRT day2 1.11 vs SBRT day2 1.00 — modest M2 skew. Pattern: Mrc1+Cd163+Arg1+Il4ra (debris-clearing / wound-healing arm) elevated; Vegfa, Ccl22, Mmp9, Tgfb1 (angiogenic/Treg-recruiting/pro-invasive arm) NOT elevated. Consistent with acute phagocytic response to spatially-fragmented damage rather than chronic immunosuppressive TAM phenotype.
+3. *MBRT day6 B cells become class-switched plasma cells.* Ighg1 +4.40 log2FC, Igkc +3.30, Mzb1, Jchain, Ighm, Xbp1. SBRT lacks this signature. Spatial corollary: niche N3 (B-cell-dominant) emerges in MBRT day6 only (+0.143 frequency vs SBRT 0.000).
+4. *SBRT front-loads tumor cell killing; MBRT spreads it across days.* Tumor-only necrosis fraction (proxy: tumor cells in sparse-density regions, Control-calibrated): day2 SBRT 2.11% vs MBRT 0.81% (SBRT 2.6x). Day 6 MBRT 6.10% vs SBRT 3.40% (MBRT 1.8x). The relationship reverses by day 6 — MBRT's tumor killing is delayed, not lesser. Consistent with peak/valley dynamics: acute peak doses spare more tumor short-term, but valley DDR + immune recruitment produce ongoing killing through late timepoints.
+5. *Data-driven spatial niches confirm cell-type story at architecture level.* Six niches; key shifts: N1 (tumor-rich) at 4h MBRT −0.218; N4 (myeloid-dominant) at day2 MBRT +0.280; N3 (B-cell-dominant) at day6 MBRT +0.143.
+
+*Retracted finding (kept for transparency):* Initial analysis of "MBRT triggers earlier spatial mixing of immune+tumor cells" was based on per-tumor-cell immune-neighbor fraction (MBRT_4h 0.375 vs SBRT_4h 0.308). Properly normalized using the Keren et al. 2018 mixing score (tumor↔immune edges / immune↔immune edges) and per-tumor-cell enrichment-over-random, MBRT does NOT mix immune+tumor more than SBRT — the difference was an artifact of MBRT having more total immune cells. SBRT is actually slightly more interspersed; MBRT's immune cells cluster among themselves (consistent with peak/valley fractionation creating immune-rich valley pockets).
+
+These five findings together suggest MBRT shifts the post-RT tumor microenvironment toward a delayed-but-engaged immune trajectory: more myeloid (debris-clearing/wound-healing skew rather than pro-tumor TAMs), tumor-cell death distributed temporally rather than concentrated at day 2, and adaptive humoral immunity by day 6. Mutter_02 day 2 concordance (rho 0.44 myeloid, tumor depletion ΔProp −0.091 vs −0.082) supports the day-2 findings; later timepoints await biological replication. Whether the trajectory translates to better tumor control will require independent functional readouts.
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/synthesis_executive_summary.png]]
+
+**** Setup, filters, and statistical posture
+
+Three filters applied in sequence in =dev/mbrt_vs_sbrt/00_load_and_filter.R=:
+
+1. *4T1 flank-only* (model filter): keep =model == "flank"=. Drops 138,832 tongue cells (971,818 → 832,986).
+2. *4T1 tumor purity*: for cells initially labeled =tumor_epithelial=, keep label only if =epith_score > 0.3 & endo_score < 0.1= using log2-normalized mean expression of Krt8/Krt18/Epcam/Cdh1 (epith) and Pecam1/Cdh5/Vwf (endo). Failures relabeled =tumor_uncertain=. 160,124 of 349,509 retained (45.8%).
+3. *Necrosis-zone density flag* (per slide): mean k=20 NN distance per cell; cells in top 10% per slide flagged =necrosis_zone=. Optional secondary criterion combines low Mean.DAPI (10th percentile within slide). Default downstream behavior excludes =necrosis_zone == TRUE= cells at day2 and day6 only; necrosis-zone cells are retained at 1h and 4h (no necrosis yet). Cell death analyses (script 04) keep necrosis-zone cells and stratify.
+
+After mapping granular insitutype labels to 9 major cell types, the analytical universe is 581,913 cells across tumor_epithelial, endothelial, fibroblast, smooth_muscle, T cell, B cell, myeloid, NK, and plasma. DEG strata require ≥100 cells per (Condition × cell_type_major); 66 of 72 strata pass (only plasma fails at low timepoints).
+
+**** DEG kinetics by cell type and contrast
+
+DEGs computed via Seurat::FindMarkers (Wilcox), effect-size ranked, across three contrasts at each available timepoint: MBRT vs Control (1h, 4h, day2, day6), SBRT vs Control (4h, day2, day6), MBRT vs SBRT (4h, day2, day6). Total: 14,704 DEG rows across 90 (contrast × timepoint × cell type) jobs. Sanity check passed: tumor =Cdkn1a= (p21) +0.76 log2FC at 4h MBRT-vs-Control (p_adj=4e-45), confirming canonical DDR response.
+
+Top MBRT-vs-SBRT effect sizes by cell type and timepoint (selected highlights):
+
+- *4h tumor_epithelial* (MBRT-up): Il24 (+0.80), Il15ra (+0.74), Neat1 (+0.73), Cd74 (+0.68), Mt2 (+0.61), Mt1 (+0.54), B2m (+0.54), Vim (+0.51). MBRT-down: Spp1 (-0.86), Clu (-0.68), Col18a1 (-0.36), Hspg2 (-0.28). Interpretation: at 4h, MBRT tumor cells engage antigen presentation (Cd74, B2m), oxidative stress response (Mt1/2), and IL-15/IL-24 signaling. SBRT tumor cells show pure damage/stress response (Clu, Spp1) and ECM/scar (collagen, perlecan).
+- *Day2 myeloid* (MBRT-up): Cd163 (+2.51), Ccl8 (+2.50), Pf4 (+2.44), Fabp5 (+2.14), Mrc1/CD206 (+2.12), Il4ra (+1.50), Selenop (+1.49), S100a8 (+1.41). Interpretation: M2-polarized tissue-repair myeloid (Cd163, Mrc1, Il4ra) plus T cell chemokine (Ccl8) plus DAMP (S100a8). MBRT-specific myeloid recruitment program.
+- *Day2 T cell* (MBRT-up): Ccl8 (+1.79), Il24 (+1.10), Arg1 (+0.74), Cd44 (+0.58). Activation + chemokine signature.
+- *Day6 B cell* (MBRT-up): Ighg1 (+4.40), Igkc (+3.30), Mzb1 (+1.94), Hsp90b1 (+1.71), Jchain (+1.65), Ighm (+1.53), Xbp1 (+1.06). Plasmablast/plasma cell differentiation with class switching to IgG and ER-stress chaperones. MBRT-driven humoral immune response.
+
+Outputs: =dev/mbrt_vs_sbrt/data/degs_kinetics.tsv= (14,704 rows long format), =data/degs_top10_per_stratum.tsv=, plus volcano plots:
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/volcano_bulk_kinetics.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/volcano_mbrt_vs_sbrt_by_celltype.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/volcano_tumor_mbrt_vs_control_kinetics.png]]
+
+**** Pathway kinetics by cell type
+
+Yi's pre-computed pathway scores (TypeI_interferon, TypeII_interferon, DNA_Damage_Repair, STING) plus 7 curated signatures scored with UCell rank-based method on 547,133 cells (necrosis-zone excluded at day2/day6):
+
+- HALLMARK_APOPTOSIS (66/160 panel coverage = 41%)
+- HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION (75/206 = 36%)
+- HALLMARK_INTERFERON_GAMMA_RESPONSE (66/205 = 32%)
+- HALLMARK_TNFA_SIGNALING_VIA_NFKB (78/199 = 39%)
+- SENMAYO_SENESCENCE (67/125 = 54%, Saul et al. 2022)
+- CURATED_ANTIGEN_PRESENT (8/12 = 67%)
+- CURATED_DAMP (10/12 = 83%)
+
+Two signatures dropped below the 30% panel-coverage gate: HALLMARK_HYPOXIA (21%) and HALLMARK_INTERFERON_ALPHA_RESPONSE (24%). Too sparse to score reliably on this 1000-gene panel.
+
+A surprising kinetic pattern emerged in =tumor_epithelial=: DDR and Type I IFN pre-computed scores DROP from baseline at 1h–4h and recover by day2 (e.g., DDR: NT 0.67 → MBRT 1h −0.49 → MBRT day2 +0.37). The most plausible explanation is that early post-RT tumor cells transcribe less overall (acute transcriptional suppression from damage), making rank-based and ratio-based pathway scores look depleted. Surviving cells at day2/day6 recover transcription. This affects interpretation of all pre-computed pathway scores but not the DEG analyses, which compare matched timepoints. Interpret pathway-kinetics plots with this confound in mind.
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/pathway_delta_mbrt_vs_sbrt.png]]
+
+Per-cell-type pathway kinetics plots in =dev/mbrt_vs_sbrt/plots/pathway_kinetics_<celltype>.png=.
+
+**** Composition trajectories
+
+Cell type proportions per (Condition × timepoint × treatment), reported on both the post-Layer-1 universe (preserves total denominator) and the 9-major-only universe (renormalized).
+
+Top MBRT − SBRT proportion deltas:
+
+- *Day2 myeloid: MBRT 0.42 vs SBRT 0.31, ΔMBRT−SBRT = +0.105.* MBRT day2 has substantially more myeloid cells than SBRT day2.
+- *4h tumor_epithelial: MBRT 0.41 vs SBRT 0.51, Δ = −0.099.* SBRT preserves more tumor cells at 4h.
+- *Day2 tumor_epithelial: MBRT 0.18 vs SBRT 0.26, Δ = −0.082.* SBRT day2 still has more remaining tumor cells.
+- *4h myeloid: MBRT 0.20 vs SBRT 0.12, Δ = +0.080.* MBRT 4h already has more myeloid cells.
+- *Day6 T cell: MBRT 0.36 vs SBRT 0.42, Δ = −0.065.*
+
+The composition story matches the DEG story: MBRT recruits myeloid cells earlier and more strongly than SBRT. SBRT loses fewer tumor cells in the first 48 hours but eventually catches up.
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/composition_stacked.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/composition_trajectories.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/composition_delta_mbrt_vs_sbrt.png]]
+
+**** Spatial neighborhood evolution
+
+Per-cell k=20 nearest-neighbor immune fraction (=mean(neighbor cell_type_strict %in% c("T.cell","B.cell","myeloid","NK","plasma"))=) computed per slide. Aggregated per (cell_type_major × timepoint × condition).
+
+Headline: *MBRT triggers immune infiltration of tumor 1-2 days earlier than SBRT.* Tumor immune-neighbor fraction kinetics:
+
+| Condition | Mean fraction immune neighbors |
+|-----------+--------------------------------|
+| Control   | 0.314                          |
+| MBRT_1h   | 0.328                          |
+| MBRT_4h   | *0.375*                        |
+| SBRT_4h   | 0.308 (similar to Control)     |
+| MBRT_day2 | *0.548*                        |
+| SBRT_day2 | 0.457                          |
+| MBRT_day6 | 0.719                          |
+| SBRT_day6 | 0.728 (converged)              |
+
+By 4h, MBRT tumor cells have +0.07 higher immune neighborhood than SBRT tumor cells. By day2 the gap widens to +0.09. By day6 both treatments converge near 0.72. The MBRT spatial-architecture dose creates a microenvironment that mixes immune and tumor cells substantially earlier than the uniform SBRT field.
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/nn_immune_fraction_kinetics.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/nn_immune_density.png]]
+
+**** Cell death, senescence, and necrosis quantification
+
+Three strands in =dev/mbrt_vs_sbrt/04_celldeath_senescence.R=.
+
+***** Apoptosis and senescence kinetics
+
+UCell-scored Hallmark Apoptosis (60 panel genes) and SenMayo Senescence (67 panel genes), per cell type per timepoint, with =necrosis_zone= cells stratified for biological validation. Unexpectedly, necrosis-zone cells show only marginal elevation of apoptosis or senescence transcriptional scores compared to viable cells (Δmean ≈ 0.01–0.02 across cell types and conditions). Two interpretations: (i) the spatial necrosis-zone flag captures slide-edge sparseness more than truly necrotic cells, and (ii) UCell rank-based scoring is insensitive to absolute transcript loss in dying cells. The CosMx 1000-gene panel also lacks specific apoptosis effectors (no cleaved caspase, limited necroptosis markers). The spatial-extent and Control-calibrated necrosis fraction metrics (4c) remain the more interpretable readouts.
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/apoptosis_kinetics.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/senescence_kinetics.png]]
+
+***** DAMP / alarmin signature
+
+12-gene curated DAMP set (Hmgb1, Hmgb2, S100a8/9, Anxa1/2, Il1b, Il6, Nlrp3, Casp1, Tlr2, Tlr4) with 10 in panel. Distance-to-necrosis analysis: cells were binned by Euclidean distance to the nearest necrosis-zone cell within their slide (≤0.05, 0.05–0.1, 0.1–0.2, 0.2–0.5, 0.5–1.0, >1.0 mm). DAMP score is expected to peak adjacent to necrosis at day2/day6, especially in SBRT.
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/damp_kinetics.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/damp_boundary_kinetics.png]]
+
+***** Necrosis quantification (first-class biological output)
+
+Necrosis was operationalized as cells in spatially sparse regions, defined per cell as =local_density_d20 > 95th percentile of Control= (Control-calibrated absolute threshold = 0.034 mm). This is a proxy: it does not directly identify necrosis but flags regions of low surviving-cell density. By construction Control gets ~5% flagged.
+
+The all-cell version of this metric mixes tumor cell loss with stromal architecture loss. The cleaner metric restricts the denominator to =cell_type_major == "tumor_epithelial"= (script =14_necrosis_tumor_only.R=).
+
+*Tumor-only necrosis fraction (4T1 flank, primary metric):*
+
+| Condition | n_tumor | % tumor in necrosis-zone |
+|-----------+---------+--------------------------|
+| Control   | 32,708  | 0.28                     |
+| MBRT_4h   | 38,267  | 0.17                     |
+| SBRT_4h   | 42,604  | 0.18                     |
+| MBRT_day2 | 15,702  | *0.81*                   |
+| SBRT_day2 | 13,227  | *2.11*                   |
+| MBRT_day6 | 4,015   | *6.10*                   |
+| SBRT_day6 | 5,353   | *3.40*                   |
+
+*At day 2, SBRT loses 2.6x more tumor cells to sparse-density regions than MBRT (2.11% vs 0.81%).* By day 6 the relationship inverts: *MBRT exceeds SBRT (6.10% vs 3.40%) — a 1.8x cross-over.* MBRT's tumor-cell loss is delayed, not lesser. This is consistent with peak/valley dynamics: acute peak doses kill less than uniform high dose, but valley regions sustain DDR + immune recruitment producing ongoing tumor killing through late timepoints.
+
+*All-cell version of the metric (for comparison):* Day 2 SBRT calibrated necrosis 10.0% vs MBRT 4.5% (2.2x). The all-cell pattern looked geometrically "consolidated central in SBRT, fragmented in MBRT" (largest contiguous region SBRT 4.46 mm² vs MBRT 1.04 mm²). However, when restricted to tumor cells alone the consolidation metric collapses (largest tumor-necrosis region 0.01–0.03 mm² across all conditions), meaning the consolidated-central pattern was driven mostly by stromal/immune sparseness, not tumor itself. The kinetics signal (day 2 SBRT > MBRT, day 6 cross-over) is the robust biological finding; the central-consolidation framing was an artifact of including stroma + immune in the denominator.
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/necrosis_best_figure.png]]
+
+The all-cell supporting figures (necrosis kinetics + connected-component largest-region + cell-type breakdown + spatial maps) remain useful for understanding *where* low-density regions form and *which cell types* fall into them — but should not be read as "tumor-cell death" without the tumor-only restriction:
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/necrosis_celltype_breakdown.png]]
+
+**** Set 2 validation at day2 (Mutter_02)
+
+Mutter_02 day2 cohort: 4 slides × 3 biological replicates × 3 conditions (Control, MBRT, SBRT) = 12 samples, 2.35M cells post-QC. Mutter_02 RDS objects lack cell type labels (Yi's insitutype output not yet incorporated for this set), so marker-based classification was applied in =08_set2_validation.R=: 4T1 filter (epith_score > 0.3 & endo_score < 0.1) followed by priority-ordered marker gates (Cd3e/Cd3d for T cells, Cd19/Ms4a1 for B cells, Cd68/Adgre1/Itgam for myeloid, Ncr1/Klrb1c for NK, Jchain/Mzb1 for plasma, Pecam1/Cdh5 for endothelial, Col1a1/Pdgfra for fibroblast, Acta2/Myh11 for smooth muscle). Subsampled per (Condition × cell_type_major) to 3000 cells before DEG to keep wall-clock manageable (=08b_set2_validation_fast.R=).
+
+***** Composition concordance at day2
+
+Best validation signal. ΔProp(MBRT − SBRT) per cell type compared across the two datasets:
+
+| Cell type        | Mutter_01 ΔMBRT−SBRT | Mutter_02 ΔMBRT−SBRT | Sign agreement           |
+|------------------+----------------------+----------------------+--------------------------|
+| tumor_epithelial | −0.082               |             *−0.091* | *YES, near-identical*    |
+| myeloid          | +0.105               |               +0.036 | YES, same sign           |
+| NK               | +0.032               |               +0.004 | YES, both positive       |
+| fibroblast       | +0.020               |               +0.014 | YES, both positive       |
+| plasma           | +0.003               |               +0.002 | YES, both small positive |
+| B.cell           | −0.004               |               +0.002 | both near zero           |
+| endothelial      | −0.002               |               +0.006 | both near zero           |
+| T.cell           | −0.055               |               +0.023 | NO, opposite signs       |
+| smooth_muscle    | −0.018               |               +0.005 | NO, opposite signs       |
+
+*The tumor_epithelial day2 depletion replicates almost exactly (−0.082 vs −0.091).* This is the strongest cross-dataset validation: MBRT day2 has ~9 percentage points fewer tumor cells than SBRT day2, in both n=1 (Mutter_01) and n=4 replicates per condition (Mutter_02). The MBRT myeloid recruitment direction also replicates (both positive) though weaker in Mutter_02. T.cell and smooth_muscle deltas reverse sign across datasets — likely n=1 noise in Mutter_01.
+
+***** DEG concordance (Spearman rho per cell type × contrast)
+
+Per-gene log2FC rank correlation between Mutter_01 day2 and Mutter_02 day2, using subsampled 3000-cell-per-stratum DEGs after re-normalizing Mutter_02. *Important bug found and fixed:* the Mutter_02 RDS "data" layer was identical to "counts" (never normalized), so the original DEG analysis produced log2FC values up to ±187 (nonsensical). Script =08c_set2_validation_normalized.R= re-runs LogNormalize then DEGs; final log2FC range now sensible at [−2.22, 2.10].
+
+Top concordance per contrast (post-normalization):
+
+| Contrast        | Best (positive rho)                                                            | Notable values                  |
+|-----------------+--------------------------------------------------------------------------------+---------------------------------|
+| MBRT vs SBRT    | *myeloid 0.44*, BULK 0.20, fibroblast 0.19, B.cell 0.08                        | tumor_epithelial −0.25          |
+| MBRT vs Control | endothelial 0.31, BULK 0.22, myeloid 0.14, smooth_muscle 0.13, fibroblast 0.13 | NK −0.11                        |
+| SBRT vs Control | (all negative, −0.53 to −0.69 across all cell types)                           | smooth_muscle −0.69, BULK −0.69 |
+
+Interpretation:
+- *MBRT-vs-SBRT myeloid effect strongly concordant (rho 0.44).* Validates the headline M2 myeloid recruitment finding (Cd163, Mrc1, Ccl8, Pf4) in 12 replicate samples of Mutter_02.
+- *MBRT-vs-Control concordance is positive for 8 of 9 major cell types* (rho 0.04 to 0.31) — MBRT effect direction reproduces well.
+- *SBRT-vs-Control rho is strongly negative across all cell types* (−0.5 to −0.7). Mutter_02 SBRT effects are systematically opposite to Mutter_01 SBRT effects vs the same Control. Most likely explanation: cohort/batch differences (different mouse cohort, different irradiation session) producing a different SBRT signature; Mutter_01 SBRT was n=1 so cohort variance dominates. The MBRT-vs-SBRT rho remains generally positive because both treatments shift relative to their respective Controls in the same direction even when absolute Control-relative magnitudes differ.
+- *tumor_epithelial MBRT-vs-SBRT rho is −0.25*, a real anti-concordance. Possibly the 4T1 marker-based filter retained different tumor populations across datasets, or 3000 tumor cells per group is noisy. Composition concordance for tumor (above) was strong, so the cell-population shift replicates even if per-gene effects are noisier.
+- DEG concordance overall weaker than composition concordance — expected because per-gene effects are noisy with n=1 in Mutter_01, while composition aggregates over thousands of cells.
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/set2_composition_concordance.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/set2_concordance_rho.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/mbrt_vs_sbrt/plots/set2_concordance_scatter.png]]
+
+**** Synthesis: what makes MBRT different
+
+Across DEGs, pathways, composition, spatial neighborhoods, and necrosis quantification, a consistent picture emerges:
+
+1. *Earlier immune engagement.* At 4h, MBRT tumor cells already express antigen presentation (Cd74, B2m), Type II IFN response (HALLMARK_INTERFERON_GAMMA_RESPONSE), and IL-15/IL-24. SBRT tumor cells at 4h show the opposite: ECM/scar genes (Spp1, Clu, Col18a1) and stress chaperones, with no immune signature.
+2. *Earlier and stronger myeloid recruitment, M2c-like / wound-healing skew.* Composition: MBRT 4h myeloid 0.20 vs SBRT 0.12; MBRT day2 0.42 vs SBRT 0.31. DEGs: MBRT day2 myeloid express Cd163, Mrc1, Il4ra, Pf4, Selenop, Ccl8, Fabp5, Arg1. M2/M1 polarization ratio MBRT day2 1.11 vs SBRT 1.00 (modest M2 skew). The elevated M2 markers are debris-clearing / wound-healing (Mrc1, Cd163, Arg1, Il4ra) — the pro-tumor arm (Vegfa, Ccl22, Mmp9, Tgfb1, Stat6) is NOT elevated — consistent with acute phagocytic response to spatially-fragmented damage rather than chronic immunosuppressive TAM phenotype.
+3. *Adaptive humoral response by day6.* MBRT day6 B cells transition to plasma cell phenotype with class-switched antibody production (Ighg1 +4.40 log2FC, Igkc +3.30, Mzb1, Jchain, Ighm, Xbp1). SBRT day6 B cells lack this signature.
+4. *Tumor-cell killing kinetics: SBRT day 2 > MBRT day 2; cross-over by day 6.* Tumor-only restricted necrosis fraction: day 2 SBRT 2.11% vs MBRT 0.81% (SBRT 2.6x). Day 6 MBRT 6.10% vs SBRT 3.40% (MBRT 1.8x). MBRT spreads tumor-cell killing across days rather than producing less of it. The "consolidated central" pattern in the all-cell metric was driven by stromal/immune sparseness, not tumor — corrected by tumor-only restriction.
+
+These four findings together suggest MBRT shifts the post-RT tumor microenvironment toward an immune-engaged trajectory while sparing more tumor architecture (less central necrosis) at the day-2 timepoint. Whether the immune trajectory translates to better tumor control will require independent functional readouts.
+
+**** Known limitations
+
+- *1000-gene panel:* HALLMARK_HYPOXIA (21% panel coverage) and HALLMARK_INTERFERON_ALPHA_RESPONSE (24%) below the 30% gate. Cell death markers limited (no cleaved caspase-3, no specific necroptosis effector except Mlkl-pathway proxies in DAMP set).
+- *4T1 epithelial purity:* Only 46% of cells initially labeled =tumor_epithelial= retained after marker-based 4T1 filter. The remaining 54% (mislabeled "a" bucket) are excluded from per-tumor-cell analyses.
+- *4T1 flank-only:* Tongue model excluded by design from this analysis.
+- *Necrosis-zone confound at day2 / day6:* SBRT produces more central necrosis. Default analyses exclude top-10% sparsest cells per slide; necrosis quantification reports both raw and Control-calibrated thresholds.
+- *Mutter_01 n=1:* All comparisons are descriptive; p-values are reported for ranking, not formal inference.
+- *Pathway-kinetics tumor confound:* tumor_epithelial DDR and Type I IFN pre-computed scores DROP at 1h–4h and recover by day2. Most plausible explanation: damaged cells with reduced overall transcription show depleted ratio-based pathway scores. DEG analyses (matched-timepoint contrasts) are unaffected.
+- *Mutter_02 cell typing:* marker-based fallback only (insitutype labels not yet available for Mutter_02). Validates major types only.
+- *MBRT_1h necrosis-zone fraction (33%) is anomalous:* small fragmented sample slide, not real biology at 1h. Treat as artifact.
+
 *** Layer 3 -- Peak/Valley at 4h
+:PROPERTIES:
+:ID:       def10c5f-06d2-4313-850b-e37e55933b6a
+:END:
 Geometric classification of microbeam peaks vs valleys using H2AX IHC stripe pattern from [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]]. Per-cell H2AX IF intensity does not exist for Mutter_01 — the CosMx IF channels were used for segmentation markers (PanCK, CD298/B2M, CD45, DAPI), not H2AX. The PPTX images are separate chromogenic IHC on an adjacent section.
 
 Current best-fit stripe model (dev/03k_4peak_classify.R):
@@ -877,6 +1295,9 @@ Current best-fit stripe model (dev/03k_4peak_classify.R):
 - Pending: final visual verification of =mbrt4h_4peak_zones_labels.pdf= against H2AX image
 
 *** Layer 4 -- Signature Projection (BLOCKED)
+:PROPERTIES:
+:ID:       d6be2ccf-1371-4fac-baf0-89e2c983a9e6
+:END:
 Virtual scientist plan created: =plan-mbrt-signatures.md=, =review-mbrt-signatures.md=, =run-mbrt-signatures.sh=. Session: =spatial-ucell-scoring-plan=. Key decisions: UCell (rank-based) as primary scoring method over AddModuleScore for targeted panel; cell-type-stratified signatures primary, bulk secondary; Moran's I for formal spatial autocorrelation. Blocked on FOV-to-condition mapping from Rob/Jenn for Mutter_02.
 *** Microbeam Peak Valley Analysis                              :bioinfo_dev:
 :PROPERTIES:
@@ -2160,6 +2581,8 @@ The stripe model classifies MBRT_4h cells into peak (direct beam) and valley (by
 
 * Exploratory analysis
 - https://jef.works/blog/2024/08/29/the-many-ways-to-detect-svgs-using-moransI/
+- peak valley id
+  - near section gh2ax overlayed by FOV grid. mostly h2ax pos vs negative sets.
 
 ** Scientific notes
 - Kinetics are more interesting than marginal statistical gain at one timepoint
@@ -2176,6 +2599,12 @@ The stripe model classifies MBRT_4h cells into peak (direct beam) and valley (by
 - [[https://pubmed.ncbi.nlm.nih.gov/37596273/#full-view-affiliation-15][PubMed 37596273]]
 - [[https://chatgpt.com/c/692da348-0a48-8325-b257-46410f227998][ChatGPT analysis session]]
 - [[https://claude.ai/chat/163b2876-8164-4ff4-8005-3181ce4b2445][Claude analysis session]]
+
+*** TODO Compare Ozirmak Lermi 2025 with Ren 2025 cross-platform benchmarks
+:PROPERTIES:
+:ID:       55042923-fe06-41a4-a474-43109fd98eac
+:END:
+Both papers compare CosMx, MERFISH, and Xenium with overlapping but distinct designs: [cite:@ozirmaklermi2025] uses FFPE TMAs of NSCLC and pleural mesothelioma with bulk RNA-seq + GeoMx DSP-WTA orthogonals and pathologist F1-scoring; [cite:@ren2025] is a subcellular-resolution benchmark on whole tumor sections with CODEX as orthogonal. Read ren2025 in full and produce a side-by-side comparison of findings on (a) cell typing accuracy, (b) detection sensitivity, (c) spatial specificity, and (d) probe-design failure modes. Note where the two papers converge or diverge and which framing better fits CosMx mouse spatial-rads validation. Outcome: methods-section paragraph or methodological caveat block.
 
 ** Raw data
 - Mutter_01 CosMx files from Yi Liu (Nov 2025) — see [[*Data sources][Data sources]] for full provenance and transfer details
