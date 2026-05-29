@@ -121,14 +121,16 @@ digraph spatial_rads {
   node [shape=box, style=filled, fillcolor=white, fontname="Helvetica", fontsize=11];
   edge [fontname="Helvetica", fontsize=9];
 
-  // --- PROJECT FOUNDATION ---
+  // --- BIOLOGICAL MODEL (top — experimental frame) ---
   bio_model     [label="Biological model\n4T1 flank · MBRT vs SBRT\ntimepoints 1h/4h/d2/d6", shape=box, style=filled, fillcolor="#e8f0ff"];
-  data_model    [label="Data model\nmetadata.xlsx · data_model.rda", shape=box, style=filled, fillcolor="#e8f0ff"];
 
-  // --- INPUTS ---
+  // --- INPUT DATA (datasets produced by the experiment) ---
   mutter01      [label="Mutter_01\n971K cells\n11 conditions", shape=cylinder, style=filled, fillcolor=lightgray];
   mutter02_raw  [label="Mutter_02\n3 conditions × 3 reps × 4 slides\nday-2 only", shape=cylinder, style=filled, fillcolor=lightgray];
   h2ax_ihc      [label="H2AX IHC (Block_21)\nanchors peak/valley to a\nsingle 4h block", shape=cylinder, style=filled, fillcolor=lightgray];
+
+  // --- DATA MODEL (processing layer that structures inputs) ---
+  data_model    [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3" BGCOLOR="#e8f0ff"><TR><TD COLSPAN="3" BGCOLOR="#c8d8f0"><B>metadata</B>  (11 × 9)</TD></TR><TR><TD ALIGN="LEFT">block_id</TD><TD ALIGN="LEFT">condition</TD><TD ALIGN="LEFT">slide</TD></TR><TR><TD ALIGN="LEFT">model</TD><TD ALIGN="LEFT">treatment</TD><TD ALIGN="LEFT">timepoint_h</TD></TR><TR><TD ALIGN="LEFT">tumor_cell_line</TD><TD ALIGN="LEFT">host_strain</TD><TD ALIGN="LEFT">tumor_type</TD></TR></TABLE>>, shape=plaintext];
 
   // --- LEFT STREAM: cross-timepoint MBRT vs SBRT (primary), all [dev] = rounded ---
   kinetics_m01  [label="MBRT vs SBRT comprehensive on Mutter_01\nDEGs · pathways · composition · spatial NN ·\ncell death · necrosis\n(5 findings landed; iteration continues)", shape=box, style="filled,rounded,bold", fillcolor=white];
@@ -142,27 +144,29 @@ digraph spatial_rads {
   // --- DELIVERABLE ---
   paper         [label="First-in-field MBRT vs SBRT spatial paper", shape=ellipse, style="filled,bold", fillcolor="#fff3b0"];
 
-  // Foundation feeds inputs (light gray, no arrowhead — context, not flow)
-  bio_model  -> mutter01     [style=dashed, color=gray60, arrowhead=none];
-  bio_model  -> mutter02_raw [style=dashed, color=gray60, arrowhead=none];
-  data_model -> mutter01     [style=dashed, color=gray60, arrowhead=none];
-  data_model -> mutter02_raw [style=dashed, color=gray60, arrowhead=none];
+  // Hierarchy: biological model → input data → data model → analyses
+  bio_model    -> mutter01     [style=dashed, color=gray60, arrowhead=none];
+  bio_model    -> mutter02_raw [style=dashed, color=gray60, arrowhead=none];
+  bio_model    -> h2ax_ihc     [style=dashed, color=gray60, arrowhead=none];
+  mutter01     -> data_model;
+  mutter02_raw -> data_model;
 
-  // Analysis flow
-  mutter01 -> kinetics_m01 -> morphology;
+  // Analysis flow (analyses consume the data model, plus raw inputs where direct access is needed)
+  data_model   -> kinetics_m01;
+  data_model   -> tumor_sig;
+  data_model   -> m02_full;
+  kinetics_m01 -> morphology;
   kinetics_m01 -> m02_full [style=dashed, label="extends to"];
-  mutter02_raw -> m02_full;
-  mutter01 -> tumor_sig;
-  h2ax_ihc -> tumor_sig;
-  tumor_sig -> sig_project [style=dashed];
-  mutter02_raw -> sig_project [style=dashed];
+  h2ax_ihc     -> tumor_sig;
+  tumor_sig    -> sig_project [style=dashed];
   morphology -> paper;
   m02_full -> paper [style=dashed];
   tumor_sig -> paper;
   sig_project -> paper [style=dashed];
 
-  {rank=same; bio_model data_model}
+  {rank=same; bio_model}
   {rank=same; mutter01 mutter02_raw h2ax_ihc}
+  {rank=same; data_model}
   {rank=same; kinetics_m01 tumor_sig}
   {rank=same; morphology sig_project}
 
@@ -189,7 +193,7 @@ digraph spatial_rads {
   {rank=sink; lg_m_dev lg_m_tan lg_m_smk lg_m_frz lg_sep1 lg_s_done lg_s_prog lg_s_next lg_sep2 lg_r_input lg_r_act lg_r_found lg_r_del}
 
   // Anchor below paper, enforce left-to-right order with invisible chain
-  bio_model -> lg_m_dev [style=invis];  // anchor legend to LEFT, not under center paper
+  morphology -> lg_m_dev [style=invis];  // anchor legend to leftmost bottom-area node
   lg_m_dev -> lg_m_tan -> lg_m_smk -> lg_m_frz -> lg_sep1 -> lg_s_done -> lg_s_prog -> lg_s_next -> lg_sep2 -> lg_r_input -> lg_r_act -> lg_r_found -> lg_r_del [style=invis, minlen=0];
 }
 #+end_src
@@ -318,40 +322,241 @@ sourced-conda-envs:
 [[file:data/metadata.xlsx]]
 ** make_data_model.R
 :PROPERTIES:
-:header-args:R: :tangle scripts/make_data_model.R :comments org
+:header-args:R: :tangle scripts/make_data_model.R
 :END:
 
 #+begin_src R
-library(readxl)
-library(dplyr)
+#!/usr/bin/env Rscript
+# Build the data model from the relational metadata.xlsx, validating against
+# metadata_schema.yaml. Emits data/data_model.rda (named list of tibbles) and the
+# master denormalized sample sheet results/data_model/samples.tsv.
+# Standalone:  conda run -n spatial-rads Rscript scripts/make_data_model.R
+# Snakemake:   via the data_model rule's script: directive
+suppressMessages({library(readxl); library(dplyr); library(readr); library(yaml)})
+`%||%` <- function(a, b) if (is.null(a)) b else a
 
-# Assumes working directory is repo root (~/repos/spatial-rads/)
-metadata <- read_excel("data/metadata.xlsx")
+# positional args: xlsx schema rda samplesheet (fall back to standard paths for standalone runs)
+args   <- commandArgs(trailingOnly = TRUE)
+XLSX   <- if (length(args) >= 1) args[1] else "data/metadata.xlsx"
+SCHEMA <- if (length(args) >= 2) args[2] else "data/metadata_schema.yaml"
+RDA    <- if (length(args) >= 3) args[3] else "data/data_model.rda"
+TSV    <- if (length(args) >= 4) args[4] else "results/data_model/samples.tsv"
 
-metadata <- metadata |>
-  mutate(
-    model = case_when(
-      grepl("^Tongue", condition) ~ "tongue",
-      condition == "Control" ~ NA_character_,
-      TRUE ~ "flank"
-    ),
-    treatment = case_when(
-      condition == "Control" ~ "NT",
-      grepl("MBRT", condition) ~ "MBRT",
-      grepl("SBRT", condition) ~ "SBRT"
-    ),
-    timepoint_h = case_when(
-      condition == "Control" ~ 0,
-      grepl("1h", condition) ~ 1,
-      grepl("4h", condition) ~ 4,
-      grepl("day2", condition) ~ 48,
-      grepl("day6", condition) ~ 144,
-      grepl("day8", condition) ~ 192,
-      grepl("day10", condition) ~ 240
-    )
+schema <- yaml::read_yaml(SCHEMA)
+dm <- lapply(schema$resources, function(r) readxl::read_excel(XLSX, sheet = r$control$sheet))
+names(dm) <- vapply(schema$resources, function(r) r$name, character(1))
+
+## ---- schema-driven validation ----
+err <- character(0)
+norm_na <- function(x, mv) { x <- as.character(x); x[x %in% mv] <- NA; x }
+for (r in schema$resources) {
+  d <- dm[[r$name]]; mv <- r$schema$missingValues %||% character(0)
+  for (f in r$schema$fields) {
+    if (!f$name %in% names(d)) { err <- c(err, sprintf("%s: missing column '%s'", r$name, f$name)); next }
+    v <- norm_na(d[[f$name]], mv); cons <- f$constraints
+    if (isTRUE(cons$required) && anyNA(v))
+      err <- c(err, sprintf("%s.%s: %d missing required value(s)", r$name, f$name, sum(is.na(v))))
+    if (isTRUE(cons$unique) && any(duplicated(v[!is.na(v)])))
+      err <- c(err, sprintf("%s.%s: duplicate value(s)", r$name, f$name))
+    if (!is.null(cons$pattern)) {
+      bad <- v[!is.na(v) & !grepl(cons$pattern, v)]
+      if (length(bad)) err <- c(err, sprintf("%s.%s: %d value(s) fail pattern %s", r$name, f$name, length(bad), cons$pattern))
+    }
+    if (!is.null(cons$enum)) {
+      bad <- setdiff(na.omit(unique(v)), unlist(cons$enum))
+      if (length(bad)) err <- c(err, sprintf("%s.%s: value(s) outside enum: %s", r$name, f$name, paste(bad, collapse = ", ")))
+    }
+  }
+  for (fk in r$foreignKeys %||% list()) {
+    child  <- norm_na(dm[[r$name]][[fk$fields]], mv)
+    parent <- dm[[fk$reference$resource]][[fk$reference$fields]]
+    miss   <- setdiff(na.omit(unique(child)), parent)
+    if (length(miss)) err <- c(err, sprintf("%s.%s -> %s.%s unresolved: %s",
+      r$name, fk$fields, fk$reference$resource, fk$reference$fields, paste(miss, collapse = ", ")))
+  }
+}
+if (length(err)) stop("metadata_schema validation failed:\n  - ", paste(err, collapse = "\n  - "))
+
+## ---- denormalized master sample sheet ----
+master <- dm$samples %>%
+  left_join(dm$mice,     by = "mouse_id") %>%
+  left_join(dm$slides,   by = "slide_id") %>%
+  left_join(dm$datasets, by = "dataset_id") %>%
+  mutate(raw_input_path = if_else(format == "rds", input_path, counts_path)) %>%
+  relocate(sample_id, dataset_id, name, format, treatment, condition, timepoint_h, model)
+
+## ---- hard checks + summary ----
+stopifnot(!anyNA(master$raw_input_path[master$format == "rds"]))         # every rds sample has a slide path
+stopifnot(!anyNA(master$raw_input_path[master$format == "parquet"]))     # every parquet sample has counts path
+cat(sprintf("data model OK: %d samples, %d mice, %d slides, %d datasets\n",
+            nrow(dm$samples), nrow(dm$mice), nrow(dm$slides), nrow(dm$datasets)))
+print(as.data.frame(count(master, name, treatment)))
+
+data_model <- dm
+dir.create(dirname(RDA), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(TSV), recursive = TRUE, showWarnings = FALSE)
+save(data_model, file = RDA)
+write_tsv(master, TSV)
+cat(sprintf("wrote %s and %s\n", RDA, TSV))
+#+end_src
+
+** build_metadata_xlsx.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/build_metadata_xlsx.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# One-time migration: flat metadata.xlsx (Sheet1) -> relational 4-sheet metadata.xlsx
+# conforming to the sci_proj_repo Data layout standard (science.org 08049f58).
+# Preview:  conda run -n basecamp Rscript scripts/build_metadata_xlsx.R
+# Write:    conda run -n basecamp Rscript scripts/build_metadata_xlsx.R --write
+suppressMessages({library(readxl); library(dplyr); library(tibble); library(tidyr); library(writexl)})
+
+WRITE <- "--write" %in% commandArgs(trailingOnly = TRUE)
+SRC   <- "data/sources/2026-05-29-legacy-flat-metadata.xlsx"  # legacy flat metadata (write-protected source)
+XLSX  <- "data/metadata.xlsx"                                  # relational output, built from SRC
+INPUT <- "/mnt/data/projects/spatial-rads/inputs"
+
+flat <- read_excel(SRC)  # 11 Mutter_01 rows (legacy flat)
+
+## datasets
+datasets <- tibble(
+  dataset_id    = c("dat0001", "dat0002"),
+  name          = c("Mutter_01", "Mutter_02"),
+  platform      = "CosMx",
+  panel_n       = c(1000L, 972L),
+  provider      = c("Yi Liu / Mutter Lab", "Mutter Lab"),
+  format        = c("parquet", "rds"),
+  counts_path   = c(file.path(INPUT, "mutter01/projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet"), NA),
+  metadata_path = c(file.path(INPUT, "mutter01/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"), NA)
+)
+
+## slides (4 Mutter_01 physical slides + 4 Mutter_02)
+m01_barcodes <- sort(unique(flat$slide))
+slides_m01 <- tibble(
+  slide_id         = sprintf("sld%04d", seq_along(m01_barcodes)),
+  dataset_id       = "dat0001",
+  physical_barcode = m01_barcodes,
+  input_path       = NA_character_  # monolithic parquet (see datasets.counts_path)
+)
+slides_m02 <- tibble(
+  slide_id         = sprintf("sld%04d", 4 + 1:4),
+  dataset_id       = "dat0002",
+  physical_barcode = sprintf("Mutter_02_slide%02d", 1:4),
+  input_path       = file.path(INPUT, sprintf("mutter02/seuratObject_%02d_Mutter_02_CosMmR.RDS", 1:4))
+)
+slides <- bind_rows(slides_m01, slides_m02)
+barcode2sld <- setNames(slides_m01$slide_id, slides_m01$physical_barcode)
+
+## Mutter_02 sample layout (Jenn Fazzari 2026-04-09; from 00_load_data_mutter02.R:40-62)
+## rank by descending y_slide_mm: 1=top=Control, 2=mid=MBRT, 3=bottom=SBRT
+m02 <- tribble(
+  ~slide_num, ~rank, ~region_id, ~treatment,
+  1, 1, 1,  "Control",
+  1, 2, 34, "MBRT",
+  1, 3, 28, "SBRT",
+  2, 1, 2,  "Control",
+  2, 2, 35, "MBRT",
+  2, 3, 30, "SBRT",
+  3, 1, 3,  "Control",
+  3, 2, 19, "MBRT",
+  3, 3, 16, "SBRT",
+  4, 1, 1,  "Control",
+  4, 2, 20, "MBRT",
+  4, 3, 18, "SBRT"
+)
+cond_map_m02 <- c(Control = "Control", MBRT = "MBRT_day2", SBRT = "SBRT_day2")
+dose_m02     <- c(Control = 0, MBRT = NA_real_, SBRT = 20)  # SBRT 20 Gy per layout note; MBRT peak dose TBD
+
+## samples
+samples_m01 <- flat %>% transmute(
+  block_label = block_id, condition, treatment, timepoint_h,
+  model, tumor_cell_line, tumor_type, strain = host_strain,
+  slide_id = unname(barcode2sld[slide]),
+  dose_gy = NA_real_,            # Mutter_01 doses not yet recorded
+  extract_key = condition        # Condition field that splits the Mutter_01 parquet
+) %>% mutate(  # flat-source Control row has blank biology; it is the flank 4T1 baseline
+  model           = coalesce(model,           if_else(treatment == "NT", "flank", NA_character_)),
+  tumor_cell_line = coalesce(tumor_cell_line, if_else(treatment == "NT", "4T1", NA_character_)),
+  tumor_type      = coalesce(tumor_type,      if_else(treatment == "NT", "mammary carcinoma, TNBC/claudin-low", NA_character_)),
+  strain          = coalesce(strain,          if_else(treatment == "NT", "Balb/c", NA_character_))
+)
+samples_m02 <- m02 %>%
+  mutate(  # derive dose/condition from raw label, THEN harmonize control to NT (matches Mutter_01)
+    dose_gy   = unname(dose_m02[treatment]),
+    condition = unname(cond_map_m02[treatment]),
+    treatment = if_else(treatment == "Control", "NT", treatment)
+  ) %>% transmute(
+    block_label = paste0("s", slide_num, "_region", region_id),
+    condition, treatment, timepoint_h = 48,
+    model = "flank", tumor_cell_line = "4T1",
+    tumor_type = "mammary carcinoma, TNBC/claudin-low", strain = "Balb/c",
+    slide_id = slides_m02$slide_id[slide_num],
+    dose_gy,
+    extract_key = as.character(rank)  # y-band rank within the per-slide RDS
   )
+samples_all <- bind_rows(samples_m01, samples_m02) %>%
+  mutate(sample_id = sprintf("sam%04d", row_number()),
+         mouse_id  = sprintf("mou%04d", row_number()))
 
-save(metadata, file = "data/data_model.rda")
+## mice (one per sample; n=1 per condition)
+mice <- samples_all %>% transmute(mouse_id, strain, sex = NA_character_, notes = NA_character_)
+
+## final samples sheet (strain lives in mice)
+samples <- samples_all %>% select(
+  sample_id, mouse_id, slide_id, block_label, condition, treatment,
+  dose_gy, timepoint_h, model, tumor_cell_line, tumor_type, extract_key
+)
+
+cat("=== datasets ===\n"); print(as.data.frame(datasets))
+cat("\n=== slides ===\n");  print(as.data.frame(slides))
+cat("\n=== mice ===\n");    print(as.data.frame(mice))
+cat("\n=== samples ===\n"); print(as.data.frame(samples))
+
+if (WRITE) {
+  bak <- "(none)"
+  if (file.exists(XLSX)) {
+    bak <- sprintf("data/metadata-prev-%s.xlsx.bak", format(Sys.time(), "%Y%m%d-%H%M%S"))
+    file.copy(XLSX, bak, overwrite = TRUE)
+  }
+  write_xlsx(list(mice = mice, datasets = datasets, slides = slides, samples = samples), XLSX)
+  cat(sprintf("\nWROTE %s (prev backup: %s)\n", XLSX, bak))
+} else {
+  cat("\n[preview only -- rerun with --write to write metadata.xlsx]\n")
+}
+#+end_src
+
+** data_model.smk
+:PROPERTIES:
+:header-args:snakemake: :tangle workflows/data_model.smk
+:END:
+
+#+begin_src snakemake
+# spatial-rads -- data model workflow (Stage A)
+# Builds the relational metadata.xlsx into data_model.rda + the master sample sheet.
+# Run: conda run -n basecamp snakemake -s workflows/data_model.smk --cores 1
+# R steps run in the spatial-rads env via `conda run` (snakemake driver lives in basecamp).
+configfile: "config/config.yaml"
+
+RSCRIPT = "conda run -n spatial-rads Rscript"
+
+rule all:
+    input:
+        config["samplesheet"],
+
+rule make_data_model:
+    input:
+        xlsx   = config["metadata"]["xlsx"],
+        schema = config["metadata"]["schema"],
+    output:
+        rda         = "data/data_model.rda",
+        samplesheet = config["samplesheet"],
+    log:
+        "logs/make_data_model.log",
+    shell:
+        "{RSCRIPT} scripts/make_data_model.R {input.xlsx} {input.schema} "
+        "{output.rda} {output.samplesheet} > {log} 2>&1"
 #+end_src
 
 * Methods
@@ -369,15 +574,15 @@ Designed per Rob Mutter's 2026-01-28 email: 4 CosMx slides × 3 sections each = 
 Radiation dose specifics not yet confirmed in reviewed Gmail threads: MBRT peak dose in Gy, SBRT matched dose, MBRT valley-to-peak dose ratio, field geometry at the tumor, and fractionation scheme (likely single fraction from context but unconfirmed). These should be clarified with Rob Mutter before methods-section writing.
 
 ** Single cell spatial transcriptomics
-*** Platform and gene panel
+
 Spatial transcriptomics was performed on the NanoString CosMx Spatial Molecular Imager (SMI) at the Mayo Clinic Spatial Biology Core (Jacksonville, FL). The probe panel combined the NanoString Mouse Universal Cell Characterization (UCC) panel of approximately 950 genes with 21 custom add-on targets: A2ml1, Adcy8, Akap5, Bcl6, Cd21, Cpne4, Dpyd, Eya4, Gstm1, Hopx, Mum1, Nrp1, Plau, Plaur, Porcn, Prkci, Scd1, Sdc1, Slc35f1, Xist, and p16. The custom add-on was originally designed by Dr. Alan Fields for an unrelated B-cell mouse experiment. Reagents were donated to the Mutter Lab and reused for this radiotherapy project. Cross-project reuse of the panel means a subset of add-on genes has limited prior relevance to radiation biology. The core Mouse UCC panel is immune and stromal cell biased, with known coverage gaps for radiation-specific pathway genes.
 
-*** Immunofluorescence and cell segmentation
 CosMx acquires immunofluorescence (IF) images on the same tissue section as the RNA probes and uses them for computational cell boundary detection. Mutter_02 used the standard four-marker NanoString Cell Segmentation Kit: DAPI (nuclear, anchors each cell), PanCK (epithelial and tumor cytoplasm), CD45 (immune cell cytoplasm), and CD298/B2M (pan-membrane, captures stromal and endothelial cells). Mutter_01 carried these four markers plus an additional channel labeled only "G" in the delivered metadata (Mean.G, Max.G). Per-cell Mean.G correlates with Mean.PanCK at Pearson r = 0.924 across all 1.43M cells, while correlation with the other three channels is near zero. The G channel therefore reports PanCK-channel green signal, most likely spectral bleed from the PanCK fluor or a redundant readout of the same stain. Dropping the channel in Mutter_02 is consistent with that interpretation.
 
 Gamma-H2AX was not imaged on CosMx. Mutter_01 gamma-H2AX data came from chromogenic IHC on an adjacent serial section, used only for independent validation of the beam peak and valley stripe geometry at 4 h. Mutter_02 gamma-H2AX staining is pending on adjacent sections held at Mayo.
 
 **** TODO Ask Yi what the Mean.G / Max.G channel was in Mutter_01
+
 Mean.G correlates with Mean.PanCK at r = 0.924 per cell (n = 1.43M) and near-zero with DAPI, CD45, CD298/B2M. Working hypothesis is PanCK spectral bleed into the green filter, but could also be a second epithelial-biased stain (e.g., E-cadherin, EpCAM) that Yi's pipeline did not label. Mutter_02 dropped the channel, so resolving this matters mainly for completeness of the Mutter_01 methods section and for confirming Mean.G can be ignored in downstream IF-based QC.
 
 **** TODO Register H2AX IHC to CosMx coordinate frame (deferred until scanner TIFF arrives)
@@ -403,11 +608,13 @@ A cross-platform FFPE benchmark of CosMx, MERFISH, and Xenium documented that Co
 ** Bioinformatics
 
 *** Yi Mutter_01
+
 - QC filtering to flag and remove bad cells
 - Sample and condition labeling
 - log-norm (could consider SCTransform alternative)
 - Cell type annotation via insitutupe (NanoString's tool, uses pre-built reference profiles for their panels) with ImmGen reference atlas
 - Pathway scoring
+
 *** Quality control
 :PROPERTIES:
 :header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
@@ -2588,6 +2795,7 @@ The stripe model classifies MBRT_4h cells into peak (direct beam) and valley (by
 - Kinetics are more interesting than marginal statistical gain at one timepoint
 - Spatial ecotype for microbeam
 - idea jacob scott genome-based model for adjusting radiotherapy dose- bulk tissue GUARD
+- MALDI lipidomic imaging (Pandey lab, Seul Kee Byeon) at 4h on blocks #3 (control), #14 (SBRT 4Gy), #17 (SBRT 20Gy), #21 (MBRT): no clear peak-vs-valley lipid contrast (consistent with morphology), but global phosphatidylinositol metabolism diverges between MBRT and SBRT — MUFA enrichment and LPI accumulation with MBRT. Integration with 4T1 RNAseq is on Yiqun's plate (Rob, 2026-05-24). [[https://mail.google.com/mail/u/0/#all/19e5f31e3d8acb1b][Gmail: Fw: Tissue Samples]]
 
 ** Literature and references
 - [[https://www.reddit.com/r/bioinformatics/comments/1rcvf1p/deg_genes_spatial_transcriptomic_xenium/][Reddit: DEG genes spatial transcriptomic Xenium]]
@@ -3164,6 +3372,529 @@ str(meta)
 #+end_src
 
 * Results
+** Initial processing and QC
+Harmonized Stage B (adapter to common-format Seurat) and Stage C (QC filter, normalize), applied identically to Mutter_01 and Mutter_02 from raw; Yi-provided Mutter_01 layers held as a cross-check. QC cutoffs documented in [[file:config/config.yaml]].
+
+*** processing.smk
+:PROPERTIES:
+:header-args:snakemake: :tangle workflows/processing.smk
+:END:
+
+#+begin_src snakemake
+# spatial-rads -- initial processing & QC workflow (Stage B + C)
+# Adapter (raw -> common-format per-sample Seurat) -> QC filter -> LogNormalize.
+# Both datasets traverse identical Stage C code; Yi's Mutter_01 layers held as a check.
+# Run: conda run -n basecamp snakemake -s workflows/processing.smk --cores 8
+# R steps run in the spatial-rads env via `conda run` (driver lives in basecamp).
+import pandas as pd
+configfile: "config/config.yaml"
+
+RSCRIPT = "conda run -n spatial-rads Rscript"
+DATADIR = config["datadir"]
+MASTER  = config["samplesheet"]            # master sheet from the data_model workflow
+SCOPED  = "results/processing/samplesheet.tsv"
+GENES   = "results/processing/common_genes.tsv"
+YIREF   = "results/processing/yi_reference.tsv"
+QC      = config["qc"]
+NRM     = config["normalize"]
+
+# Parse-time sample lists come from the existing master sheet.
+_s = pd.read_csv(MASTER, sep="\t")
+M01 = _s.loc[_s["name"] == "Mutter_01", "sample_id"].tolist()
+M02 = _s.loc[_s["name"] == "Mutter_02", "sample_id"].tolist()
+ALL = _s["sample_id"].tolist()
+
+rule all:
+    input:
+        expand(f"{DATADIR}/processing/norm/{{s}}.norm.rds", s=ALL),
+        "results/processing/qc_summary.tsv",
+        "results/processing/yi_concordance.tsv",
+        "results/processing/plots/qc_removal_attribution.png",
+        "results/processing/plots/qc_metric_distributions.png",
+
+# --- workflow-linked sample sheet (scoped view of the data model) ---
+rule processing_samplesheet:
+    input:
+        rda = "data/data_model.rda",
+    output:
+        SCOPED,
+    log:
+        "logs/processing_samplesheet.log",
+    shell:
+        "{RSCRIPT} scripts/processing_samplesheet.R {input.rda} {output} > {log} 2>&1"
+
+# --- common gene panel (Mutter_01 panel intersect Mutter_02 panel) ---
+rule common_gene_panel:
+    input:
+        ss = SCOPED,
+    output:
+        GENES,
+    log:
+        "logs/common_gene_panel.log",
+    shell:
+        "{RSCRIPT} scripts/common_gene_panel.R {input.ss} {output} > {log} 2>&1"
+
+# --- Stage B adapters: raw -> per-sample common-format Seurat ---
+rule adapt_mutter01:
+    input:
+        ss    = SCOPED,
+        genes = GENES,
+    output:
+        rds = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=M01),
+        yi  = YIREF,
+    log:
+        "logs/adapt_mutter01.log",
+    shell:
+        "{RSCRIPT} scripts/adapt_mutter01.R {input.ss} {input.genes} {DATADIR} {output.yi} > {log} 2>&1"
+
+rule adapt_mutter02:
+    input:
+        ss    = SCOPED,
+        genes = GENES,
+    output:
+        rds = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=M02),
+    log:
+        "logs/adapt_mutter02.log",
+    shell:
+        "{RSCRIPT} scripts/adapt_mutter02.R {input.ss} {input.genes} {DATADIR} > {log} 2>&1"
+
+# --- Stage C (shared): QC filter -> normalize ---
+rule qc_filter:
+    input:
+        f"{DATADIR}/processing/raw/{{s}}.raw.rds",
+    output:
+        rds     = f"{DATADIR}/processing/qc/{{s}}.qc.rds",
+        summary = "results/processing/qc/{s}.qcsummary.tsv",
+    params:
+        min_counts   = QC["min_counts"],
+        min_features = QC["min_features"],
+        max_propneg  = QC["max_prop_negative"],
+        area_nmads   = QC["area_nmads"],
+    log:
+        "logs/qc_filter.{s}.log",
+    shell:
+        "{RSCRIPT} scripts/qc_filter.R {input} {output.rds} {output.summary} "
+        "{params.min_counts} {params.min_features} {params.max_propneg} {params.area_nmads} > {log} 2>&1"
+
+rule normalize:
+    input:
+        f"{DATADIR}/processing/qc/{{s}}.qc.rds",
+    output:
+        f"{DATADIR}/processing/norm/{{s}}.norm.rds",
+    params:
+        scale_factor = NRM["scale_factor"],
+        nfeatures    = NRM["n_variable_features"],
+    log:
+        "logs/normalize.{s}.log",
+    shell:
+        "{RSCRIPT} scripts/normalize.R {input} {output} {params.scale_factor} {params.nfeatures} > {log} 2>&1"
+
+# --- reports / checks ---
+rule qc_report:
+    input:
+        expand("results/processing/qc/{s}.qcsummary.tsv", s=ALL),
+    output:
+        "results/processing/qc_summary.tsv",
+    log:
+        "logs/qc_report.log",
+    shell:
+        "{RSCRIPT} scripts/qc_report.R results/processing/qc {output} > {log} 2>&1"
+
+rule yi_concordance:
+    input:
+        yi = YIREF,
+        qc = expand(f"{DATADIR}/processing/qc/{{s}}.qc.rds", s=M01),
+    output:
+        "results/processing/yi_concordance.tsv",
+    log:
+        "logs/yi_concordance.log",
+    shell:
+        "{RSCRIPT} scripts/yi_concordance.R {input.yi} {DATADIR} {output} > {log} 2>&1"
+
+rule qc_plots:
+    input:
+        raw = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=ALL),
+        cfg = "config/config.yaml",
+    output:
+        "results/processing/plots/qc_removal_attribution.png",
+        "results/processing/plots/qc_metric_distributions.png",
+        "results/processing/plots/qc_removal_attribution.tsv",
+    log:
+        "logs/qc_plots.log",
+    shell:
+        "{RSCRIPT} scripts/qc_plots.R {input.cfg} results/processing/plots > {log} 2>&1"
+#+end_src
+
+*** processing_samplesheet.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/processing_samplesheet.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Workflow-linked sample sheet: scoped view of data_model.rda for the processing workflow.
+# Args: <data_model.rda> <out.tsv>
+suppressMessages({library(dplyr); library(readr)})
+args <- commandArgs(trailingOnly = TRUE)
+RDA <- args[1]; OUT <- args[2]
+load(RDA)  # -> data_model (named list of tibbles)
+dm <- data_model
+scoped <- dm$samples %>%
+  left_join(dm$slides,   by = "slide_id") %>%
+  left_join(dm$datasets, by = "dataset_id") %>%
+  mutate(raw_input_path = if_else(format == "rds", input_path, counts_path)) %>%
+  transmute(sample_id, dataset = name, format, treatment, condition, timepoint_h, model,
+            slide_id, physical_barcode, block_label, extract_key,
+            counts_path, metadata_path, raw_input_path)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+write_tsv(scoped, OUT)
+cat(sprintf("wrote %s (%d samples: %d Mutter_01, %d Mutter_02)\n",
+            OUT, nrow(scoped), sum(scoped$dataset=="Mutter_01"), sum(scoped$dataset=="Mutter_02")))
+#+end_src
+
+*** common_gene_panel.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/common_gene_panel.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Common gene panel = Mutter_01 panel (counts parquet columns) intersect Mutter_02 panel
+# (rownames of one Mutter_02 Seurat RDS). Args: <samplesheet.tsv> <out.tsv>
+suppressMessages({library(readr); library(dplyr); library(arrow)})
+args <- commandArgs(trailingOnly = TRUE)
+SS <- args[1]; OUT <- args[2]
+ss <- read_tsv(SS, show_col_types = FALSE)
+
+m01_counts <- ss %>% filter(dataset == "Mutter_01") %>% pull(counts_path) %>% unique()
+m02_rds    <- ss %>% filter(dataset == "Mutter_02") %>% pull(raw_input_path) %>% unique()
+stopifnot(length(m01_counts) >= 1, length(m02_rds) >= 1)
+
+m01_genes <- setdiff(arrow::open_dataset(m01_counts[1])$schema$names, c("Slide", "fov", "cell_id"))
+suppressMessages(library(Seurat))
+o <- readRDS(m02_rds[1]); m02_genes <- rownames(o); rm(o); gc()
+
+common <- sort(intersect(m01_genes, m02_genes))
+cat(sprintf("Mutter_01 panel: %d | Mutter_02 panel: %d | common: %d\n",
+            length(m01_genes), length(m02_genes), length(common)))
+stopifnot(length(common) > 500)  # sanity: panels should overlap heavily
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+writeLines(common, OUT)
+#+end_src
+
+*** adapt_mutter01.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/adapt_mutter01.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Stage B adapter -- Mutter_01: raw counts parquet -> per-sample common-format Seurat.
+# Sparse RNA assay on the common panel; shared metadata joined on cell_id; Yi's vendor
+# columns sequestered to yi_reference.tsv; objects split by Condition.
+# Args: <samplesheet.tsv> <common_genes.tsv> <DATADIR> <yi_reference_out.tsv>
+suppressMessages({library(data.table); library(arrow); library(Seurat); library(Matrix); library(readr); library(dplyr)})
+args <- commandArgs(trailingOnly = TRUE)
+SS <- args[1]; GENES <- args[2]; DATADIR <- args[3]; YI_OUT <- args[4]
+
+ss <- read_tsv(SS, show_col_types = FALSE) %>% filter(dataset == "Mutter_01")
+common <- readLines(GENES)
+counts_path <- unique(ss$counts_path); meta_path <- unique(ss$metadata_path)
+stopifnot(length(counts_path) == 1, length(meta_path) == 1)
+
+## ---- counts -> sparse genes x cells (common panel) ----
+cdt <- as.data.table(read_parquet(counts_path))
+stopifnot(!anyDuplicated(cdt$cell_id))
+gene_cols <- intersect(setdiff(names(cdt), c("Slide", "fov", "cell_id")), common)
+cat(sprintf("counts: %d cells x %d common genes\n", nrow(cdt), length(gene_cols)))
+mat <- as.matrix(cdt[, ..gene_cols]); rownames(mat) <- cdt$cell_id   # cells x genes
+cell_ids <- cdt$cell_id; rm(cdt); gc()
+sp <- Matrix::t(Matrix::Matrix(mat, sparse = TRUE)); rm(mat); gc()   # genes x cells
+stopifnot(identical(colnames(sp), cell_ids))
+
+## ---- metadata: sequester Yi vendor cols; keep shared cols ----
+mdt <- as.data.table(read_parquet(meta_path))
+stopifnot(all(colnames(sp) %in% mdt$cell_id))                        # join completeness guard
+setkey(mdt, cell_id)
+
+yi_cols <- intersect(c("cell_id", "Condition", "Block", "qcFlagsCell",
+  "insitutype_ImmuneAtlas_ImmGen.csv_clust", "ImmuneAtlas_ImmGen_Main_cell_Types",
+  "ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types", "RNA_snn_res.0.1", "umap_1", "umap_2",
+  "TypeI_interferon", "TypeII_interferon", "STING", "DNA_Damage_Repair"), names(mdt))
+dir.create(dirname(YI_OUT), recursive = TRUE, showWarnings = FALSE)
+fwrite(mdt[, ..yi_cols], YI_OUT, sep = "\t")
+
+shared <- intersect(c("nCount_RNA", "nFeature_RNA", "propNegative", "qcFlagsCell",
+  "x_slide_mm", "y_slide_mm", "fov", "Area", "Mean.PanCK", "Mean.CD45",
+  "Mean.CD298.B2M", "Mean.DAPI", "Condition"), names(mdt))
+meta <- as.data.frame(mdt[, c("cell_id", ..shared)]); rownames(meta) <- meta$cell_id
+
+## ---- split by Condition -> per-sample objects ----
+stopifnot(all(ss$extract_key %in% meta$Condition))   # every sample's split key resolves
+outdir <- file.path(DATADIR, "processing", "raw"); dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(ss))) {
+  s <- ss[i, ]
+  cells <- meta$cell_id[meta$Condition == s$extract_key]
+  stopifnot(length(cells) > 0)
+  md <- meta[cells, , drop = FALSE]
+  md$sample_id <- s$sample_id; md$dataset <- "Mutter_01"; md$treatment <- s$treatment
+  md$condition <- s$condition; md$timepoint_h <- s$timepoint_h; md$model <- s$model
+  obj <- CreateSeuratObject(counts = sp[, cells, drop = FALSE], meta.data = md, project = s$sample_id)
+  saveRDS(obj, file.path(outdir, paste0(s$sample_id, ".raw.rds")))
+  cat(sprintf("%s (%s): %d cells\n", s$sample_id, s$condition, ncol(obj)))
+}
+cat("adapt_mutter01 done\n")
+#+end_src
+
+*** adapt_mutter02.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/adapt_mutter02.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Stage B adapter -- Mutter_02: per-slide Seurat RDS -> per-sample common-format Seurat.
+# Subset to common panel + shared meta; assign 3 y-bands by deterministic k-means; map
+# bands to samples via extract_key (y-rank 1=top..3=bottom). Args: <samplesheet.tsv> <common_genes.tsv> <DATADIR>
+suppressMessages({library(Seurat); library(readr); library(dplyr)})
+args <- commandArgs(trailingOnly = TRUE)
+SS <- args[1]; GENES <- args[2]; DATADIR <- args[3]
+set.seed(1)
+
+ss <- read_tsv(SS, show_col_types = FALSE) %>% filter(dataset == "Mutter_02")
+common <- readLines(GENES)
+shared <- c("nCount_RNA", "nFeature_RNA", "propNegative", "qcFlagsCell",
+            "x_slide_mm", "y_slide_mm", "fov", "Area", "Mean.PanCK", "Mean.CD45",
+            "Mean.CD298.B2M", "Mean.DAPI")
+design <- c("sample_id", "dataset", "treatment", "condition", "timepoint_h", "model")
+outdir <- file.path(DATADIR, "processing", "raw"); dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+
+slides <- ss %>% distinct(slide_id, raw_input_path)
+for (j in seq_len(nrow(slides))) {
+  sl <- slides[j, ]; this <- ss %>% filter(slide_id == sl$slide_id)
+  obj <- UpdateSeuratObject(readRDS(sl$raw_input_path))
+  obj$propNegative <- obj$nCount_negprobes / (obj$nCount_RNA + obj$nCount_negprobes)  # generate; vendor QC absent for Mutter_02
+  DefaultAssay(obj) <- "RNA"
+  for (a in setdiff(names(obj@assays), "RNA")) obj[[a]] <- NULL          # drop negprobes/falsecode
+  obj <- subset(obj, features = intersect(common, rownames(obj)))
+
+  set.seed(1)
+  km <- kmeans(obj$y_slide_mm, centers = 3, nstart = 10)
+  rank_of_cluster <- order(km$centers[, 1], decreasing = TRUE)           # 1 = top (highest y)
+  cell_rank <- match(km$cluster, rank_of_cluster)
+  stopifnot(length(unique(cell_rank)) == 3)                              # 3 separable bands
+  obj$spatial_rank <- cell_rank
+
+  for (r in 1:3) {
+    srow <- this %>% filter(extract_key == as.character(r))
+    stopifnot(nrow(srow) == 1)
+    sub <- subset(obj, cells = colnames(obj)[cell_rank == r])
+    sub$sample_id <- srow$sample_id; sub$dataset <- "Mutter_02"; sub$treatment <- srow$treatment
+    sub$condition <- srow$condition; sub$timepoint_h <- srow$timepoint_h; sub$model <- srow$model
+    keep <- intersect(c(shared, design), colnames(sub@meta.data))
+    sub@meta.data <- sub@meta.data[, keep, drop = FALSE]
+    saveRDS(sub, file.path(outdir, paste0(srow$sample_id, ".raw.rds")))
+    cat(sprintf("%s (%s, slide %s rank %d): %d cells\n",
+                srow$sample_id, srow$condition, sl$slide_id, r, ncol(sub)))
+  }
+}
+cat("adapt_mutter02 done\n")
+#+end_src
+
+*** qc_filter.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/qc_filter.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Shared per-sample QC -- identical four-criteria gate on both datasets, all from data in hand:
+#   counts (nCount_RNA), complexity (nFeature_RNA), negative-probe proportion (propNegative),
+#   and cell-area outliers (robust MAD on log10 Area). This reproduces what NanoString's
+#   composite qcFlagsCell bundles, transparently and identically across datasets.
+# Args: <in.raw.rds> <out.qc.rds> <out.summary.tsv> <min_counts> <min_features> <max_propneg> [area_nmads=3]
+suppressMessages({library(Seurat); library(readr)})
+args <- commandArgs(trailingOnly = TRUE)
+IN <- args[1]; OUT_RDS <- args[2]; OUT_SUM <- args[3]
+min_counts <- as.numeric(args[4]); min_features <- as.numeric(args[5]); max_propneg <- as.numeric(args[6])
+area_nmads <- if (length(args) >= 7) as.numeric(args[7]) else 3
+
+obj <- readRDS(IN)
+req <- c("nCount_RNA", "nFeature_RNA", "propNegative", "Area")
+miss <- setdiff(req, colnames(obj@meta.data))
+if (length(miss)) stop(sprintf("%s: missing required QC columns: %s", basename(IN), paste(miss, collapse = ", ")))
+
+pre <- ncol(obj)
+la  <- log10(obj$Area)                                   # robust area-outlier gate (identical method both datasets)
+med <- median(la, na.rm = TRUE); md <- mad(la, na.rm = TRUE)
+area_ok <- !is.na(la) & la > (med - area_nmads * md) & la < (med + area_nmads * md)
+keep <- obj$nCount_RNA > min_counts & obj$nFeature_RNA > min_features &
+        obj$propNegative < max_propneg & area_ok
+
+obj$qcFlagsCell <- NULL                                  # drop vendor flag (M01-only) so qc objects share one schema
+obj <- obj[, keep]
+post <- ncol(obj)
+
+sid <- if ("sample_id" %in% colnames(obj@meta.data)) as.character(obj$sample_id[1]) else sub("\\.raw\\.rds$", "", basename(IN))
+summ <- data.frame(sample_id = sid, pre_filter = pre, post_filter = post,
+                   pct_retained = round(100 * post / pre, 1), area_flagged = sum(!area_ok))
+dir.create(dirname(OUT_RDS), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(OUT_SUM), recursive = TRUE, showWarnings = FALSE)
+saveRDS(obj, OUT_RDS)
+write_tsv(summ, OUT_SUM)
+cat(sprintf("%s QC: %d -> %d (%.1f%%; %d area-flagged)\n", sid, pre, post, 100 * post / pre, sum(!area_ok)))
+#+end_src
+
+*** normalize.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/normalize.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Shared per-sample normalization: LogNormalize + variable features (full common panel
+# is effectively all-variable on a ~1000-gene targeted panel). Args: <in.qc.rds> <out.norm.rds> <scale_factor> <nfeatures>
+suppressMessages(library(Seurat))
+args <- commandArgs(trailingOnly = TRUE)
+IN <- args[1]; OUT <- args[2]
+sf <- as.numeric(args[3]); nfeat <- as.numeric(args[4])
+
+obj <- readRDS(IN)
+obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = sf, verbose = FALSE)
+nfeat <- min(nfeat, nrow(obj))
+obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = nfeat, verbose = FALSE)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+saveRDS(obj, OUT)
+cat(sprintf("normalized %s: %d cells, %d/%d variable features\n",
+            sub("\\.qc\\.rds$", "", basename(IN)), ncol(obj), length(VariableFeatures(obj)), nrow(obj)))
+#+end_src
+
+*** qc_report.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/qc_report.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Aggregate per-sample QC summaries into one table. Args: <qc_summary_dir> <out.tsv>
+suppressMessages({library(readr); library(dplyr); library(purrr)})
+args <- commandArgs(trailingOnly = TRUE)
+DIR <- args[1]; OUT <- args[2]
+files <- list.files(DIR, pattern = "\\.qcsummary\\.tsv$", full.names = TRUE)
+stopifnot(length(files) > 0)
+df <- map_dfr(files, read_tsv, show_col_types = FALSE) %>% arrange(sample_id)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+write_tsv(df, OUT)
+cat(sprintf("aggregated %d sample QC rows -> %s\n", nrow(df), OUT))
+print(as.data.frame(df))
+#+end_src
+
+*** qc_plots.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/qc_plots.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# QC visualizations as pipeline outputs: (1) per-criterion removal attribution (cells failing
+# counts / complexity / propNegative / area -- shows which criteria drive the cuts), and
+# (2) metric distributions with cutoff lines. Cutoffs read from config (match scripts/qc_filter.R).
+# Args: <config.yaml> <out_dir>
+suppressMessages({library(Seurat); library(dplyr); library(tidyr); library(ggplot2); library(patchwork); library(readr); library(yaml)})
+args <- commandArgs(trailingOnly = TRUE)
+CFG <- args[1]; OUT <- args[2]
+cfg <- yaml::read_yaml(CFG); q <- cfg$qc; datadir <- cfg$datadir
+min_counts <- q$min_counts; min_features <- q$min_features
+max_propneg <- q$max_prop_negative; area_nmads <- q$area_nmads
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
+
+raw_files <- sort(list.files(file.path(datadir, "processing", "raw"), pattern = "\\.raw\\.rds$", full.names = TRUE))
+stopifnot(length(raw_files) > 0)
+
+set.seed(1)
+attr_rows <- list(); metric_rows <- list()
+for (f in raw_files) {
+  m <- readRDS(f)@meta.data
+  sid <- if ("sample_id" %in% names(m)) as.character(m$sample_id[1]) else sub("\\.raw\\.rds$", "", basename(f))
+  ds  <- if ("dataset" %in% names(m)) as.character(m$dataset[1]) else NA_character_
+  la  <- log10(m$Area); med <- median(la, na.rm = TRUE); md <- mad(la, na.rm = TRUE)
+  attr_rows[[sid]] <- data.frame(
+    sample_id = sid, dataset = ds, n_cells = nrow(m),
+    counts       = sum(!(m$nCount_RNA   > min_counts)),
+    complexity   = sum(!(m$nFeature_RNA > min_features)),
+    propNegative = sum(!(m$propNegative < max_propneg)),
+    area         = sum(is.na(la) | !(la > med - area_nmads * md & la < med + area_nmads * md)))
+  idx <- sample(seq_len(nrow(m)), min(2000L, nrow(m)))
+  metric_rows[[sid]] <- data.frame(sample_id = sid, dataset = ds,
+    nCount_RNA = m$nCount_RNA[idx], nFeature_RNA = m$nFeature_RNA[idx],
+    propNegative = m$propNegative[idx], Area = m$Area[idx])
+  rm(m); gc()
+}
+attr_df <- bind_rows(attr_rows); met <- bind_rows(metric_rows)
+write_tsv(attr_df, file.path(OUT, "qc_removal_attribution.tsv"))
+
+## Plot A -- per-criterion removal attribution
+aL <- attr_df %>%
+  select(sample_id, dataset, counts, complexity, propNegative, area) %>%
+  pivot_longer(c(counts, complexity, propNegative, area), names_to = "criterion", values_to = "n_fail")
+pA <- ggplot(aL, aes(sample_id, n_fail, fill = criterion)) +
+  geom_col() +
+  facet_grid(~dataset, scales = "free_x", space = "free_x") +
+  labs(title = "Cells failing each QC criterion (not mutually exclusive)",
+       subtitle = "Count + complexity floors drive most removal", x = NULL, y = "cells flagged") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 6))
+
+## Plot B -- metric distributions with cutoffs
+mk <- function(col, cutoff, logy, lab) {
+  p <- ggplot(met, aes(dataset, .data[[col]], fill = dataset)) + geom_violin(scale = "width")
+  if (!is.na(cutoff)) p <- p + geom_hline(yintercept = cutoff, linetype = "dashed", color = "red")
+  p <- p + labs(x = NULL, y = lab) + theme_bw() + theme(legend.position = "none")
+  if (logy) p <- p + scale_y_log10()
+  p
+}
+pB <- (mk("nCount_RNA", min_counts, TRUE, "nCount_RNA (log)") | mk("nFeature_RNA", min_features, TRUE, "nFeature_RNA (log)")) /
+      (mk("propNegative", max_propneg, FALSE, "propNegative") | mk("Area", NA, TRUE, "Area (log, per-sample MAD gate)"))
+
+ggsave(file.path(OUT, "qc_removal_attribution.png"), pA, width = 11, height = 5, dpi = 150)
+ggsave(file.path(OUT, "qc_metric_distributions.png"), pB, width = 10, height = 7, dpi = 150)
+cat(sprintf("wrote QC plots + attribution to %s\n", OUT)); print(attr_df)
+#+end_src
+
+*** yi_concordance.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/yi_concordance.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Mutter_01 cross-check: our QC-pass cell set vs Yi's vendor QC (qcFlagsCell == Pass),
+# per condition. Args: <yi_reference.tsv> <DATADIR> <out.tsv>
+suppressMessages({library(data.table); library(Seurat); library(readr); library(dplyr)})
+args <- commandArgs(trailingOnly = TRUE)
+YI <- args[1]; DATADIR <- args[2]; OUT <- args[3]
+
+yi <- fread(YI)
+stopifnot(all(c("cell_id", "Condition", "qcFlagsCell") %in% names(yi)))
+
+qc_files <- list.files(file.path(DATADIR, "processing", "qc"), pattern = "\\.qc\\.rds$", full.names = TRUE)
+rows <- list()
+for (f in qc_files) {
+  o <- readRDS(f)
+  if (!("dataset" %in% colnames(o@meta.data)) || o$dataset[1] != "Mutter_01") next
+  cond <- as.character(o$condition[1]); our_cells <- colnames(o)
+  yi_cells <- yi[Condition == cond & qcFlagsCell == "Pass", cell_id]
+  rows[[length(rows) + 1]] <- data.frame(
+    condition = cond, our_kept = length(our_cells), yi_pass = length(yi_cells),
+    overlap = length(intersect(our_cells, yi_cells)),
+    pct_of_yi = round(100 * length(our_cells) / max(length(yi_cells), 1), 1))
+}
+out <- bind_rows(rows) %>% arrange(condition)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+write_tsv(out, OUT)
+cat("Mutter_01 QC concordance vs Yi (qcFlagsCell == Pass):\n")
+print(as.data.frame(out))
+#+end_src
+
 ** [[file:workflows/results.smk][Snakefile]]
 *** Preamble
 *** spatial-rads LINK to Load packages
