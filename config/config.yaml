@@ -1,0 +1,21 @@
+# Snakemake workflow configuration for spatial-rads.
+datadir: /mnt/data/projects/spatial-rads      # heavy intermediates (per-sample RDS) live here
+samplesheet: results/data_model/samples.tsv   # master sheet emitted by the data_model workflow
+metadata:
+  xlsx: data/metadata.xlsx
+  schema: data/metadata_schema.yaml
+env: config/spatial-rads-conda-env.yaml        # rule conda env (move to config/envs/ deferred)
+qc:
+  # Four-criteria QC gate, applied IDENTICALLY to Mutter_01 and Mutter_02 -- reproduces from raw
+  # what NanoString's composite qcFlagsCell bundles (see scripts/qc_filter.R). Retention with these
+  # values: Mutter_01 78.8%, Mutter_02 83.2%. Count + complexity floors drive most of the removal;
+  # area trims ~1-1.5%; propNegative removes almost nothing at 0.5. To move toward Yi's vendor-QC
+  # stringency (~68% on Mutter_01), raise min_counts or lower area_nmads. qcFlagsCell itself is NOT
+  # a filter here -- it is M01-only and used only as the Yi concordance cross-check.
+  min_counts: 20            # nCount_RNA >  : NanoString default minimum for the 1K panel; matches original M01 QC
+  min_features: 10          # nFeature_RNA >: complexity floor (unique genes detected); from original M01 QC
+  max_prop_negative: 0.5    # propNegative <: background backstop (>=50% of counts from neg probes = noise); lenient
+  area_nmads: 3             # |log10(Area)-median| < n*MAD : robust cell-area outlier (segmentation errors/doublets); standard 3-MAD convention
+normalize:
+  scale_factor: 10000
+  n_variable_features: 2000

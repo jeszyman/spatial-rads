@@ -1,0 +1,15 @@
+# Project-level runtime configuration (sci_proj_repo standard).
+repo-dir: ${HOME}/repos/spatial-rads
+machines:
+  - name: jeff-beast
+    type: metal
+machine-data-dirs:
+  - machine: jeff-beast
+    dir: /mnt/data/projects/spatial-rads
+bucket-mnt: /mnt/gcs
+data-subdirs: [inputs, processing, analysis, logs]
+conda-env: spatial-rads
+# NOTE: env file currently at config/spatial-rads-conda-env.yaml; config/envs/ move deferred
+# (referenced by run-mbrt-signatures.sh and plan docs).
+sourced-conda-envs:
+  - {name: basecamp}
