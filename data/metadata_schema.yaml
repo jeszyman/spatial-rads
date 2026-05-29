@@ -1,0 +1,132 @@
+# Frictionless-style schema for data/metadata.xlsx (sci_proj_repo Data layout standard).
+# Consumed by scripts/make_data_model.R for validation (PK pattern/uniqueness, required
+# fields, enums, and cross-sheet foreign keys). One resource per Excel sheet.
+# Three-letter + 4-digit primary keys: mou/dat/sld/sam.
+
+resources:
+  - name: mice
+    path: metadata.xlsx
+    control: {type: excel, sheet: mice}
+    schema:
+      missingValues: &mv ["", "unknown", "UNK", "unk", "NA", "n/a", "None"]
+      fields:
+        - name: mouse_id
+          title: Mouse Identifier
+          description: Unique mouse. Format 'mou' + 4 digits.
+          type: string
+          constraints: {required: true, unique: true, pattern: '^mou\d{4}$'}
+        - name: strain
+          description: Genetic background (e.g. Balb/c).
+          type: string
+        - name: sex
+          type: string
+          constraints: {enum: [m, f]}
+        - name: notes
+          type: string
+    primaryKey: mouse_id
+
+  - name: datasets
+    path: metadata.xlsx
+    control: {type: excel, sheet: datasets}
+    schema:
+      missingValues: *mv
+      fields:
+        - name: dataset_id
+          title: Dataset Identifier
+          description: One CosMx dataset/run. Format 'dat' + 4 digits.
+          type: string
+          constraints: {required: true, unique: true, pattern: '^dat\d{4}$'}
+        - name: name
+          type: string
+          constraints: {required: true}
+        - name: platform
+          type: string
+          constraints: {enum: [CosMx]}
+        - name: panel_n
+          description: Gene panel size as delivered.
+          type: integer
+        - name: provider
+          type: string
+        - name: format
+          description: Raw input container.
+          type: string
+          constraints: {required: true, enum: [parquet, rds]}
+        - name: counts_path
+          description: Monolithic raw counts (parquet datasets); blank for per-slide rds.
+          type: string
+        - name: metadata_path
+          description: Cell metadata table (parquet datasets); blank for per-slide rds.
+          type: string
+    primaryKey: dataset_id
+
+  - name: slides
+    path: metadata.xlsx
+    control: {type: excel, sheet: slides}
+    schema:
+      missingValues: *mv
+      fields:
+        - name: slide_id
+          title: Slide Identifier
+          description: One physical CosMx slide. Format 'sld' + 4 digits.
+          type: string
+          constraints: {required: true, unique: true, pattern: '^sld\d{4}$'}
+        - name: dataset_id
+          type: string
+          constraints: {required: true, pattern: '^dat\d{4}$'}
+        - name: physical_barcode
+          description: Vendor slide barcode / run-slide identifier.
+          type: string
+        - name: input_path
+          description: Per-slide raw object (rds datasets); blank when the dataset is monolithic.
+          type: string
+    primaryKey: slide_id
+    foreignKeys:
+      - {fields: dataset_id, reference: {resource: datasets, fields: dataset_id}}
+
+  - name: samples
+    path: metadata.xlsx
+    control: {type: excel, sheet: samples}
+    schema:
+      missingValues: *mv
+      fields:
+        - name: sample_id
+          title: Sample Identifier
+          description: One tissue block as captured on a slide. Format 'sam' + 4 digits. Pipeline wildcard unit.
+          type: string
+          constraints: {required: true, unique: true, pattern: '^sam\d{4}$'}
+        - name: mouse_id
+          type: string
+          constraints: {required: true, pattern: '^mou\d{4}$'}
+        - name: slide_id
+          type: string
+          constraints: {required: true, pattern: '^sld\d{4}$'}
+        - name: block_label
+          description: Source block/region label (Mutter_01 block_id or Mutter_02 slide-region).
+          type: string
+        - name: condition
+          description: Human-readable condition label (e.g. MBRT_4h, SBRT_day2, Control).
+          type: string
+        - name: treatment
+          type: string
+          constraints: {required: true, enum: [NT, MBRT, SBRT]}
+        - name: dose_gy
+          description: Delivered dose in Gy (peak dose for MBRT); blank where unrecorded.
+          type: number
+        - name: timepoint_h
+          description: Hours post-irradiation (0 for control).
+          type: integer
+        - name: model
+          type: string
+          constraints: {enum: [flank, tongue]}
+        - name: tumor_cell_line
+          type: string
+        - name: tumor_type
+          type: string
+        - name: extract_key
+          description: How to extract this sample from its raw input (Mutter_01 Condition string; Mutter_02 y-band rank 1-3).
+          type: string
+          constraints: {required: true}
+    primaryKey: sample_id
+    foreignKeys:
+      - {fields: mouse_id, reference: {resource: mice, fields: mouse_id}}
+      - {fields: slide_id, reference: {resource: slides, fields: slide_id}}
