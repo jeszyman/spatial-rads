@@ -348,3 +348,8 @@ docs/superpowers/
 
 ###   Analysis outputs (large)   ###
 *.html
+
+###   Project data (spatial-rads)   ###
+/local-data
+# Large regenerable intermediate (1.4M-cell Mutter_01 vendor reference for the Yi concordance check)
+results/processing/yi_reference.tsv
