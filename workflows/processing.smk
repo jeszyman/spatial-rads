@@ -1,10 +1,16 @@
-# spatial-rads -- initial processing & QC workflow (Stage B + C)
-# Adapter (raw -> common-format per-sample Seurat) -> QC filter -> LogNormalize.
-# Both datasets traverse identical Stage C code; Yi's Mutter_01 layers held as a check.
-# Run: conda run -n basecamp snakemake -s workflows/processing.smk --cores 8
+# spatial-rads -- initial processing & QC workflow (per-sample, pre-aggregate).
+# adapter (raw -> common-format Seurat) -> QC filter -> LogNormalize -> cell typing
+# (Yi labels for M01; Seurat anchor TransferData for M02 against pooled M01 cell reference)
+# -> pathway scoring (UCell + AddModuleScore). probe-QC diagnostic flags background-level
+# probes (report-only). Both datasets traverse identical Stage C onward; Yi's Mutter_01
+# layers held as a check. Run: conda run -n basecamp snakemake -s workflows/processing.smk --cores 4
 # R steps run in the spatial-rads env via `conda run` (driver lives in basecamp).
 import pandas as pd
 configfile: "config/config.yaml"
+
+# Pin BLAS to 1 thread per R process: snakemake schedules job-level parallelism, not
+# R BLAS-level multi-threading. Without this, --cores N x ~48 BLAS threads each swamps the box.
+shell.prefix("export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1; ")
 
 RSCRIPT = "conda run -n spatial-rads Rscript"
 DATADIR = config["datadir"]
@@ -37,6 +43,7 @@ rule processing_samplesheet:
         rda = "data/data_model.rda",
     output:
         SCOPED,
+    threads: 1
     log:
         "logs/processing_samplesheet.log",
     shell:
@@ -48,6 +55,7 @@ rule common_gene_panel:
         ss = SCOPED,
     output:
         GENES,
+    threads: 1
     log:
         "logs/common_gene_panel.log",
     shell:
@@ -60,6 +68,7 @@ rule probe_qc:
         panel = GENES,
     output:
         "results/processing/probe_qc_report.tsv",
+    threads: 1
     log:
         "logs/probe_qc.log",
     shell:
@@ -73,6 +82,7 @@ rule adapt_mutter01:
     output:
         rds = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=M01),
         yi  = YIREF,
+    threads: 1
     log:
         "logs/adapt_mutter01.log",
     shell:
@@ -84,6 +94,7 @@ rule adapt_mutter02:
         genes = GENES,
     output:
         rds = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=M02),
+    threads: 1
     log:
         "logs/adapt_mutter02.log",
     shell:
@@ -101,6 +112,7 @@ rule qc_filter:
         min_features = QC["min_features"],
         max_propneg  = QC["max_prop_negative"],
         area_nmads   = QC["area_nmads"],
+    threads: 1
     log:
         "logs/qc_filter.{s}.log",
     shell:
@@ -115,6 +127,7 @@ rule normalize:
     params:
         scale_factor = NRM["scale_factor"],
         nfeatures    = NRM["n_variable_features"],
+    threads: 1
     log:
         "logs/normalize.{s}.log",
     shell:
@@ -128,6 +141,7 @@ rule build_celltype_reference:
         m01   = expand(f"{DATADIR}/processing/norm/{{s}}.norm.rds", s=M01),
     output:
         f"{DATADIR}/processing/celltype_reference.rds",
+    threads: 1
     log:
         "logs/build_celltype_reference.log",
     shell:
@@ -141,6 +155,7 @@ rule celltype:
     output:
         rds     = f"{DATADIR}/processing/typed/{{s}}.typed.rds",
         summary = "results/processing/celltype/{s}.celltype.tsv",
+    threads: 1
     log:
         "logs/celltype.{s}.log",
     shell:
@@ -151,6 +166,7 @@ rule celltype_report:
         expand("results/processing/celltype/{s}.celltype.tsv", s=ALL),
     output:
         "results/processing/celltype_summary.tsv",
+    threads: 1
     log:
         "logs/celltype_report.log",
     shell:
@@ -163,6 +179,7 @@ rule pathway_score:
         genes = "config/pathway_gene_lists.yaml",
     output:
         f"{DATADIR}/processing/scored/{{s}}.scored.rds",
+    threads: 1
     log:
         "logs/pathway_score.{s}.log",
     shell:
@@ -174,6 +191,7 @@ rule qc_report:
         expand("results/processing/qc/{s}.qcsummary.tsv", s=ALL),
     output:
         "results/processing/qc_summary.tsv",
+    threads: 1
     log:
         "logs/qc_report.log",
     shell:
@@ -185,6 +203,7 @@ rule yi_concordance:
         qc = expand(f"{DATADIR}/processing/qc/{{s}}.qc.rds", s=M01),
     output:
         "results/processing/yi_concordance.tsv",
+    threads: 1
     log:
         "logs/yi_concordance.log",
     shell:
@@ -198,6 +217,7 @@ rule qc_plots:
         "results/processing/plots/qc_removal_attribution.png",
         "results/processing/plots/qc_metric_distributions.png",
         "results/processing/plots/qc_removal_attribution.tsv",
+    threads: 1
     log:
         "logs/qc_plots.log",
     shell:

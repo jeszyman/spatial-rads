@@ -3096,19 +3096,25 @@ Harmonized Stage B (adapter to common-format Seurat) and Stage C (QC filter, nor
 :END:
 
 #+begin_src snakemake
-# spatial-rads -- initial processing & QC workflow (Stage B + C)
-# Adapter (raw -> common-format per-sample Seurat) -> QC filter -> LogNormalize.
-# Both datasets traverse identical Stage C code; Yi's Mutter_01 layers held as a check.
-# Run: conda run -n basecamp snakemake -s workflows/processing.smk --cores 8
+# spatial-rads -- initial processing & QC workflow (per-sample, pre-aggregate).
+# adapter (raw -> common-format Seurat) -> QC filter -> LogNormalize -> cell typing
+# (Yi labels for M01; Seurat anchor TransferData for M02 against pooled M01 cell reference)
+# -> pathway scoring (UCell + AddModuleScore). probe-QC diagnostic flags background-level
+# probes (report-only). Both datasets traverse identical Stage C onward; Yi's Mutter_01
+# layers held as a check. Run: conda run -n basecamp snakemake -s workflows/processing.smk --cores 4
 # R steps run in the spatial-rads env via `conda run` (driver lives in basecamp).
 import pandas as pd
 configfile: "config/config.yaml"
+
+# Pin BLAS to 1 thread per R process: snakemake schedules job-level parallelism, not
+# R BLAS-level multi-threading. Without this, --cores N x ~48 BLAS threads each swamps the box.
+shell.prefix("export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1; ")
 
 RSCRIPT = "conda run -n spatial-rads Rscript"
 DATADIR = config["datadir"]
 MASTER  = config["samplesheet"]            # master sheet from the data_model workflow
 SCOPED  = "results/processing/samplesheet.tsv"
-GENES   = "results/processing/common_genes.tsv"
+GENES   = "results/processing/common_genes.tsv"  # common panel (Mutter_01 ∩ Mutter_02); NOT gene-filtered
 YIREF   = "results/processing/yi_reference.tsv"
 QC      = config["qc"]
 NRM     = config["normalize"]
@@ -3121,9 +3127,11 @@ ALL = _s["sample_id"].tolist()
 
 rule all:
     input:
-        expand(f"{DATADIR}/processing/norm/{{s}}.norm.rds", s=ALL),
+        expand(f"{DATADIR}/processing/scored/{{s}}.scored.rds", s=ALL),
         "results/processing/qc_summary.tsv",
         "results/processing/yi_concordance.tsv",
+        "results/processing/celltype_summary.tsv",
+        "results/processing/probe_qc_report.tsv",
         "results/processing/plots/qc_removal_attribution.png",
         "results/processing/plots/qc_metric_distributions.png",
 
@@ -3133,6 +3141,7 @@ rule processing_samplesheet:
         rda = "data/data_model.rda",
     output:
         SCOPED,
+    threads: 1
     log:
         "logs/processing_samplesheet.log",
     shell:
@@ -3144,10 +3153,24 @@ rule common_gene_panel:
         ss = SCOPED,
     output:
         GENES,
+    threads: 1
     log:
         "logs/common_gene_panel.log",
     shell:
         "{RSCRIPT} scripts/common_gene_panel.R {input.ss} {output} > {log} 2>&1"
+
+# --- probe-vs-negative-control QC DIAGNOSTIC (report-only; does NOT drop genes -- see scripts/probe_qc.R) ---
+rule probe_qc:
+    input:
+        ss    = SCOPED,
+        panel = GENES,
+    output:
+        "results/processing/probe_qc_report.tsv",
+    threads: 1
+    log:
+        "logs/probe_qc.log",
+    shell:
+        "{RSCRIPT} scripts/probe_qc.R {input.ss} {input.panel} {output} > {log} 2>&1"
 
 # --- Stage B adapters: raw -> per-sample common-format Seurat ---
 rule adapt_mutter01:
@@ -3157,6 +3180,7 @@ rule adapt_mutter01:
     output:
         rds = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=M01),
         yi  = YIREF,
+    threads: 1
     log:
         "logs/adapt_mutter01.log",
     shell:
@@ -3168,6 +3192,7 @@ rule adapt_mutter02:
         genes = GENES,
     output:
         rds = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=M02),
+    threads: 1
     log:
         "logs/adapt_mutter02.log",
     shell:
@@ -3185,6 +3210,7 @@ rule qc_filter:
         min_features = QC["min_features"],
         max_propneg  = QC["max_prop_negative"],
         area_nmads   = QC["area_nmads"],
+    threads: 1
     log:
         "logs/qc_filter.{s}.log",
     shell:
@@ -3199,10 +3225,63 @@ rule normalize:
     params:
         scale_factor = NRM["scale_factor"],
         nfeatures    = NRM["n_variable_features"],
+    threads: 1
     log:
         "logs/normalize.{s}.log",
     shell:
         "{RSCRIPT} scripts/normalize.R {input} {output} {params.scale_factor} {params.nfeatures} > {log} 2>&1"
+
+# --- cell typing (label transfer against M01-derived 42-type reference) ---
+rule build_celltype_reference:
+    input:
+        yi    = YIREF,
+        genes = GENES,
+        m01   = expand(f"{DATADIR}/processing/norm/{{s}}.norm.rds", s=M01),
+    output:
+        f"{DATADIR}/processing/celltype_reference.rds",
+    threads: 1
+    log:
+        "logs/build_celltype_reference.log",
+    shell:
+        "{RSCRIPT} scripts/build_celltype_reference.R {input.yi} {input.genes} {output} {input.m01} > {log} 2>&1"
+
+rule celltype:
+    input:
+        norm = f"{DATADIR}/processing/norm/{{s}}.norm.rds",
+        ref  = f"{DATADIR}/processing/celltype_reference.rds",
+        yi   = YIREF,
+    output:
+        rds     = f"{DATADIR}/processing/typed/{{s}}.typed.rds",
+        summary = "results/processing/celltype/{s}.celltype.tsv",
+    threads: 1
+    log:
+        "logs/celltype.{s}.log",
+    shell:
+        "{RSCRIPT} scripts/celltype.R {input.norm} {input.ref} {input.yi} {output.rds} {output.summary} > {log} 2>&1"
+
+rule celltype_report:
+    input:
+        expand("results/processing/celltype/{s}.celltype.tsv", s=ALL),
+    output:
+        "results/processing/celltype_summary.tsv",
+    threads: 1
+    log:
+        "logs/celltype_report.log",
+    shell:
+        "{RSCRIPT} scripts/celltype_report.R results/processing/celltype {output} > {log} 2>&1"
+
+# --- pathway scoring (UCell primary + AddModuleScore seed=42 secondary) ---
+rule pathway_score:
+    input:
+        typed = f"{DATADIR}/processing/typed/{{s}}.typed.rds",
+        genes = "config/pathway_gene_lists.yaml",
+    output:
+        f"{DATADIR}/processing/scored/{{s}}.scored.rds",
+    threads: 1
+    log:
+        "logs/pathway_score.{s}.log",
+    shell:
+        "{RSCRIPT} scripts/pathway_score.R {input.typed} {input.genes} {output} > {log} 2>&1"
 
 # --- reports / checks ---
 rule qc_report:
@@ -3210,6 +3289,7 @@ rule qc_report:
         expand("results/processing/qc/{s}.qcsummary.tsv", s=ALL),
     output:
         "results/processing/qc_summary.tsv",
+    threads: 1
     log:
         "logs/qc_report.log",
     shell:
@@ -3221,6 +3301,7 @@ rule yi_concordance:
         qc = expand(f"{DATADIR}/processing/qc/{{s}}.qc.rds", s=M01),
     output:
         "results/processing/yi_concordance.tsv",
+    threads: 1
     log:
         "logs/yi_concordance.log",
     shell:
@@ -3234,6 +3315,7 @@ rule qc_plots:
         "results/processing/plots/qc_removal_attribution.png",
         "results/processing/plots/qc_metric_distributions.png",
         "results/processing/plots/qc_removal_attribution.tsv",
+    threads: 1
     log:
         "logs/qc_plots.log",
     shell:
@@ -3295,6 +3377,64 @@ cat(sprintf("Mutter_01 panel: %d | Mutter_02 panel: %d | common: %d\n",
 stopifnot(length(common) > 500)  # sanity: panels should overlap heavily
 dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
 writeLines(common, OUT)
+#+end_src
+
+*** probe_qc.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/probe_qc.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Probe-vs-negative-control DIAGNOSTIC -- report-only, does NOT drop genes.
+#
+# NanoString good practice (Danaher, CosMx Analysis Scratch Space) advises AGAINST removing
+# low-expression genes -- that loses rare-cell-type markers -- and instead models background
+# per cell; InSituType accounts for background internally via its per-cell neg term. So we keep
+# the full panel and only FLAG candidate failed probes (Ozirmak Lermi 2025, Nat Commun
+# 10.1038/s41467-025-63414-1): genes sitting at/below the negative-control background in BOTH
+# datasets (signal-to-background <= 1), i.e. behaving like a negative probe. Review, do not auto-drop.
+# Args: <samplesheet.tsv> <common_genes.tsv> <out_report.tsv>
+suppressMessages({library(readr); library(dplyr); library(arrow); library(data.table); library(Seurat); library(Matrix)})
+args <- commandArgs(trailingOnly = TRUE)
+SS <- args[1]; PANEL <- args[2]; OUT <- args[3]
+ss <- read_tsv(SS, show_col_types = FALSE)
+panel <- readLines(PANEL)
+
+m02_paths <- unique(ss$raw_input_path[ss$dataset == "Mutter_02"])
+o1 <- UpdateSeuratObject(readRDS(m02_paths[1]))
+NEG_N <- nrow(GetAssayData(o1, assay = "negprobes", layer = "counts")); rm(o1); gc()
+
+## Mutter_01: per-gene mean (counts parquet); per-negprobe background (metadata negprobe summary)
+m01 <- ss %>% filter(dataset == "Mutter_01")
+cdt <- as.data.table(read_parquet(unique(m01$counts_path)))
+gcols <- intersect(setdiff(names(cdt), c("Slide", "fov", "cell_id")), panel)
+m01_mean <- unlist(cdt[, lapply(.SD, mean), .SDcols = gcols]); rm(cdt); gc()
+mdt <- as.data.table(read_parquet(unique(m01$metadata_path)))
+m01_bg <- mean(mdt$nCount_NegativeProbes, na.rm = TRUE) / NEG_N; rm(mdt); gc()
+
+## Mutter_02: per-gene mean (RNA assay); per-negprobe background (negprobes assay)
+gm <- list(); bgs <- numeric(0)
+for (p in m02_paths) {
+  o <- UpdateSeuratObject(readRDS(p))
+  rna <- GetAssayData(o, assay = "RNA", layer = "counts")
+  gm[[p]] <- Matrix::rowMeans(rna[intersect(panel, rownames(rna)), , drop = FALSE])
+  bgs <- c(bgs, mean(Matrix::rowMeans(GetAssayData(o, assay = "negprobes", layer = "counts")))); rm(o); gc()
+}
+g02 <- Reduce(intersect, lapply(gm, names))
+m02_mean <- rowMeans(vapply(gm, function(x) x[g02], numeric(length(g02)))); m02_bg <- mean(bgs)
+
+genes <- intersect(names(m01_mean), g02)
+rep <- data.frame(gene = genes,
+                  m01_mean = m01_mean[genes], m01_bg = m01_bg, m01_s2b = m01_mean[genes] / m01_bg,
+                  m02_mean = m02_mean[genes], m02_bg = m02_bg, m02_s2b = m02_mean[genes] / m02_bg)
+rep$flagged_failed <- rep$m01_s2b <= 1 & rep$m02_s2b <= 1   # at background in BOTH = candidate failed probe
+rep <- rep[order(-rep$flagged_failed, rep$m02_s2b), ]
+cat(sprintf("probe-QC diagnostic: %d genes | NEG_N=%d | M01 bg=%.4f M02 bg=%.4f | %d flagged at-background in BOTH (NOT dropped)\n",
+            nrow(rep), NEG_N, m01_bg, m02_bg, sum(rep$flagged_failed)))
+if (sum(rep$flagged_failed)) cat("flagged failed-probe candidates:", paste(rep$gene[rep$flagged_failed], collapse = ", "), "\n")
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+write_tsv(rep, OUT)
 #+end_src
 
 *** adapt_mutter01.R
@@ -3482,6 +3622,183 @@ dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
 saveRDS(obj, OUT)
 cat(sprintf("normalized %s: %d cells, %d/%d variable features\n",
             sub("\\.qc\\.rds$", "", basename(IN)), ncol(obj), length(VariableFeatures(obj)), nrow(obj)))
+#+end_src
+
+*** build_celltype_reference.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/build_celltype_reference.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Build the cell-typing reference for Seurat anchor label transfer, on the common gene panel:
+#   pooled Mutter_01 cells labeled with cell_type = Yi ImmGen label, with confident-epithelial
+#   a/b/NA cells relabeled tumor_epithelial (identical rule to celltype.R's Mutter_01 branch, so
+#   the reference labels match how M01 cells are actually typed). Per-label subsampled for balance
+#   and anchor-finding speed; LogNormalized. -> reference Seurat object (reference.rds).
+# Args: <yi_reference.tsv> <common_genes.tsv> <out_reference.rds> <m01_norm_rds...>
+suppressMessages({library(Seurat); library(Matrix); library(readr)})
+args <- commandArgs(trailingOnly = TRUE)
+YI <- args[1]; GENES <- args[2]; OUT <- args[3]; M01_RDS <- args[-(1:3)]
+MIN_CELLS <- 100      # drop Yi label classes rarer than this in the pool
+N_TOTAL   <- 20000    # uniform random subsample of the pool (preserves natural abundance; bounds anchor cost / per-job memory: 40k OOM-killed sam0023 transfer at --cores 1)
+EPI <- c("Epcam", "Krt8", "Krt18", "Krt19")
+set.seed(1)
+
+common <- readLines(GENES)
+yi <- read_tsv(YI, show_col_types = FALSE)
+yi_lab <- setNames(yi$ImmuneAtlas_ImmGen_Main_cell_Types, yi$cell_id)
+
+cat(sprintf("Pooling %d Mutter_01 objects...\n", length(M01_RDS)))
+mats   <- lapply(M01_RDS, function(f) GetAssayData(readRDS(f), layer = "counts"))
+genes  <- Reduce(intersect, c(list(common), lapply(mats, rownames)))
+counts <- do.call(cbind, lapply(mats, function(m) m[genes, , drop = FALSE]))
+rm(mats); gc()
+
+## cell_type = Yi label, with confident-epithelial a/b/NA -> tumor_epithelial (== celltype.R M01 logic)
+ct  <- unname(yi_lab[colnames(counts)])
+epi <- intersect(EPI, genes); stopifnot(length(epi) >= 2)
+epi_detect <- Matrix::colSums(counts[epi, , drop = FALSE] > 0)
+ct[(ct %in% c("a", "b") | is.na(ct)) & epi_detect >= 2] <- "tumor_epithelial"
+cat(sprintf("Pooled: %d genes x %d cells; %d candidate types\n",
+            nrow(counts), ncol(counts), length(unique(na.omit(ct)))))
+
+## keep labels with >= MIN_CELLS; uniform random subsample PRESERVING natural abundance.
+## Per-label balancing over-represents rare ImmGen subsets, flattening class priors so transfer
+## scatters epithelial cells into spurious thymocyte/spleen types; natural abundance keeps the
+## tumor/immune composition that anchors the transfer (smoke test sam0018: balancing put only
+## 8% of epithelial-marker+ cells in tumor_epithelial; natural abundance restores it).
+tc   <- table(ct)
+keep <- names(tc[tc >= MIN_CELLS])
+pool <- which(ct %in% keep)
+if (length(pool) > N_TOTAL) pool <- sample(pool, N_TOTAL)
+counts <- counts[, pool]; ct <- ct[pool]
+cat(sprintf("Reference: %d cells across %d types (natural abundance; >= %d cells/type in pool; dropped %d rare/NA types)\n",
+            length(pool), length(unique(ct)), MIN_CELLS, length(tc) - length(keep)))
+
+ref <- CreateSeuratObject(counts = counts)
+ref$cell_type <- ct
+ref <- NormalizeData(ref, verbose = FALSE)
+ref <- FindVariableFeatures(ref, nfeatures = length(genes), verbose = FALSE)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+saveRDS(ref, OUT)
+cat("wrote", OUT, "-", ncol(ref), "cells,", length(keep), "types\n")
+#+end_src
+
+*** celltype.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/celltype.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Per-sample cell typing (label transfer against the M01-derived reference):
+#   Mutter_01: carry Yi's ImmGen label as cell_type (yi_celltype = original); relabel
+#              confident-epithelial cells in Yi's de-novo a/b buckets -> tumor_epithelial.
+#   Mutter_02: Seurat anchor label transfer (FindTransferAnchors CCA + TransferData) against the
+#              reference of pooled M01 cells -> cell_type (+ celltype_prob = prediction.score.max).
+#              Batch-robust; replaces InSituType, whose count-likelihood collapsed M02's tumor
+#              compartment into a Lymphatic.endothelial sink under the M01->M02 platform shift.
+# Args: <in.norm.rds> <reference.rds> <yi_reference.tsv> <out.typed.rds> <out.summary.tsv>
+suppressMessages({library(Seurat); library(Matrix); library(readr)})
+args <- commandArgs(trailingOnly = TRUE)
+IN <- args[1]; REF <- args[2]; YI <- args[3]; OUT_RDS <- args[4]; OUT_SUM <- args[5]
+EPI <- c("Epcam", "Krt8", "Krt18", "Krt19")
+
+obj <- readRDS(IN)
+ds  <- as.character(obj$dataset[1]); sid <- as.character(obj$sample_id[1])
+
+if (ds == "Mutter_01") {
+  yi  <- read_tsv(YI, show_col_types = FALSE)
+  lab <- setNames(yi$ImmuneAtlas_ImmGen_Main_cell_Types, yi$cell_id)
+  ct  <- unname(lab[colnames(obj)])
+  obj$yi_celltype <- ct
+  epi <- intersect(EPI, rownames(obj))
+  cnt <- GetAssayData(obj, layer = "counts")
+  epi_detect <- Matrix::colSums(cnt[epi, , drop = FALSE] > 0)
+  relabel <- (ct %in% c("a", "b") | is.na(ct)) & epi_detect >= 2
+  ct[relabel] <- "tumor_epithelial"
+  obj$cell_type <- ct
+  cat(sprintf("%s (Mutter_01): %d cells; %d relabeled -> tumor_epithelial\n", sid, ncol(obj), sum(relabel)))
+} else {
+  refobj  <- readRDS(REF)
+  feat    <- intersect(rownames(obj), rownames(refobj))
+  anchors <- FindTransferAnchors(reference = refobj, query = obj, features = feat,
+                                 dims = 1:30, reduction = "cca", verbose = FALSE)
+  pred <- TransferData(anchorset = anchors, refdata = as.character(refobj$cell_type),
+                       weight.reduction = "cca", dims = 1:30, verbose = FALSE)
+  obj$cell_type     <- pred$predicted.id
+  obj$celltype_prob <- pred$prediction.score.max
+  cat(sprintf("%s (Mutter_02): Seurat label transfer typed %d cells\n", sid, ncol(obj)))
+}
+
+summ <- as.data.frame(table(obj$cell_type), responseName = "n")
+names(summ)[1] <- "cell_type"; summ$sample_id <- sid; summ$dataset <- ds
+dir.create(dirname(OUT_RDS), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(OUT_SUM), recursive = TRUE, showWarnings = FALSE)
+saveRDS(obj, OUT_RDS); write_tsv(summ, OUT_SUM)
+#+end_src
+
+*** celltype_report.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/celltype_report.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Aggregate per-sample cell-type counts into one table. Args: <celltype_dir> <out.tsv>
+suppressMessages({library(readr); library(dplyr); library(purrr); library(tidyr)})
+args <- commandArgs(trailingOnly = TRUE)
+DIR <- args[1]; OUT <- args[2]
+files <- list.files(DIR, pattern = "\\.celltype\\.tsv$", full.names = TRUE)
+stopifnot(length(files) > 0)
+df <- map_dfr(files, read_tsv, show_col_types = FALSE)
+wide <- df %>% group_by(dataset, sample_id, cell_type) %>% summarise(n = sum(n), .groups = "drop") %>%
+  pivot_wider(names_from = cell_type, values_from = n, values_fill = 0) %>% arrange(dataset, sample_id)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+write_tsv(wide, OUT)
+cat(sprintf("aggregated cell types for %d samples -> %s\n", nrow(wide), OUT))
+#+end_src
+
+*** pathway_score.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/pathway_score.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Pathway/module scoring on a typed object. UCell::AddModuleScore_UCell (primary -- rank-based,
+# no random background, dataset-independent) + Seurat AddModuleScore (seed=42, secondary, for
+# comparison). Gene lists from config/pathway_gene_lists.yaml; genes absent from the panel dropped.
+# Adds <pathway>_UCell and <pathway>_AMS columns. Args: <in.typed.rds> <gene_lists.yaml> <out.scored.rds>
+suppressMessages({library(Seurat); library(UCell); library(yaml)})
+args <- commandArgs(trailingOnly = TRUE)
+IN <- args[1]; YAML <- args[2]; OUT <- args[3]
+set.seed(42)
+
+obj  <- readRDS(IN)
+sets <- yaml::read_yaml(YAML)
+present <- rownames(obj)
+sets <- lapply(sets, function(g) intersect(g, present))
+sets <- sets[vapply(sets, length, integer(1)) >= 2]    # need >=2 detectable genes
+stopifnot(length(sets) > 0)
+cat(sprintf("scoring %d pathways: %s\n", length(sets),
+            paste(sprintf("%s(%d)", names(sets), lengths(sets)), collapse = ", ")))
+
+## UCell (primary)
+obj <- AddModuleScore_UCell(obj, features = sets, name = "_UCell")
+## AddModuleScore (secondary, seeded) -> rename AMS1..n to <pathway>_AMS
+## panel-aware ctrl/nbin: default ctrl=100 over-samples the thin ~870-gene background pool
+obj <- AddModuleScore(obj, features = sets, name = "AMS", seed = 42,
+                      nbin = 12, ctrl = min(50L, floor(nrow(obj) / 10)))
+for (i in seq_along(sets)) {
+  obj[[paste0(names(sets)[i], "_AMS")]] <- obj[[paste0("AMS", i)]]
+  obj[[paste0("AMS", i)]] <- NULL
+}
+
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+saveRDS(obj, OUT)
+cat(sprintf("scored %s: %d cells\n", sub("\\.typed\\.rds$", "", basename(IN)), ncol(obj)))
 #+end_src
 
 *** qc_report.R
