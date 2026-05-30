@@ -619,13 +619,21 @@ A cross-platform FFPE benchmark of CosMx, MERFISH, and Xenium documented that Co
 :PROPERTIES:
 :header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
 :END:
-**** TODO Run probe-vs-negative-control QC on Mouse UCC panel
+**** Background and probe QC
 :PROPERTIES:
 :ID:       3aee569f-4833-4808-9fcb-eadc1dc9ff27
 :END:
-- Probe-level QC [cite:@ozirmaklermi2025] failed lineage marker probes can collapse cell types into "unknown"
 
-Compute mean per-cell expression of every target gene in the Mouse UCC panel relative to the panel's negative control probes (Mutter_01 and Mutter_02). Flag any target probe whose distribution is at or below the negative-control distribution. Cross-reference flagged probes against the InsituType ImmGen reference markers — failed probes for lineage markers (analogous to the CD3D/FOXP3/MS4A1 failures Ozirmak Lermi et al. document for human CosMx panels) will collapse those cell types into "unknown" clusters and bias downstream peak/valley analysis. Implement as a jupyter-R block under =*** Quality control= and re-run cell typing with flagged probes excluded if any are found. Motivation: [cite:@ozirmaklermi2025].
+CosMx data carry off-target "background" counts (~0.01–0.05 counts per plex per cell) from off-target probe binding. Good practice for handling background and negative-control probes follows NanoString's own guidance ([[https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/background/index.html][Danaher, "How does background impact CosMx data"]]; [[https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/normalization/index.html][QC and normalization]]; [[https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/cell-typing-basics/index.html][cell typing]]):
+
+- Estimate each cell's background from its total counts (dataset mean background-per-total-count ratio × the cell's total counts); single-cell negative-probe counts are too sparse to measure directly.
+- *Do not remove low-expression genes* — that discards genuinely rare cell-type markers. For sparse-but-crucial markers, smooth/impute from the most-similar cells instead.
+- InSituType models background internally (per-cell =neg= term), so cell typing does not require pre-filtering background genes.
+- Genuinely *failed* probes are the narrow exception: a probe at background even in the cells that should express it. Ozirmak Lermi et al. found 8–31.9% of a human CosMx panel at negative-control levels, including canonical markers (CD3D, FOXP3, MS4A1) [cite:@ozirmaklermi2025]. Flag and review such probes; prefer smoothing over deletion.
+
+Implementation: =scripts/probe_qc.R= is a *report-only diagnostic* (=results/processing/probe_qc_report.tsv=) flagging genes at/below the negative-control background in *both* Mutter_01 and Mutter_02 (signal-to-background ≤ 1). The analysis panel stays the full Mutter_01 ∩ Mutter_02 intersection — *no genes are dropped*; InSituType's per-cell background model handles background during cell typing.
+
+***** TODO Review =probe_qc_report.tsv= flagged candidates; smooth (not drop) any confirmed failed lineage-marker probes
 
 *** Layer 2 -- MBRT vs SBRT vs Control Comparative Kinetics
 :PROPERTIES:
@@ -3080,7 +3088,7 @@ str(meta)
 
 * Results
 ** Initial processing and QC
-Harmonized Stage B (adapter to common-format Seurat) and Stage C (QC filter, normalize), applied identically to Mutter_01 and Mutter_02 from raw; Yi-provided Mutter_01 layers held as a cross-check. QC cutoffs documented in [[file:config/config.yaml]].
+Harmonized Stage B (adapter to common-format Seurat) and Stage C (QC filter, normalize), applied identically to Mutter_01 and Mutter_02 from raw; Yi-provided Mutter_01 layers held as a cross-check. QC cutoffs documented in [[file:config/config.yaml]]. A probe-QC diagnostic, cell typing (label transfer + tumor_epithelial bootstrap), and pathway scoring (UCell) extend the per-sample stage; see the [[file:plan-processing-pipeline.md][processing pipeline plan]] for the full stage list, design decisions, and run status.
 
 *** processing.smk
 :PROPERTIES:

@@ -10,7 +10,7 @@ RSCRIPT = "conda run -n spatial-rads Rscript"
 DATADIR = config["datadir"]
 MASTER  = config["samplesheet"]            # master sheet from the data_model workflow
 SCOPED  = "results/processing/samplesheet.tsv"
-GENES   = "results/processing/common_genes.tsv"
+GENES   = "results/processing/common_genes.tsv"  # common panel (Mutter_01 ∩ Mutter_02); NOT gene-filtered
 YIREF   = "results/processing/yi_reference.tsv"
 QC      = config["qc"]
 NRM     = config["normalize"]
@@ -23,9 +23,11 @@ ALL = _s["sample_id"].tolist()
 
 rule all:
     input:
-        expand(f"{DATADIR}/processing/norm/{{s}}.norm.rds", s=ALL),
+        expand(f"{DATADIR}/processing/scored/{{s}}.scored.rds", s=ALL),
         "results/processing/qc_summary.tsv",
         "results/processing/yi_concordance.tsv",
+        "results/processing/celltype_summary.tsv",
+        "results/processing/probe_qc_report.tsv",
         "results/processing/plots/qc_removal_attribution.png",
         "results/processing/plots/qc_metric_distributions.png",
 
@@ -50,6 +52,18 @@ rule common_gene_panel:
         "logs/common_gene_panel.log",
     shell:
         "{RSCRIPT} scripts/common_gene_panel.R {input.ss} {output} > {log} 2>&1"
+
+# --- probe-vs-negative-control QC DIAGNOSTIC (report-only; does NOT drop genes -- see scripts/probe_qc.R) ---
+rule probe_qc:
+    input:
+        ss    = SCOPED,
+        panel = GENES,
+    output:
+        "results/processing/probe_qc_report.tsv",
+    log:
+        "logs/probe_qc.log",
+    shell:
+        "{RSCRIPT} scripts/probe_qc.R {input.ss} {input.panel} {output} > {log} 2>&1"
 
 # --- Stage B adapters: raw -> per-sample common-format Seurat ---
 rule adapt_mutter01:
@@ -105,6 +119,54 @@ rule normalize:
         "logs/normalize.{s}.log",
     shell:
         "{RSCRIPT} scripts/normalize.R {input} {output} {params.scale_factor} {params.nfeatures} > {log} 2>&1"
+
+# --- cell typing (label transfer against M01-derived 42-type reference) ---
+rule build_celltype_reference:
+    input:
+        yi    = YIREF,
+        genes = GENES,
+        m01   = expand(f"{DATADIR}/processing/norm/{{s}}.norm.rds", s=M01),
+    output:
+        f"{DATADIR}/processing/celltype_reference.rds",
+    log:
+        "logs/build_celltype_reference.log",
+    shell:
+        "{RSCRIPT} scripts/build_celltype_reference.R {input.yi} {input.genes} {output} {input.m01} > {log} 2>&1"
+
+rule celltype:
+    input:
+        norm = f"{DATADIR}/processing/norm/{{s}}.norm.rds",
+        ref  = f"{DATADIR}/processing/celltype_reference.rds",
+        yi   = YIREF,
+    output:
+        rds     = f"{DATADIR}/processing/typed/{{s}}.typed.rds",
+        summary = "results/processing/celltype/{s}.celltype.tsv",
+    log:
+        "logs/celltype.{s}.log",
+    shell:
+        "{RSCRIPT} scripts/celltype.R {input.norm} {input.ref} {input.yi} {output.rds} {output.summary} > {log} 2>&1"
+
+rule celltype_report:
+    input:
+        expand("results/processing/celltype/{s}.celltype.tsv", s=ALL),
+    output:
+        "results/processing/celltype_summary.tsv",
+    log:
+        "logs/celltype_report.log",
+    shell:
+        "{RSCRIPT} scripts/celltype_report.R results/processing/celltype {output} > {log} 2>&1"
+
+# --- pathway scoring (UCell primary + AddModuleScore seed=42 secondary) ---
+rule pathway_score:
+    input:
+        typed = f"{DATADIR}/processing/typed/{{s}}.typed.rds",
+        genes = "config/pathway_gene_lists.yaml",
+    output:
+        f"{DATADIR}/processing/scored/{{s}}.scored.rds",
+    log:
+        "logs/pathway_score.{s}.log",
+    shell:
+        "{RSCRIPT} scripts/pathway_score.R {input.typed} {input.genes} {output} > {log} 2>&1"
 
 # --- reports / checks ---
 rule qc_report:
