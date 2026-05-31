@@ -106,6 +106,7 @@ Raw Seurat objects staged at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mut
 :PROPERTIES:
 :ID:       2dc86037-02c7-4b51-b806-43dcc1bc1e9f
 :END:
+- [2026-05-30 Sat] Reproducible per-sample pipeline complete: `processing.smk` produces 23 scored.rds across both datasets (adapter → QC → normalize → cell typing → pathway scoring). M02 cell typing switched from InSituType (collapsed tumor compartment into 38% Lymphatic.endo sink under cross-dataset batch shift) to Seurat anchor TransferData against a 20k pooled-M01 cell reference; validated by marker concordance (Krt8+/Epcam+ → tumor compartment 64-71% across all 12 M02 samples). Cell-typing/pathway/probe-QC layer folded into literate org with `shell.prefix` BLAS pinning + per-rule `threads: 1` baked in. See [[file:plan-processing-pipeline.md][processing pipeline plan]]; next session builds [[file:plan-aggregate.md][aggregate.smk]].
 - [2026-03-11 Tue] Layer 3 peak/valley stripe detection: established 15-deg tilted stripe model with 1.02mm spacing and 4 peaks from H2AX image geometry. Transcript-based p21 validates peak > valley. Pending visual confirmation of zone overlay.
 - [2026-03-11 Tue] Layers 1-2 complete and committed: QC (971K cells), clustering (9 clusters), cell type validation, DEGs (2160 bulk + 2534 per-cell-type), pathway kinetics, composition, spatial NN analysis.
 - [2026-03-11 Tue] Initial project setup: data model, experimental design metadata, exploratory analysis migration from career.org.
