@@ -16,6 +16,11 @@ https://mail.google.com/mail/u/0/#inbox/FMfcgzQgLXpfTcszfkdQDwMWvMnTKVzg
 - Mutter02_Slide Powerpoint.pptx [[https://mail.google.com/mail/u/0/#inbox/FMfcgzQgLXpfTcttgrXLmkHtZJVpmxfl][gmail]]
 - [ ] h2ax scanner tiff
 - [ ] beam angle per slide?
+* Plans
+- [[file:plan-aggregate.md][aggregate.smk handoff (next session)]] — bootstrap doc for the cross-sample/cross-dataset workflow.
+- [[file:plan-processing-pipeline.md][processing.smk — design, decisions, status]] — per-sample upstream (adapter → QC → normalize → cell typing → pathway scoring), completed 2026-05-30.
+- [[file:plan-mbrt-signatures.md][MBRT signatures plan]] — autonomous VM Layer-4 run.
+
 * Key results
 :PROPERTIES:
 :ID:       af3003a4-dc06-4a49-8edf-c6660829cf13
