@@ -9,13 +9,15 @@ First-in-field spatial transcriptomics study of MBRT peak/valley biology. MBRT d
 ## Datasets
 
 - **Mutter_01** (current): 11 conditions (MBRT/SBRT/Control × timepoints), 971K cells post-QC, CosMx ~1000-gene panel. Input parquets at `/mnt/data/projects/spatial-rads/inputs/mutter01/`
-- **Mutter_02**: 4 slides, 12 samples (3 per slide: Control/MBRT/SBRT at 2d), 2.35M cells post-QC. Raw Seurat RDS at `/mnt/data/projects/spatial-rads/inputs/mutter02/`. Fully processed via `processing.smk` (2026-05-30): sample assignment, QC, LogNormalize, cell typing via Seurat anchor TransferData against a pooled M01 cell reference (replaces InSituType, which failed on cross-dataset batch shift — see `plan-processing-pipeline.md`), and UCell/AddModuleScore pathway scoring.
+- **Mutter_02**: 4 slides, 12 samples (3 per slide: Control/MBRT/SBRT at 2d), 2.35M cells post-QC. Raw Seurat RDS at `/mnt/data/projects/spatial-rads/inputs/mutter02/`. Fully processed via `processing.smk` (2026-05-30): sample assignment, QC, LogNormalize, cell typing via Seurat anchor TransferData against a pooled M01 cell reference (replaces InSituType, which failed on cross-dataset batch shift in this per-sample application — see `plan-processing-pipeline.md`; note the `aggregate.smk` layer re-types all cells with InSituType at merged scale, a different application), and UCell/AddModuleScore pathway scoring.
 
 ## Analysis Architecture
 
 **Reproducible pipeline (per-sample / pre-aggregate)** — `workflows/processing.smk`, completed 2026-05-30. Adapter (raw → common 950-gene panel Seurat) → 4-criteria QC filter → LogNormalize → probe-QC diagnostic → cell typing (Yi labels + tumor_epithelial relabel for M01; Seurat anchor TransferData for M02) → UCell + AddModuleScore pathway scoring. 23 per-sample scored.rds at `/mnt/data/projects/spatial-rads/processing/scored/`. See `plan-processing-pipeline.md`.
 
-**Cross-sample workflow (`aggregate.smk`)** — not yet built. Bootstrap design in `plan-aggregate.md`; covers merge → Harmony integration → cluster → UMAP → cell-type landscape → cross-dataset DEGs. Option C (integrate-then-transfer for typing) deferred here.
+**Typing rewrite staged (v2.0, uncommitted, NOT yet run — 2026-05-31).** `scripts/celltype.R` + `config/lineage_markers.yaml` replace the two-branch v1 typing above with *de-anchored* scoring: both datasets typed **identically** by UCell against shared coarse lineage markers (~15 lineages; Epithelial→`tumor_epithelial`), per-cell argmax→`cell_type` with a min-score/margin→`unassigned` cutoff, **no M01→M02 transfer** (cross-dataset labels become structural, not inherited). The 23 scored.rds on disk (2026-05-30) still carry **v1** labels — M01 = Yi ImmGen (`yi_celltype`→`cell_type`), M02 = Seurat TransferData (`cell_type` + `celltype_prob`), M02 sharing M01's vocabulary because it inherited it. Rerun `processing.smk` to adopt v2.0. See the v2.0 banner in `plan-processing-pipeline.md`.
+
+**Cross-sample workflow (`aggregate.smk`)** — in active build (2026-06-01); current design/status in `plan-aggregate.md`. **STATUS 2026-06-01 — the per-cell InSituType typing described below was RUN and FAILED validation** (84.6% of cells mislabeled `tumor_epithelial`, immune gold-marker recall <5%); root cause is the per-cell *unit of inference* at this panel sparsity, NOT the `EPI_GATE`/tumor anchor — do NOT re-tune those. Coarse typing has pivoted to **cluster-then-annotate** (`plan-aggregate.md` v2.3; memory `project_insitutype_aggregate_failure.md`). **No cell-type labels — per-sample TransferData OR aggregate InSituType — are currently trustworthy; do not run composition / DEG / pathway / neighborhood on them until v2.3 lands.** The InSituType narrative that follows is retained as the record of the failed detour: Merge → **InSituType cell typing run once on merged M01+M02 raw counts** against an external NanoString mammary + ImmGen atlas (semi-supervised, `update_reference_profiles=TRUE`, per-cell negprobe modeling; de-novo clusters absorb the 4T1 tumor, Epcam/Krt8 → `tumor_epithelial`) — this **re-types all cells and supersedes the per-sample TransferData labels**, making cross-dataset typing structural with no M01→M02 transfer → Harmony embedding + **Leiden clustering via `igraph::cluster_leiden`** (standard tools; `lisi` package for the batch-mixing gate) as UMAP / clustering-QC substrate → Banksy niche → hierarchical immune second pass (SingleR/celldex ImmGen on the immune subset) → composition + pseudobulk cross-dataset DEGs. The earlier Option C integrate-then-transfer typing path is superseded. *(As-built 2026-06-01: `embed_celltype.R` groups Harmony on `slide_id` alone with interim LISI gate 1.5 — Harmony 2.0.2 LAPACK-errors on ≥2 covariates, `project_harmony_lapack`; `slide_id` nests `dataset` so the dataset axis is still corrected; the planned `c("dataset","slide_id")` + gate 1.8 awaits a LAPACK-enabled Harmony. The expensive embedding is checkpointed to `aggregate/embed_checkpoint.rds` after FindNeighbors so re-clustering costs minutes; the gate runs before the viz-only UMAP. Clusters are QC-only — InSituType types from raw counts.)*
 
 **Scientific analysis layers** — exploratory work in `dev/`:
 
@@ -27,8 +29,8 @@ First-in-field spatial transcriptomics study of MBRT peak/valley biology. MBRT d
 ## Code Organization
 
 - `spatial-rads.org` — main literate notebook (~3900 lines), all analysis + documentation. Top `* Plans` heading indexes active plan docs.
-- `workflows/*.smk` — Snakemake workflows (tangled from org). Currently: `data_model.smk`, `processing.smk`. Future: `aggregate.smk`.
-- `scripts/*.R` — R steps invoked by snakemake rules (tangled from org).
+- `workflows/*.smk` — Snakemake workflows. `data_model.smk`, `processing.smk` (tangled from org); `aggregate.smk` in active build (2026-06-01).
+- `scripts/*.R` — R steps invoked by snakemake rules. The `processing.smk` steps are tangled from org; the `scripts/aggregate/*.R` steps are authored directly as standalone scripts (not in the org notebook).
 - `plan-processing-pipeline.md` — full design/decisions/status of the per-sample reproducible pipeline.
 - `plan-aggregate.md` — handoff doc for the next cross-sample / cross-dataset workflow build.
 - `plan-mbrt-signatures.md` — Layer-4 signature projection plan (autonomous VM runs).
@@ -37,8 +39,9 @@ First-in-field spatial transcriptomics study of MBRT peak/valley biology. MBRT d
 - `config/spatial-rads-conda-env.yaml` — conda environment definition.
 - `config/config.yaml` — workflow config (datadir, samplesheet, qc thresholds, normalize scale_factor).
 - `config/pathway_gene_lists.yaml` — canonical pathway gene sets (IFN-I/II, DDR, STING).
-- `data/metadata.xlsx` — experimental design metadata (single source of truth).
-- `data/data_model.rda` — relational sample/slide/dataset model emitted by `data_model.smk`.
+- `data/metadata.xlsx` — experimental design metadata (single source of truth). Relational sheets: `mice`/`datasets`/`slides`/`samples` plus `if_channels` (one row per dataset×morphology-IF stain). The `datasets` sheet carries dataset-level RNA-panel design (`panel_base`, `panel_custom`, `assay_type`=RNA, `panel_n`, `n_negprobe`, `n_falsecode`); `if_channels` captures the 5 CosMx morphology stains (DAPI/CD298.B2M/PanCK/CD45/G) with segmentation/lineage `role`. IF channels are morphology stains for segmentation+lineage, NOT a protein-expression assay. Built from a legacy flat source by `scripts/build_metadata_xlsx.R`.
+- `data/metadata_schema.yaml` — Frictionless-style schema (PK/enum/FK/required) consumed by `make_data_model.R` for validation. One resource per xlsx sheet.
+- `data/data_model.rda` — relational model (list of tibbles: mice/datasets/slides/samples/if_channels) emitted by `data_model.smk`; `results/data_model/samples.tsv` is the sample-grain denormalized join (dataset-grain dims like `if_channels` are intentionally not joined in).
 - `data/sources/` — write-protected vendor documents (NanoString panel files, quotes).
 
 ## Tech Stack
@@ -53,7 +56,7 @@ First-in-field spatial transcriptomics study of MBRT peak/valley biology. MBRT d
 
 - **Snakemake invocation**: `TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/<name>.smk --cores N`. Dry-run before execute (`--dry-run`).
 - **Per-sample data layout** (post-`processing.smk`): `processing/raw/{s}.raw.rds` → `processing/qc/{s}.qc.rds` → `processing/norm/{s}.norm.rds` → `processing/typed/{s}.typed.rds` → `processing/scored/{s}.scored.rds`, all under `/mnt/data/projects/spatial-rads/`.
-- **Cell typing**: M01 keeps Yi ImmGen labels with confident-epithelial `a`/`b`/NA cells relabeled to `tumor_epithelial`; M02 uses Seurat anchor TransferData against a 20k natural-abundance pooled-M01 cell reference. **For "tumor compartment" cuts, group `a` + `tumor_epithelial`** — M02 tumor cells land mostly in `a` faithfully to M01.
+- **Cell typing**: M01 keeps Yi ImmGen labels with confident-epithelial `a`/`b`/NA cells relabeled to `tumor_epithelial`; M02 uses Seurat anchor TransferData against a 20k natural-abundance pooled-M01 cell reference. **For "tumor compartment" cuts, group `a` + `tumor_epithelial`** — M02 tumor cells land mostly in `a` faithfully to M01. *(These are the per-sample processing labels; `aggregate.smk` re-types all cells with InSituType against the external atlas — see Analysis Architecture — emitting `tumor_epithelial` directly, so the `a`-bucket grouping applies only to per-sample / legacy outputs.)*
 - **Exploratory R scripts** (legacy): `conda run -n spatial-rads Rscript dev/peak_valley_analysis/<script>.R`
 - **Stats**: n=1 per condition in Mutter_01 → report effect sizes (log2FC, % expressed), NOT p-values. Mutter_02 brings replicates for formal inference at 2d.
 - Peak/valley ground truth from H2AX IHC at 4h only.
