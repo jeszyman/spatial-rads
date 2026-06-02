@@ -23,6 +23,8 @@
 .Renviron
 
 ###   Python   ###
+__pycache__/
+*.py[cod]
 .pybuilder/
 target/
 .env

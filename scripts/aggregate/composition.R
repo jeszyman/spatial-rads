@@ -1,0 +1,167 @@
+#!/usr/bin/env Rscript
+# aggregate.smk Track 1 -- cell-type composition.
+# M02 day2 (n=4/condition, 4 slides crossed) gets a formal propeller test:
+# getTransformedProps(logit) -> lmFit(~0+condition+slide_id) -> 3 contrasts ->
+# eBayes(robust) -> topTable, with global BH across (cell_type x contrast).
+# M01 (n=1 timecourse) is descriptive proportions only. Per plan-aggregate.md
+# Track 1: no silent drops -- a cell type is logged to the dropped table only if
+# the logit transform yields a non-finite row (genuine method failure).
+# Args: <cell_metadata.tsv> <cell_atlas_labels.tsv> <out_by_sample> <out_test>
+#       <out_dropped> <plot_bars> <plot_forest> <plot_timecourse>
+suppressPackageStartupMessages({
+  library(data.table)
+  library(speckle)
+  library(limma)
+  library(ggplot2)
+})
+
+args             <- commandArgs(trailingOnly = TRUE)
+meta_path        <- args[1]
+labels_path      <- args[2]
+out_by_sample    <- args[3]
+out_test         <- args[4]
+out_dropped      <- args[5]
+plot_bars        <- args[6]
+plot_forest      <- args[7]
+plot_timecourse  <- args[8]
+
+dir.create(dirname(out_test), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(plot_bars), recursive = TRUE, showWarnings = FALSE)
+
+m <- fread(meta_path)
+# Use the aggregate InSituType atlas labels in place of the stale per-sample
+# cell_type, so composition reflects identical cross-dataset typing (plan-aggregate.md).
+lab <- fread(labels_path)[, .(cell = cell_id, cell_type = cell_type_atlas)]
+m[, cell_type := NULL]
+m <- merge(m, lab, by = "cell", all.x = TRUE)
+m <- m[!is.na(cell_type)]
+m[, condition := as.character(condition)]
+
+# --- composition_by_sample: every (sample x cell_type) proportion ---------
+by_sample <- m[, .(n_cells = .N), by = .(sample_id, cell_type, condition,
+                                          timepoint_h, dataset, slide_id)]
+by_sample[, fraction := n_cells / sum(n_cells), by = sample_id]
+setcolorder(by_sample, c("sample_id", "cell_type", "n_cells", "fraction",
+                         "condition", "timepoint_h", "dataset", "slide_id"))
+setorder(by_sample, dataset, sample_id, -n_cells)
+fwrite(by_sample, out_by_sample, sep = "\t")
+
+# --- M02 day2 propeller test ----------------------------------------------
+m2 <- m[dataset == "Mutter_02"]
+m2[, condition := factor(condition, levels = c("Control", "MBRT_day2", "SBRT_day2"))]
+
+props <- getTransformedProps(clusters = m2$cell_type, sample = m2$sample_id,
+                             transform = "logit")
+tp <- props$TransformedProps                                   # celltype x sample
+
+# Genuine method failures only: a cell type whose logit row is non-finite.
+nonfinite <- apply(tp, 1, function(r) any(!is.finite(r)))
+mean_cells <- rowMeans(props$Counts)                           # per-sample mean count
+dropped <- data.table(
+  cell_type   = rownames(tp)[nonfinite],
+  reason      = "non-finite logit-transformed proportion (zero cells in >=1 sample)",
+  mean_n_cells = round(mean_cells[nonfinite], 1)
+)
+fwrite(dropped, out_dropped, sep = "\t")
+
+tp <- tp[!nonfinite, , drop = FALSE]
+
+samp <- unique(m2[, .(sample_id, condition, slide_id)])
+setkey(samp, sample_id)
+samp <- samp[colnames(tp)]                                     # align to tp columns
+stopifnot(identical(samp$sample_id, colnames(tp)))
+design <- model.matrix(~ 0 + condition + slide_id, data = samp)
+colnames(design) <- make.names(colnames(design))
+
+fit <- lmFit(tp, design)
+cm  <- makeContrasts(
+  MBRT_vs_Ctrl = conditionMBRT_day2 - conditionControl,
+  SBRT_vs_Ctrl = conditionSBRT_day2 - conditionControl,
+  MBRT_vs_SBRT = conditionMBRT_day2 - conditionSBRT_day2,
+  levels = design)
+fit2 <- eBayes(contrasts.fit(fit, cm), robust = TRUE)
+
+mean_n_cells <- rowMeans(props$Counts)[rownames(tp)]
+ln2 <- log(2)
+test <- rbindlist(lapply(colnames(cm), function(cn) {
+  tt <- topTable(fit2, coef = cn, number = Inf, sort.by = "none", confint = TRUE)
+  data.table(
+    cell_type    = rownames(tt),
+    contrast     = cn,
+    log2FC_logit = tt$logFC / ln2,
+    ci_low_log2  = tt$CI.L  / ln2,
+    ci_high_log2 = tt$CI.R  / ln2,
+    t_stat       = tt$t,
+    pvalue       = tt$P.Value)
+}))
+test[, padj := p.adjust(pvalue, method = "BH")]                # global across all rows
+test[, `:=`(method = "propeller", n_samples_per_group = 4L,
+            mean_n_cells = round(mean_n_cells[cell_type], 1), dataset = "Mutter_02")]
+setcolorder(test, c("cell_type", "contrast", "log2FC_logit", "ci_low_log2",
+                    "ci_high_log2", "t_stat", "pvalue", "padj", "method",
+                    "n_samples_per_group", "mean_n_cells", "dataset"))
+fwrite(test, out_test, sep = "\t")
+
+# --- plot 1: M02 stacked composition bars (top-15 types + Other) ----------
+m2_bys <- by_sample[dataset == "Mutter_02"]
+top15  <- m2_bys[, .(tot = sum(n_cells)), by = cell_type][order(-tot)][1:15, cell_type]
+m2_bys[, ct_lab := ifelse(cell_type %in% top15, cell_type, "Other")]
+lvls   <- c(top15, "Other")
+m2_bys[, ct_lab := factor(ct_lab, levels = lvls)]
+pal    <- c(scales::hue_pal()(15), Other = "grey70"); names(pal) <- lvls
+
+p_bars <- ggplot(m2_bys, aes(sample_id, fraction, fill = ct_lab)) +
+  geom_col(width = 0.9) +
+  facet_wrap(~ condition, scales = "free_x", nrow = 1) +
+  scale_fill_manual(values = pal, name = "cell type") +
+  labs(x = NULL, y = "fraction of cells",
+       title = "M02 day2 cell-type composition (top 15 + Other)") +
+  theme_bw(base_size = 9) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.key.size = unit(0.35, "cm"))
+ggsave(plot_bars, p_bars, width = 9, height = 5.5, dpi = 150)
+
+# --- plot 2: forest of the three contrasts (all tested cell types) --------
+ord <- test[contrast == "MBRT_vs_Ctrl"][order(mean_n_cells), cell_type]
+test[, cell_type := factor(cell_type, levels = ord)]
+test[, contrast  := factor(contrast,
+       levels = c("MBRT_vs_Ctrl", "SBRT_vs_Ctrl", "MBRT_vs_SBRT"))]
+
+p_forest <- ggplot(test, aes(log2FC_logit, cell_type, colour = contrast)) +
+  geom_vline(xintercept = 0, linetype = 2, colour = "grey50") +
+  geom_errorbar(aes(xmin = ci_low_log2, xmax = ci_high_log2),
+                orientation = "y", width = 0,
+                position = position_dodge(width = 0.7)) +
+  geom_point(size = 1.4, position = position_dodge(width = 0.7)) +
+  scale_colour_brewer(palette = "Set1") +
+  labs(x = "log2 fold-change (logit proportion), 95% CI", y = NULL,
+       title = "M02 day2 composition contrasts (propeller, global BH)") +
+  theme_bw(base_size = 9)
+ggsave(plot_forest, p_forest, width = 7.5, height = 10, dpi = 150)
+
+# --- plot 3: M01 descriptive timecourse (fraction vs timepoint) -----------
+# Collapse to the top-15 most abundant M01 cell types + Other (mirrors the M02
+# bars plot) so the panel is legible instead of ~40 thumbnail facets. Per
+# sample_id, fractions sum within a label, so Other is the combined residual.
+treat_lookup <- unique(m[, .(sample_id, treatment)])           # treatment not in by_sample schema
+m1_bys <- merge(by_sample[dataset == "Mutter_01"], treat_lookup, by = "sample_id")
+m1_top <- m1_bys[, .(tot = sum(n_cells)), by = cell_type][order(-tot)][1:15, cell_type]
+m1_bys[, ct_lab := ifelse(cell_type %in% m1_top, cell_type, "Other")]
+m1_tc  <- m1_bys[, .(fraction = sum(fraction)),
+                 by = .(sample_id, timepoint_h, treatment, ct_lab)]
+m1_tc[, ct_lab    := factor(ct_lab, levels = c(m1_top, "Other"))]
+m1_tc[, treatment := factor(treatment)]
+p_tc <- ggplot(m1_tc, aes(timepoint_h, fraction, colour = treatment)) +
+  geom_line(aes(group = treatment), linewidth = 0.5) +
+  geom_point(size = 1.2) +
+  facet_wrap(~ ct_lab, scales = "free_y", ncol = 4) +
+  scale_colour_brewer(palette = "Dark2") +
+  labs(x = "timepoint (h)", y = "fraction of cells",
+       title = "M01 cell-type composition over time (top 15 + Other; n=1, descriptive)") +
+  theme_bw(base_size = 11) +
+  theme(strip.text = element_text(size = 9))
+ggsave(plot_timecourse, p_tc, width = 11, height = 9, dpi = 150)
+
+cat(sprintf("composition: %d samples, %d cell types | M02 test %d rows, %d dropped | %d padj<0.05\n",
+            uniqueN(m$sample_id), uniqueN(m$cell_type), nrow(test),
+            nrow(dropped), test[padj < 0.05, .N]))
