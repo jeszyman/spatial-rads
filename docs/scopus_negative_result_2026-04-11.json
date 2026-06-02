@@ -1,0 +1,40 @@
+{
+  "search_date": "2026-04-11",
+  "purpose": "Verify absence of published spatial transcriptomics characterization of spatially-fractionated radiation therapy (SFRT, MBRT, GRID, lattice). Supports the first-in-field claim for the spatial-rads CosMx project.",
+  "api_base": "https://api.elsevier.com/content/search/scopus",
+  "queries": [
+    {
+      "id": "Q1_sfrt_specific",
+      "description": "spatial-omics platforms x SFRT/MBRT/GRID/lattice-specific terms",
+      "query_string": "TITLE-ABS-KEY((\"spatial transcriptomics\" OR \"Visium\" OR \"Xenium\" OR \"CosMx\" OR \"MERFISH\" OR \"GeoMx\") AND (\"microbeam\" OR \"minibeam\" OR \"spatially fractionated\" OR \"SFRT\" OR \"LATTICE SBRT\")) AND PUBYEAR > 2018",
+      "total_results": 2,
+      "returned_entries": 2,
+      "hits": [
+        {
+          "title": "Laser-capture microdissection for spatial transcriptomics of immunohistochemically detected neurons",
+          "creator": "G\u00f6cz B.",
+          "year": "2025",
+          "journal": "Journal of Biological Chemistry",
+          "doi": "10.1016/j.jbc.2024.108150",
+          "cited_by": 2
+        },
+        {
+          "title": "A spatial expression atlas of the adult human proximal small intestine",
+          "creator": "Harnik Y.",
+          "year": "2024",
+          "journal": "Nature",
+          "doi": "10.1038/s41586-024-07793-3",
+          "cited_by": 34
+        }
+      ]
+    },
+    {
+      "id": "Q2_rt_dose_gradient",
+      "description": "spatial-omics platforms x radiotherapy x dose-gradient/peak/valley/painting terms",
+      "query_string": "TITLE-ABS-KEY((\"spatial transcriptomics\" OR \"Visium\" OR \"Xenium\" OR \"GeoMx\") AND (\"radiotherapy\" OR \"radiation therapy\") AND (\"peak\" OR \"valley\" OR \"dose gradient\" OR \"dose-gradient\" OR \"dose painting\" OR \"heterogeneous dose\")) AND PUBYEAR > 2019",
+      "total_results": 0,
+      "returned_entries": 0,
+      "hits": []
+    }
+  ]
+}

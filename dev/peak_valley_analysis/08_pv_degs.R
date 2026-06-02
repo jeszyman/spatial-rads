@@ -23,16 +23,11 @@ cat(sprintf("Bulk peak vs valley DEGs: %d\n", nrow(bulk_degs)))
 cat("\nTop 20 by effect size:\n")
 print(head(bulk_degs %>% select(gene, avg_log2FC, pct.1, pct.2, p_val_adj), 20))
 
-# Volcano plot
-p_vol <- ggplot(bulk_degs, aes(x = avg_log2FC, y = -log10(p_val), color = abs(avg_log2FC) > 0.25)) +
-  geom_point(alpha = 0.5, size = 1) +
-  scale_color_manual(values = c("grey60", "red3"), guide = "none") +
-  geom_vline(xintercept = c(-0.25, 0.25), linetype = "dashed", color = "grey40") +
-  labs(title = "Peak vs Valley DEGs (MBRT_4h, all cells)",
-       subtitle = "Positive = higher in peaks; n=1, effect-size ranked",
-       x = "log2FC (peak / valley)", y = "-log10(p)") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "pv_volcano_bulk.png"), plot = p_vol, width = 8, height = 6, dpi = 150)
+# Volcano retired: -log10(p_val) pseudoreplicates the n=1 design. Mutter_02 is 2d-only and
+# H2AX peak/valley ground truth is 4h-only, so NO biological replicates are coming for this
+# 4h contrast -- the n=1 spatial-descriptive views ARE final: across-stripe profiles +
+# spatial pathway maps (05), zone maps (07), gradient + dot/box plots. bulk_degs (written
+# above) is the descriptive effect-size table.
 
 # ---- Per-cell-type DEGs ----
 cat("\nRunning per-cell-type peak vs valley DEGs...\n")

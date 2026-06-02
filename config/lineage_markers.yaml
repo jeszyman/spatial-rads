@@ -1,0 +1,41 @@
+# Coarse cell-lineage marker sets for DE-ANCHORED cell typing (plan-processing-pipeline.md v2.0).
+# Every gene is verified present in results/processing/common_genes.tsv (the M01 1000 INT M02 972
+# common ~950-gene panel) -- a marker absent from the panel silently weakens its lineage, so unlike
+# config/pathway_gene_lists.yaml (which lets scoring drop absentees) these are pre-filtered.
+#
+# CONSUMED BY scripts/celltype.R: each lineage scored with UCell::AddModuleScore_UCell (rank-based,
+# dataset-independent), then per-cell argmax across lineage scores -> label, with a min-score/margin
+# cutoff -> `unassigned`. Applied IDENTICALLY to Mutter_01 and Mutter_02 with NO M01->M02 transfer,
+# so cross-dataset comparability is structural (neither dataset defines the other's labels).
+#
+# Epithelial: in the 4T1 FLANK model the epithelial compartment IS the tumor implant (no native
+# mammary epithelium in flank), so celltype.R relabels epithelial-winners -> tumor_epithelial.
+# Normal-vs-tumor epithelial split is an open pilot decision (no 4T1-distinguishing panel marker).
+#
+# KNOWN WEAK SEPARATIONS (panel-limited, expect confusion -> watch in pilot):
+#   - Pericyte vs SmoothMuscle: pericyte has only 3 panel markers (Rgs5/Pdgfrb/Notch3); SMC leans
+#     on Myh11/Actg2/Carmn to pull apart. Shared Acta2 deliberately kept SMC-side.
+#   - DC vs Macrophage: Itgax/Ciita shared with macrophage/MHCII; DC call is the soft one.
+#
+# Plasma, Neutrophil, Mast are LINEAGE-level (not fine subtypes) and panel-clean, so broken out
+# beyond the plan's named T/B/NK/myeloid/DC set; collapse into B / Macrophage if a coarser
+# vocabulary is preferred (pilot decision). Markers held out for independent concordance checks
+# (e.g. Muc1/Sfn for epithelial) are intentionally NOT listed here.
+
+# ---- Immune ----
+T:            [Cd3d, Cd3e, Cd3g, Cd2, Cd6, Cd28, Itk, Cd8a, Cd8b1, Cd4, Tcf7]
+B:            [Cd19, Cd79a, Ms4a1, Vpreb3, Blk, Fcrla, Tcl1, Cd37]
+Plasma:       [Mzb1, Jchain, Xbp1, Tnfrsf17, Igha, Ighm, Igkc]
+NK:           [Ncr1, Klrb1c, Klra17, Klrb1, Nkg7, Gzma, Klrk1]
+Macrophage:   [Cd68, Cd14, Csf1r, Itgam, Mrc1, Cd163, C1qa, C1qb, C1qc, Lyz3, Aif1, Msr1, Marco, Fcgr4]
+Neutrophil:   [S100a8, S100a9, Mpo, Elane, Prtn3, Ltf, Camp, Csf3r]
+Mast:         [Cpa3, Tpsab1, Tpsb2, Ctsg, Mcpt8, Kit]
+DC:           [Itgax, Clec10a, Cd209a, Cd209e, Ly75, Lamp3, Ciita]
+
+# ---- Non-immune ----
+Epithelial:   [Epcam, Krt8, Krt18, Krt19, Krt7, Cdh1, Cldn4, Tacstd2]
+Endothelial:  [Pecam1, Cdh5, Kdr, Flt1, Vwf, Eng, Tek, Tie1, Clec14a, Esam]
+Fibroblast:   [Col1a1, Col1a2, Col3a1, Dcn, Lum, Pdgfra, Fn1, Vcan, Mfap5, Col5a1]
+Pericyte:     [Rgs5, Pdgfrb, Notch3]
+SmoothMuscle: [Acta2, Myh11, Tagln, Myl9, Actg2, Carmn, Tpm2]
+Adipocyte:    [Adipoq, Lep, Cidea, Fabp4, Pparg]

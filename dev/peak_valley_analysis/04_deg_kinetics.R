@@ -43,18 +43,10 @@ all_degs <- bind_rows(
 write_tsv(all_degs, file.path(DATA_DIR, "deg_all_cells.tsv"))
 cat(sprintf("Total bulk DEG rows: %d\n", nrow(all_degs)))
 
-# ---- Volcano: MBRT vs SBRT ----
-p_vol <- all_degs %>%
-  filter(comparison_type == "mbrt_vs_sbrt") %>%
-  ggplot(aes(x = avg_log2FC, y = -log10(p_val), color = abs(avg_log2FC) > 0.5)) +
-  geom_point(alpha = 0.5, size = 0.5) +
-  facet_wrap(~comparison) +
-  scale_color_manual(values = c("grey60", "red3"), guide = "none") +
-  geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "grey40") +
-  labs(title = "MBRT vs SBRT DEGs (effect-size ranked)", x = "log2FC", y = "-log10(p)",
-       caption = "n=1 per condition; p-values for visualization only") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "volcano_mbrt_vs_sbrt.png"), plot = p_vol, width = 12, height = 5, dpi = 150)
+# Volcano retired: -log10(p_val) is a cell-level Wilcoxon p, which pseudoreplicates the
+# n=1-per-condition design. all_degs (written above) stays valid as a descriptive
+# effect-size table. Correct significance test deferred until Mutter_02 (2d) replicates:
+# pseudobulk per sample -> DESeq2/edgeR/limma -> MA-plot/volcano with real p-values.
 
 # ---- Pathway kinetics ----
 kinetics <- obj@meta.data %>%

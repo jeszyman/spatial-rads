@@ -18,6 +18,11 @@ datasets <- tibble(
   name          = c("Mutter_01", "Mutter_02"),
   platform      = "CosMx",
   panel_n       = c(1000L, 972L),
+  panel_base    = "Mouse UCC",                                       # Mouse RNA Universal Cell Characterization
+  panel_custom  = c("Alan Fields 21-gene", "1K_Mayo_Thomp-Fields1"), # same Fields add-on; M02 label is the in-object Panel build name
+  assay_type    = "RNA",                                             # RNA-only; no protein-expression assay on either run
+  n_negprobe    = c(NA_integer_, 10L),   # M01 control probes stripped from delivered counts matrix (1000 gene cols only); M02 from RDS assays
+  n_falsecode   = c(NA_integer_, 184L),
   provider      = c("Yi Liu / Mutter Lab", "Mutter Lab"),
   format        = c("parquet", "rds"),
   counts_path   = c(file.path(INPUT, "mutter01/projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet"), NA),
@@ -101,10 +106,26 @@ samples <- samples_all %>% select(
   dose_gy, timepoint_h, model, tumor_cell_line, tumor_type, extract_key
 )
 
-cat("=== datasets ===\n"); print(as.data.frame(datasets))
-cat("\n=== slides ===\n");  print(as.data.frame(slides))
-cat("\n=== mice ===\n");    print(as.data.frame(mice))
-cat("\n=== samples ===\n"); print(as.data.frame(samples))
+## if_channels: CosMx morphology/IF stains used for segmentation + lineage (NOT a protein-expression assay).
+## Both datasets verified to carry the identical 5 channels (M01 parquet IF cols; M02 RDS meta.data),
+## so spec x datasets via crossing(); append divergent rows by hand if a future run adds a channel (e.g. H2AX).
+if_spec <- tribble(
+  ~channel,    ~target,           ~role,                   ~meta_cols,
+  "DAPI",      "DNA",             "segmentation_nuclear",  "Mean.DAPI;Max.DAPI",
+  "CD298.B2M", "B2M/CD298",       "segmentation_membrane", "Mean.CD298.B2M;Max.CD298.B2M",
+  "PanCK",     "pan-cytokeratin", "lineage_epithelial",    "Mean.PanCK;Max.PanCK",
+  "CD45",      "PTPRC",           "lineage_immune",        "Mean.CD45;Max.CD45",
+  "G",         "unspecified",     "redundant_epithelial",  "Mean.G;Max.G"
+)
+if_channels <- tidyr::crossing(dataset_id = datasets$dataset_id, if_spec) %>%
+  mutate(notes = if_else(channel == "G", "r~0.92 with Mean.PanCK; not a literal duplicate", NA_character_)) %>%
+  select(dataset_id, channel, target, role, meta_cols, notes)
+
+cat("=== datasets ===\n");    print(as.data.frame(datasets))
+cat("\n=== slides ===\n");     print(as.data.frame(slides))
+cat("\n=== mice ===\n");       print(as.data.frame(mice))
+cat("\n=== samples ===\n");    print(as.data.frame(samples))
+cat("\n=== if_channels ===\n"); print(as.data.frame(if_channels))
 
 if (WRITE) {
   bak <- "(none)"
@@ -112,7 +133,7 @@ if (WRITE) {
     bak <- sprintf("data/metadata-prev-%s.xlsx.bak", format(Sys.time(), "%Y%m%d-%H%M%S"))
     file.copy(XLSX, bak, overwrite = TRUE)
   }
-  write_xlsx(list(mice = mice, datasets = datasets, slides = slides, samples = samples), XLSX)
+  write_xlsx(list(mice = mice, datasets = datasets, slides = slides, samples = samples, if_channels = if_channels), XLSX)
   cat(sprintf("\nWROTE %s (prev backup: %s)\n", XLSX, bak))
 } else {
   cat("\n[preview only -- rerun with --write to write metadata.xlsx]\n")

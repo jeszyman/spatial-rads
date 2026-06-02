@@ -2,7 +2,7 @@ library(Seurat)
 library(tidyverse)
 library(zoo)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 mbrt4h <- obj@meta.data %>%
   as.data.frame() %>%
@@ -101,7 +101,7 @@ p1 <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = zone)) +
   labs(title = sprintf("MBRT_4h: Peak/Valley classification (spacing=%.2fmm)", best_spacing),
        color = "Zone") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_peak_valley_zones.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_peak_valley_zones.pdf",
        plot = p1, width = 12, height = 8)
 
 # --- p21 spatial with zone overlay ---
@@ -113,7 +113,7 @@ p2 <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
   coord_fixed() +
   labs(title = "p21 heatmap with beam centers (dashed lines)") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_p21_with_beams.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_p21_with_beams.pdf",
        plot = p2, width = 12, height = 8)
 
 # --- Pathway comparison: peak vs valley ---
@@ -135,7 +135,7 @@ p3 <- ggplot(pathway_by_zone %>% filter(zone != "boundary"),
   scale_fill_manual(values = c("peak" = "#E74C3C", "valley" = "#3498DB")) +
   labs(title = "Pathway scores: Peak vs Valley", y = "Mean score", x = NULL) +
   theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_peak_valley_pathways.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_peak_valley_pathways.pdf",
        plot = p3, width = 10, height = 6)
 
 # --- Cell type composition by zone ---
@@ -151,14 +151,14 @@ p4 <- ggplot(comp %>% filter(zone != "boundary"),
   labs(title = "Cell type composition: Peak vs Valley", fill = "Cell type",
        y = "Proportion") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_peak_valley_composition.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_peak_valley_composition.pdf",
        plot = p4, width = 10, height = 6)
 
 # --- Save classification ---
 write.csv(mbrt4h %>% select(cell_id, fov, x_slide_mm, y_slide_mm, zone, dist_to_peak,
                              cell_type_validated, p21, DNA_Damage_Repair, STING,
                              TypeI_interferon, TypeII_interferon),
-          "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/mbrt4h_peak_valley.csv",
+          "/mnt/data/projects/spatial-rads/analysis/tables/mbrt4h_peak_valley.csv",
           row.names = FALSE)
 cat("\nClassification saved to mbrt4h_peak_valley.csv\n")
 

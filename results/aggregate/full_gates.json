@@ -1,0 +1,38 @@
+{
+  "resolution": 3.0,
+  "n_clusters": 90,
+  "unassigned_rule": {
+    "N_MIN": 100,
+    "S_MIN": 2.0,
+    "clusters_unassigned": [
+      "89"
+    ],
+    "cells_unassigned": 4
+  },
+  "Q4.1_premise": {
+    "pass": true,
+    "n_major_clusters": 25,
+    "immune_frac": 0.1122,
+    "stroma_frac": 0.4063,
+    "max_label": "Epithelial",
+    "max_label_share": 0.4814
+  },
+  "Q4.2_batch_mixing": {
+    "pass": true,
+    "metric": "embedding scaled iLISI (>=0.5)",
+    "scaled_iLISI": 0.6697,
+    "iLISI_ceiling": 1.7014,
+    "qc_flag_minority_lt_5pct_major_clusters": [
+      "3"
+    ]
+  },
+  "Q4.3_marker_recall": {
+    "pass": true,
+    "lineages_failing_negbg": []
+  },
+  "Q4.4_negprobe": {
+    "max_cluster_neg_mean": 0.0229,
+    "min_signal_to_bg": 8.98
+  },
+  "ALL_PASS": true
+}

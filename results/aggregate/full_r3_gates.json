@@ -1,0 +1,32 @@
+{
+  "resolution": 3.0,
+  "n_clusters": 90,
+  "compartments_present": [
+    "immune",
+    "stroma",
+    "tumor"
+  ],
+  "Q4.1_premise": {
+    "pass": true,
+    "n_major_clusters": 25,
+    "immune_frac": 0.1122,
+    "stroma_frac": 0.4063,
+    "max_label": "Epithelial",
+    "max_label_share": 0.4814
+  },
+  "Q4.2_batch_mixing": {
+    "pass": false,
+    "scaled_iLISI": 0.6697,
+    "iLISI_ceiling": 1.7014,
+    "minority>=5%_all_major_clusters": false
+  },
+  "Q4.3_marker_recall": {
+    "pass": true,
+    "lineages_failing_negbg": []
+  },
+  "Q4.4_negprobe": {
+    "max_cluster_neg_mean": 0.0229,
+    "min_signal_to_bg": 8.98
+  },
+  "ALL_PASS": false
+}

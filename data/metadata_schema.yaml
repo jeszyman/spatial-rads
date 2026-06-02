@@ -45,6 +45,22 @@ resources:
         - name: panel_n
           description: Gene panel size as delivered.
           type: integer
+        - name: panel_base
+          description: Base CosMx catalog panel (Mouse UCC).
+          type: string
+        - name: panel_custom
+          description: Custom add-on panel label (Alan Fields add-on; M02 carries the in-object build name).
+          type: string
+        - name: assay_type
+          description: Detection modality of the delivered data (RNA-only; no protein-expression assay).
+          type: string
+          constraints: {enum: [RNA]}
+        - name: n_negprobe
+          description: Negative-control probe features in the delivered panel; blank where not retained at delivery.
+          type: integer
+        - name: n_falsecode
+          description: Falsecode/SystemControl features in the delivered panel; blank where not retained at delivery.
+          type: integer
         - name: provider
           type: string
         - name: format
@@ -130,3 +146,33 @@ resources:
     foreignKeys:
       - {fields: mouse_id, reference: {resource: mice, fields: mouse_id}}
       - {fields: slide_id, reference: {resource: slides, fields: slide_id}}
+
+  - name: if_channels
+    path: metadata.xlsx
+    control: {type: excel, sheet: if_channels}
+    schema:
+      missingValues: *mv
+      fields:
+        - name: dataset_id
+          description: Dataset this morphology/IF channel belongs to.
+          type: string
+          constraints: {required: true, pattern: '^dat\d{4}$'}
+        - name: channel
+          description: CosMx morphology stain channel name.
+          type: string
+          constraints: {required: true, enum: [DAPI, CD298.B2M, PanCK, CD45, G]}
+        - name: target
+          description: Antigen or structure the stain marks.
+          type: string
+        - name: role
+          description: Functional role of the channel in segmentation/lineage.
+          type: string
+          constraints: {enum: [segmentation_nuclear, segmentation_membrane, lineage_epithelial, lineage_immune, redundant_epithelial]}
+        - name: meta_cols
+          description: Source per-cell metadata columns (semicolon-separated).
+          type: string
+        - name: notes
+          type: string
+    primaryKey: [dataset_id, channel]
+    foreignKeys:
+      - {fields: dataset_id, reference: {resource: datasets, fields: dataset_id}}

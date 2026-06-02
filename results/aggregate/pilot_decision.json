@@ -1,0 +1,54 @@
+{
+  "decision": "USE scVI (total 0.775 vs Harmony 0.563; >5% better or Harmony failed premise).",
+  "ceiling": 1.6605107856578463,
+  "results": [
+    {
+      "embedding": "X_pca",
+      "n_clusters": 7,
+      "scib_ilisi": 0.1007,
+      "scaled_ilisi": 0.1525,
+      "pct_clusters_both_ds": 0.571,
+      "silhouette_label": 0.3082,
+      "silhouette_batch": NaN,
+      "compartments": 3,
+      "compartment_set": "immune+stroma+tumor",
+      "frac_clusters_above_negbg": 1.0,
+      "min_s2b": 7.12,
+      "bio": 0.7694,
+      "pilot_total": 0.5227,
+      "premise_pass": false
+    },
+    {
+      "embedding": "X_harmony",
+      "n_clusters": 7,
+      "scib_ilisi": 0.1306,
+      "scaled_ilisi": 0.1977,
+      "pct_clusters_both_ds": 1.0,
+      "silhouette_label": 0.4202,
+      "silhouette_batch": NaN,
+      "compartments": 3,
+      "compartment_set": "immune+stroma+tumor",
+      "frac_clusters_above_negbg": 1.0,
+      "min_s2b": 8.21,
+      "bio": 0.8067,
+      "pilot_total": 0.5631,
+      "premise_pass": false
+    },
+    {
+      "embedding": "X_scvi",
+      "n_clusters": 6,
+      "scib_ilisi": 0.4675,
+      "scaled_ilisi": 0.7077,
+      "pct_clusters_both_ds": 0.333,
+      "silhouette_label": 0.4618,
+      "silhouette_batch": NaN,
+      "compartments": 3,
+      "compartment_set": "immune+stroma+tumor",
+      "frac_clusters_above_negbg": 1.0,
+      "min_s2b": 24.56,
+      "bio": 0.8206,
+      "pilot_total": 0.7754,
+      "premise_pass": true
+    }
+  ]
+}

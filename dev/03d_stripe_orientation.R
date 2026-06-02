@@ -2,7 +2,7 @@ library(Seurat)
 library(tidyverse)
 library(zoo)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 mbrt4h <- obj@meta.data %>%
   as.data.frame() %>%
@@ -71,7 +71,7 @@ px <- ggplot(x_profile, aes(x = x_bin)) +
   theme_bw()
 
 combo <- py / px
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_p21_xy_profiles.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_p21_xy_profiles.pdf",
        plot = combo, width = 14, height = 10)
 
 # --- Also try rotated axes at 15-degree increments ---
@@ -112,7 +112,7 @@ p_angle <- ggplot(angle_df, aes(x = angle, y = cv)) +
   labs(x = "Projection angle (degrees)", y = "CV of smoothed p21",
        title = "Stripe direction scan: which axis shows most p21 variation?") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_stripe_angle_scan.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_stripe_angle_scan.pdf",
        plot = p_angle, width = 10, height = 6)
 
 # --- Best angle profile with peaks/valleys ---
@@ -149,7 +149,7 @@ p_best <- ggplot(best_profile, aes(x = proj_bin)) +
   labs(x = sprintf("Position along %d-deg axis (mm)", best_angle), y = "Mean p21",
        title = sprintf("Best stripe axis (%d deg): p21 profile with peaks(green) / valleys(blue)", best_angle)) +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_p21_best_axis.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_p21_best_axis.pdf",
        plot = p_best, width = 14, height = 6)
 
 cat("\nAll stripe orientation plots saved.\n")

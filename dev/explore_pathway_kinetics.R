@@ -1,7 +1,7 @@
 library(Seurat)
 library(tidyverse)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 pathway_cols <- c("TypeI_interferon", "TypeII_interferon", "STING", "DNA_Damage_Repair")
 
 # --- By cell family ---
@@ -23,7 +23,7 @@ kinetics %>%
   labs(x = "Hours post-RT", y = "Mean pathway score", caption = "n=1 per condition") +
   theme_bw(base_size = 10) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/pathway_kinetics_by_celltype.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/pathway_kinetics_by_celltype.pdf",
        width = 20, height = 12)
 cat("Pathway kinetics by cell type saved.\n")
 
@@ -40,9 +40,9 @@ obj@meta.data %>%
   scale_color_manual(values = c("MBRT" = "#E74C3C", "SBRT" = "#3498DB")) +
   labs(x = "Hours post-RT", y = "Mean pathway score", caption = "n=1 per condition") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/pathway_kinetics_all_cells.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/pathway_kinetics_all_cells.pdf",
        width = 10, height = 8)
 cat("Pathway kinetics all cells saved.\n")
 
-write.csv(kinetics, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/pathway_kinetics.csv", row.names = FALSE)
+write.csv(kinetics, "/mnt/data/projects/spatial-rads/analysis/tables/pathway_kinetics.csv", row.names = FALSE)
 cat("Kinetics table saved.\n")

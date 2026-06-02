@@ -50,6 +50,9 @@ for (r in schema$resources) {
 if (length(err)) stop("metadata_schema validation failed:\n  - ", paste(err, collapse = "\n  - "))
 
 ## ---- denormalized master sample sheet ----
+## sample-grain only: join the dims that resolve 1:1 to a sample (mouse, slide, dataset).
+## dataset-grain dims (e.g. if_channels, 5 rows/dataset) are deliberately NOT joined -- they
+## would row-multiply the sheet. They live in data_model.rda; query them there by dataset_id.
 master <- dm$samples %>%
   left_join(dm$mice,     by = "mouse_id") %>%
   left_join(dm$slides,   by = "slide_id") %>%

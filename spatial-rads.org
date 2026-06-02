@@ -17,9 +17,11 @@ https://mail.google.com/mail/u/0/#inbox/FMfcgzQgLXpfTcszfkdQDwMWvMnTKVzg
 - [ ] h2ax scanner tiff
 - [ ] beam angle per slide?
 * Plans
-- [[file:plan-aggregate.md][aggregate.smk handoff (next session)]] — bootstrap doc for the cross-sample/cross-dataset workflow.
+- [[file:plan-aggregate.md][aggregate.smk — design, decisions, status]] — cross-sample/cross-dataset workflow. /Cell typing executed and locked (2026-06-02): scVI integration + coarse cluster-then-annotate (res=3.0, all four Q4 gates passed; tumor 48.1% / stroma 40.6% / immune 11.2%) plus tier-2 immune SingleR/ImmGen (macrophage-dominated; B cells near-absent). Stroma tier-2 in progress via cluster-level marker-S/B annotation against =lineage_markers.yaml= (not MouseRNAseqData). See v2.5 banner./
 - [[file:plan-processing-pipeline.md][processing.smk — design, decisions, status]] — per-sample upstream (adapter → QC → normalize → cell typing → pathway scoring), completed 2026-05-30.
 - [[file:plan-mbrt-signatures.md][MBRT signatures plan]] — autonomous VM Layer-4 run.
+- [[file:plan-mbrt-vs-sbrt.md][MBRT vs SBRT downstream analysis — design/spec]] — cross-dataset differential analysis on the locked unified labels: three literature-grounded a priori hypotheses (H1 immune activation, H2 vascular/oxygenation, H3 stromal sparing) tested across MBRT/SBRT/Control, plus exploratory + spatial-structure scans. Brainstormed + full-panel-reviewed 2026-06-02.
+- [[file:plan-mbrt-vs-sbrt-impl.md][MBRT vs SBRT downstream analysis — implementation plan]] — 15-task build for the above (4 phases: rebuild confirmatory DE chain on unified labels → build missing inputs → re-implement spatial tracks clean → tier-tagged master results). To be executed in a new session.
 
 * Key results
 :PROPERTIES:
@@ -29,6 +31,10 @@ https://mail.google.com/mail/u/0/#inbox/FMfcgzQgLXpfTcszfkdQDwMWvMnTKVzg
 - [[file:dev/if_channel_check/cdkn1a_kinetics_mean.png][p21 / Cdkn1a kinetics per cell class, MBRT vs SBRT]] — log-normalized mean Cdkn1a across 0 Gy control, MBRT (1h, 4h, 2d, 6d), and SBRT (4h, 2d, 6d) in six radiobiology-defined cell classes (tumor, macrophages, monocytes/DC, T cells, B cells, stroma). MBRT peak and valley subsets at 4h overlaid as star and cross. Myeloid cells show the largest MBRT-vs-SBRT and peak-vs-valley separation; tumor cells show minimal peak/valley p21 difference despite strong bulk induction.
 - [[file:dev/if_channel_check/block21_extrapolated_pv.png][Cell-level peak/valley label extrapolation, Block_21 (MBRT 4h)]] — stripe geometry fit empirically from manual peak FOV centroids: −25° angle from horizontal, 1.046 mm spacing, 0.27 mm beam half-width. Cells labeled by perpendicular distance to nearest peak centerline. 87.5% concordance with manual FOV labels on the labeled subset. Yields 3765 peak + 4235 valley cells across the full tumor, ~5× more than manual FOV labeling. Framework transferable to Mutter_02.
 - [[file:dev/if_channel_check/tumor_pv_rotation_null.png][Tumor peak/valley MBRT-specific signature, validated with within-block rotation null]] — rigorous control for spatial architecture confounding: the real stripe geometry (−25° angle, 1.04 mm spacing, 0.27 mm half-width) is rotated to 175 random angles on the same MBRT Block_21 tumor, and peak-valley deltas are recomputed at each angle. This preserves all of the tumor's own spatial biology (core vs edge, stromal infiltrate, TLS) while scrambling the dose labels. Rotation-null sd = 0.027, ~1.7× wider than the SBRT-block null (0.016), confirming that using SBRT on a *different* tumor under-estimated the architecture floor. Top density panel: three overlaid distributions across all 670 tumor-expressed genes — SBRT null (grey, narrowest), MBRT rotation null (green, wider, centered at 0), MBRT real (red, widest, shifted right). MBRT real clearly exceeds the rotation null, establishing that real zonation exists above and beyond architecture. Bottom scatter: real MBRT peak-valley delta vs per-gene rotation-null sd. Genes outside ±2 × per-gene null sd (dashed cones) survive the rotation null (red); those inside do not (grey). 37 of 670 genes survive (empirical p<0.05 AND |delta|>2 × overall null sd). Surviving peak-enriched tumor genes at 4h: Clu, Tpt1, Uba52, B2m, H2-D1, H2-K1 (MHC class I), Ifitm2 (IFN response), Gpx1, Ppia, Itm2b, Fau, Tpm1, Gstp1/2. Rejected as architecture artifacts (large MBRT delta but also large rotation-null sd): S100a6, S100a10, S100a4, Lgals1, Vim, Hsp90ab1, Naca. The surviving signature is dominated by MHC class I induction, IFN-response, damage/stress response, and translation-machinery genes, consistent with direct DNA damage at beam peaks. The S100 calcium-binding cluster, initially flagged as peak-enriched, was core-vs-edge tumor architecture contaminating the peak label. No valley-enriched genes survive at this threshold. Descriptive (n=1 per arm); replication pending in Mutter_02.
+- *MBRT beam geometry dilutes whole-sample DE (method caveat).* Pseudobulk DE understated the MBRT response relative to SBRT in Mutter_02 day2. MBRT delivers dose through ~1 mm-spaced peaks separated by spared valleys, so summing counts across a whole cell type averages directly irradiated peak cells with largely spared valley cells and dilutes the MBRT-vs-Control contrast. In the tumor compartment (ImmGen "a"), MBRT vs Control yielded 5 genes at padj < 0.05 against 127 for SBRT vs Control (DESeq2 ~slide_id+condition with apeglm shrinkage, n=4/condition), even though spatially-resolved 4h analysis recovered a clear MBRT peak/valley zonation signature. The weak bulk MBRT signal reflects beam-geometry dilution, not an absence of response, and argues for spatially-stratified peak/valley DE over whole-sample pseudobulk in the MBRT arms. See [[file:results/aggregate/degs_pseudobulk_m02day2.tsv][degs_pseudobulk_m02day2.tsv]].
+- *Spatially-variable-gene reframing of the dilution problem (proposed).* The fix for whole-sample dilution is to treat dose position as a continuous spatial covariate rather than a binary peak/valley label. =07_peak_valley_classify.R= already computes a per-cell =dist_to_peak=, the phase within the ~1 mm beam period from the tilt-corrected stripe geometry, then discards it by thresholding to peak versus valley at one quarter of the beam spacing; the binary =FindMarkers= peak-vs-valley test in =08_pv_degs.R= recovered little. Posing the same data as a spatially-variable-gene problem regresses each gene on =dist_to_peak=, or tests spectral power at the known beam frequency by Lomb-Scargle or Fourier analysis along the beam-perpendicular axis, with SpatialDE, SPARK, or Moran's I as model-free checks. This formulation retains every cell's continuous position, so no signal is lost to boundary mis-assignment, it exploits the known ~1 mm period as a prior, and it admits a within-sample permutation null from shuffling cell coordinates, which sidesteps the n=1 biological-replication problem that a group-mean differential test cannot. A null periodicity result is then interpretable as the absence of transcriptional structure at the beam frequency, in contrast to the binary peak-vs-valley null, which conflates absent signal with threshold-induced dilution. See [[file:dev/peak_valley_analysis/07_peak_valley_classify.R][07_peak_valley_classify.R]] and [[file:dev/peak_valley_analysis/08_pv_degs.R][08_pv_degs.R]].
+- *MBRT immunostimulation and immature-vascular targeting remain unestablished by current data (mechanism status).* In Mutter_02 day2, whole-sample immune differential expression for MBRT versus Control was near zero across all immune cell types, a consequence of the same beam-geometry dilution, and the MBRT-specific contrast (MBRT versus SBRT) was dominated by Cdkn1a/p21, a cell-cycle-arrest and stress readout rather than immune activation. Canonical activation markers (Cxcl9, Cxcl10, H2-K1, H2-D1, B2m, Tap1, Cd74, Gzmb, Cd80, Cd86, Il12b) are present on the 950-gene panel but largely silent in the MBRT contrasts; an earlier reading that myeloid cells led the MBRT response reflected p21 arrest, not activation. Immature-vascular targeting registered as a weak, non-specific trend only: whole-sample endothelial MBRT versus Control was zero, and on the spatially-resolved Mutter_01 4h peak/valley run (effect size, n=1, not adjusted p) endothelial pan-markers (Pecam1 -0.30, Cdh5 -0.18) and proliferation genes (Ccnd1, Pcna) were modestly lower in peak, compatible with vessel damage at beam peaks but small (|log2FC| <= 0.3), confounded with generic irradiated-cell stress, and uninformative on the diagnostic immature-vessel markers (Dll4, Angpt2, Notch3, Kdr), which fell below detection in the 4h endothelial subset. Both hypotheses are spatial and dose-resolved, so whole-sample pseudobulk is structurally blind to them: averaging peak and valley cells collapses the MBRT versus Control signal toward zero. Panel coverage is adequate for both; the blocker is analysis design, namely per-cell-type un-diluted and peak/valley differential expression, together with improved cell typing, not gene-panel content. See [[file:results/aggregate/degs_pseudobulk_m02day2.tsv][degs_pseudobulk_m02day2.tsv]].
+- *ImmGen-only cell typing leaves half the flank cohort unclassified (reference mismatch).* Of the 3.27M-cell flank cohort, 48.5% (1.59M cells) fell into the InSituType de novo "a" bucket, with a further 1.4% in "b". ImmGen is an immune-only reference and cannot classify the roughly half-non-immune 4T1 tumor (epithelium, endothelium, fibroblast, pericyte), and the Mutter_02 tumor compartment in particular was almost entirely unassigned (1.28M of the 1.59M "a" cells). Well-matched single-cell reference mapping typically leaves single-digit to ~15% of cells unassigned, so a 48% rate reflects reference mismatch rather than noise tolerance. We committed to adding a broad off-the-shelf mouse atlas (Tabula Muris Senis, or Mouse Cell Atlas) for the non-immune lineages alongside ImmGen for the immune lineages, applied at the Mutter_01 typing step because Mutter_02 inherits labels by Seurat-anchor TransferData; the malignant identity has no turn-key reference and falls to marker-based assignment.
 
 * README
 
@@ -58,6 +64,8 @@ CosMx IF channels capture protein markers on the same tissue section as RNA. Mut
 - DAPI (=Mean.DAPI=, =Max.DAPI=) — nuclear stain
 
 Gamma-H2AX staining in PPTX ([[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]]) is separate chromogenic IHC on an adjacent section, not CosMx IF. No per-cell H2AX intensity data exists for Mutter_01. Asked Yi (2026-03-27) whether H2AX IF could be added as a channel for Mutter_02.
+
+**Morphology/segmentation images not in delivered data (2026-06-01)**: the delivered files carry only per-cell IF intensity *summaries* (=Mean.*=/=Max.*=), segmentation-derived shape morphometrics (=Area=, =Perimeter=, =Circularity=, =Eccentricity=, =Solidity=), and cell *centroids* (=x_slide_mm=/=y_slide_mm=). They do NOT contain the multichannel morphology rasters (DAPI/CD298/PanCK/CD45 TIFFs) or the Cellpose cell-boundary polygons (verified 2026-06-01: no TIFF/polygon/composite files anywhere under =inputs/=; Mutter_01 metadata parquet has no vertex columns; the Mutter_02 =FOV@boundaries= slot holds only =Centroids=, no =Segmentation= object, and =@molecules= is NULL). Consequence for the He-2022 CosMx SMI Fig 1c workflow row: the *Morphology* and *Segmentation* panels cannot be reproduced locally — they are CosMx-instrument / AtoMx-pipeline outputs. The *Cell assignment* panel reproduces fine as a centroid map colored by =cell_type= (existing example: [[file:dev/peak_valley_analysis/plots/spatial_celltype_flank.png][spatial_celltype_flank.png]]). Recreating morph/seg would require the CosMx morphology composite + polygon flat-file export (AtoMx) from Jenn — a *separate* asset from the outstanding =h2ax scanner tiff= item above, which is a chromogenic-IHC image for peak/valley registration, not the CosMx IF composite.
 *** Mutter_01 (current dataset)
 - CosMx spatial transcriptomics data from Mutter lab, generated by Yi Liu (Liu.Yi1@mayo.edu)
 - Yi performed secondary analysis: QC, sample condition labeling, cell type annotation (insitutype with ImmGen reference atlas), and signaling pathway scores
@@ -106,6 +114,8 @@ Raw Seurat objects staged at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mut
 :PROPERTIES:
 :ID:       2dc86037-02c7-4b51-b806-43dcc1bc1e9f
 :END:
+- [2026-06-02 Tue] Aggregate cross-dataset cell typing executed and locked. Full-cohort scVI integration (3,277,090 cells); coarse cluster-then-annotate at res=3.0 passed all four Q4 gates (tumor 48.1% / stroma 40.6% / immune 11.2%, 4 unassigned; scaled iLISI 0.67). Tier-2 immune SingleR/ImmGen (resolution walk 1.0→3.0→6.0, res=3.0 adopted): macrophage-dominated (~301k), NK/ILC (~39.5k), T (~16.3k), plasma (~6.7k), mast (~1.2k); B cells near-absent (biological, not panel- or clustering-driven). Aggregate profiles diverge markedly from Yi's original M01 ImmGen typing, which is superseded. Stroma tier-2 in progress: cluster-level marker-S/B annotation against =lineage_markers.yaml= stromal sets (Endothelial/Fibroblast/Pericyte/SmoothMuscle/Adipocyte), revised off SingleR/MouseRNAseqData (no mural class). Writeup under [[*Aggregate atlas cell typing][Aggregate atlas cell typing]]; see [[file:plan-aggregate.md][aggregate plan]] v2.5.
+- [2026-06-01 Mon] Aggregate cross-dataset integration pilot complete → *scVI selected over Harmony*. Two-slide bake-off (M01 sld0002 + M02 sld0005, 50k-cell scIB benchmark): cluster-then-annotate premise PASSED on all embeddings (3/3 coarse compartments, markers above the negprobe floor); scVI scaled iLISI 0.71 vs Harmony 0.20 (Harmony fails the ≥0.5 mixing gate) with best biology preservation (silhouette-label 0.46). Confirms documented imaging-spatial precedent (scVI > Harmony) and validates the v2.3 pivot off per-cell InSituType (which failed at 85% tumor). A GPU (NVIDIA RTX A4000 16 GB) was found on jeff-beast → scVI trains GPU-direct (no CPU sketch-train). Full-cohort scVI integration (3.27M flank cells) launching. Scripts `scripts/aggregate/pilot_{export,scvi,harmony,compare}.*`; see [[file:plan-aggregate.md][aggregate plan]] v2.4 "Pilot results".
 - [2026-05-30 Sat] Reproducible per-sample pipeline complete: `processing.smk` produces 23 scored.rds across both datasets (adapter → QC → normalize → cell typing → pathway scoring). M02 cell typing switched from InSituType (collapsed tumor compartment into 38% Lymphatic.endo sink under cross-dataset batch shift) to Seurat anchor TransferData against a 20k pooled-M01 cell reference; validated by marker concordance (Krt8+/Epcam+ → tumor compartment 64-71% across all 12 M02 samples). Cell-typing/pathway/probe-QC layer folded into literate org with `shell.prefix` BLAS pinning + per-rule `threads: 1` baked in. See [[file:plan-processing-pipeline.md][processing pipeline plan]]; next session builds [[file:plan-aggregate.md][aggregate.smk]].
 - [2026-03-11 Tue] Layer 3 peak/valley stripe detection: established 15-deg tilted stripe model with 1.02mm spacing and 4 peaks from H2AX image geometry. Transcript-based p21 validates peak > valley. Pending visual confirmation of zone overlay.
 - [2026-03-11 Tue] Layers 1-2 complete and committed: QC (971K cells), clustering (9 clusters), cell type validation, DEGs (2160 bulk + 2534 per-cell-type), pathway kinetics, composition, spatial NN analysis.
@@ -384,6 +394,9 @@ for (r in schema$resources) {
 if (length(err)) stop("metadata_schema validation failed:\n  - ", paste(err, collapse = "\n  - "))
 
 ## ---- denormalized master sample sheet ----
+## sample-grain only: join the dims that resolve 1:1 to a sample (mouse, slide, dataset).
+## dataset-grain dims (e.g. if_channels, 5 rows/dataset) are deliberately NOT joined -- they
+## would row-multiply the sheet. They live in data_model.rda; query them there by dataset_id.
 master <- dm$samples %>%
   left_join(dm$mice,     by = "mouse_id") %>%
   left_join(dm$slides,   by = "slide_id") %>%
@@ -432,6 +445,11 @@ datasets <- tibble(
   name          = c("Mutter_01", "Mutter_02"),
   platform      = "CosMx",
   panel_n       = c(1000L, 972L),
+  panel_base    = "Mouse UCC",                                       # Mouse RNA Universal Cell Characterization
+  panel_custom  = c("Alan Fields 21-gene", "1K_Mayo_Thomp-Fields1"), # same Fields add-on; M02 label is the in-object Panel build name
+  assay_type    = "RNA",                                             # RNA-only; no protein-expression assay on either run
+  n_negprobe    = c(NA_integer_, 10L),   # M01 control probes stripped from delivered counts matrix (1000 gene cols only); M02 from RDS assays
+  n_falsecode   = c(NA_integer_, 184L),
   provider      = c("Yi Liu / Mutter Lab", "Mutter Lab"),
   format        = c("parquet", "rds"),
   counts_path   = c(file.path(INPUT, "mutter01/projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet"), NA),
@@ -515,10 +533,26 @@ samples <- samples_all %>% select(
   dose_gy, timepoint_h, model, tumor_cell_line, tumor_type, extract_key
 )
 
-cat("=== datasets ===\n"); print(as.data.frame(datasets))
-cat("\n=== slides ===\n");  print(as.data.frame(slides))
-cat("\n=== mice ===\n");    print(as.data.frame(mice))
-cat("\n=== samples ===\n"); print(as.data.frame(samples))
+## if_channels: CosMx morphology/IF stains used for segmentation + lineage (NOT a protein-expression assay).
+## Both datasets verified to carry the identical 5 channels (M01 parquet IF cols; M02 RDS meta.data),
+## so spec x datasets via crossing(); append divergent rows by hand if a future run adds a channel (e.g. H2AX).
+if_spec <- tribble(
+  ~channel,    ~target,           ~role,                   ~meta_cols,
+  "DAPI",      "DNA",             "segmentation_nuclear",  "Mean.DAPI;Max.DAPI",
+  "CD298.B2M", "B2M/CD298",       "segmentation_membrane", "Mean.CD298.B2M;Max.CD298.B2M",
+  "PanCK",     "pan-cytokeratin", "lineage_epithelial",    "Mean.PanCK;Max.PanCK",
+  "CD45",      "PTPRC",           "lineage_immune",        "Mean.CD45;Max.CD45",
+  "G",         "unspecified",     "redundant_epithelial",  "Mean.G;Max.G"
+)
+if_channels <- tidyr::crossing(dataset_id = datasets$dataset_id, if_spec) %>%
+  mutate(notes = if_else(channel == "G", "r~0.92 with Mean.PanCK; not a literal duplicate", NA_character_)) %>%
+  select(dataset_id, channel, target, role, meta_cols, notes)
+
+cat("=== datasets ===\n");    print(as.data.frame(datasets))
+cat("\n=== slides ===\n");     print(as.data.frame(slides))
+cat("\n=== mice ===\n");       print(as.data.frame(mice))
+cat("\n=== samples ===\n");    print(as.data.frame(samples))
+cat("\n=== if_channels ===\n"); print(as.data.frame(if_channels))
 
 if (WRITE) {
   bak <- "(none)"
@@ -526,7 +560,7 @@ if (WRITE) {
     bak <- sprintf("data/metadata-prev-%s.xlsx.bak", format(Sys.time(), "%Y%m%d-%H%M%S"))
     file.copy(XLSX, bak, overwrite = TRUE)
   }
-  write_xlsx(list(mice = mice, datasets = datasets, slides = slides, samples = samples), XLSX)
+  write_xlsx(list(mice = mice, datasets = datasets, slides = slides, samples = samples, if_channels = if_channels), XLSX)
   cat(sprintf("\nWROTE %s (prev backup: %s)\n", XLSX, bak))
 } else {
   cat("\n[preview only -- rerun with --write to write metadata.xlsx]\n")
@@ -615,11 +649,33 @@ A cross-platform FFPE benchmark of CosMx, MERFISH, and Xenium documented that Co
 
 *** Yi Mutter_01
 
-- QC filtering to flag and remove bad cells
+Yi Liu's secondary analysis of Mutter_01 comprised:
+
+- QC filtering to flag and remove low-quality cells
 - Sample and condition labeling
-- log-norm (could consider SCTransform alternative)
-- Cell type annotation via insitutupe (NanoString's tool, uses pre-built reference profiles for their panels) with ImmGen reference atlas
+- LogNormalize (scale factor 10,000; SCTransform is an alternative not used here)
+- Cell type annotation by InSituType (NanoString's platform-native classifier, which uses pre-built reference profiles for their panels) against the ImmGen mouse immune atlas
 - Pathway scoring
+
+**** Limitations of the single-shot run
+:PROPERTIES:
+:ID:       ec2cac4e-6d89-4447-b165-5c3da8c20d43
+:END:
+
+Two parallel InSituType runs were delivered, both single-pass whole-dataset classifications against an immune-only reference: a fine run against =ImmuneAtlas_ImmGen= and a coarser run against =ImmuneAtlas_ImmGen_cellFamily=. Neither performed a hierarchical second pass (coarse lineage first, then compartment-specific subtyping), and the run carries three coupled failures specific to a 4T1 flank tumor on a 950-gene panel:
+
+- *No epithelial anchor.* ImmGen is an immune reference with no epithelial profile, so the 4T1 tumor epithelium had nowhere to land and fell into the uncharacterized ImmGen "a" type. Roughly 48.5% of flank cells collapsed into that single bucket, erasing the tumor compartment the study is about.
+- *Biologically impossible immune labels.* Thymic developmental stages (=Thymic.preT.DN1=, =Thymic.4.8.CD3lo.DP=, =DN2a= through =DN4=, =ISP=, =Thymic.CD4SP=/=CD8SP=) were projected onto cells in a flank tumor that contains no thymus. These are ambiguous, low-content cells forced onto the nearest ImmGen state.
+- *Poor marker concordance.* Of cells detecting =Cd3e=/=Cd3d=, only about 20% carried any Yi T-cell label, and the T-cell populations never separated as a distinct cluster at any clustering resolution. The cause is a data ceiling: a 950-gene targeted panel plus ambient transcript spillover in a dense tumor leaves too little per-cell immune signal for single-shot fine classification to resolve lymphoid subsets.
+
+The dominant structural lineages (tumor, fibroblast, endothelial) were recovered acceptably; the failures are concentrated in the fine immune labels, which are not treated as ground truth in downstream work.
+
+**** Good-practice second pass
+:PROPERTIES:
+:ID:       07e8b60d-690a-4ed8-8208-057db3086631
+:END:
+
+The field-standard remedy for single-shot misclassification on sparse targeted panels is hierarchical (two-tier) cell typing: assign a coarse lineage first, then subset each compartment and subtype it against a compartment-appropriate reference. The aggregate atlas run below supplies the coarse tier (11 lineages plus =tumor_epithelial=). The immune second pass then subsets the lymphoid and myeloid compartment, re-embeds and re-clusters it on its own (Harmony batch integration across slides [cite:@korsunsky2019harmony]; Leiden community detection [cite:@traag2019leiden]), and assigns subtypes by reference-based annotation with SingleR [cite:@aran2019singler] against the celldex ImmGen reference at =label.fine= resolution [cite:@heng2008immgen], validated by UCell marker-set scoring [cite:@andreatta2021ucell]. Subtyping a clustered, compartment-restricted subset rather than every cell at once gives the annotation the per-cluster signal that single-cell fine classification lacks on a 950-gene panel.
 
 *** Quality control
 :PROPERTIES:
@@ -640,6 +696,34 @@ CosMx data carry off-target "background" counts (~0.01–0.05 counts per plex pe
 Implementation: =scripts/probe_qc.R= is a *report-only diagnostic* (=results/processing/probe_qc_report.tsv=) flagging genes at/below the negative-control background in *both* Mutter_01 and Mutter_02 (signal-to-background ≤ 1). The analysis panel stays the full Mutter_01 ∩ Mutter_02 intersection — *no genes are dropped*; InSituType's per-cell background model handles background during cell typing.
 
 ***** TODO Review =probe_qc_report.tsv= flagged candidates; smooth (not drop) any confirmed failed lineage-marker probes
+
+*** Aggregate atlas cell typing
+
+Cross-dataset comparison of Mutter_01 and Mutter_02 requires both cohorts typed by a single rule applied to the merged data, so cell-type calls are not confounded by a Mutter_01 to Mutter_02 label transfer. An initial per-cell InSituType run [cite:@danaher2022insitutype] against an external mammary-plus-ImmGen reference failed validation: 84.6% of cells were called tumor and immune gold-marker recall fell below 5%, because per-cell reference typing cannot separate lineages at CosMx panel sparsity. Coarse typing was rebuilt as cluster-then-annotate, with an immune second pass and an explicit comparison to the original Mutter_01 labels.
+
+**** scVI integration and coarse cluster-then-annotate
+
+Cluster-then-annotate assigns one identity per cluster rather than per cell, the regime per-cell typing could not reach at a median of 58 of 950 genes per cell. We integrated the merged 3,277,090-cell, 950-gene cohort with scVI [cite:@lopez2018scvi] (30 latent dimensions, 2 hidden layers, negative-binomial likelihood, =slide_id= as the batch key, and per-cell negative-probe count as a continuous covariate; 50 epochs on the RTX A4000 GPU). scVI replaced Harmony, which LAPACK-errored on two or more grouping covariates in version 2.0.2. We built a 15-nearest-neighbor graph on the scVI latent space and clustered it with Leiden [cite:@traag2019leiden] using the =leidenalg= flavor at two optimization iterations; the =igraph= flavor over-partitioned, and the =leidenalg= run-to-convergence default was intractable on the 3.27M-node graph.
+
+Clustering resolution was swept rather than assumed. At resolution 0.5 the partition collapsed to 6 clusters with the immune compartment submerged (0.03% of cells), failing the premise gate. The sweep across resolutions 1.0, 2.0, and 3.0 yielded 106, 56, and 90 clusters (6, 13, and 25 clusters above 1% of cells). Resolutions 1.0 and 2.0 tripped the marker-recall gate on rare-lineage micro-clusters; resolution 3.0 passed all gates and gave the finest stable partition, the best substrate for immune subtyping. We adopted resolution 3.0.
+
+The partition was validated against four pre-registered gates (Q4). The premise gate passed (25 clusters above 1%, immune 11.2%, stroma 40.6%, no annotated label exceeding 48.1% of cells). The batch-mixing gate used the imbalance-corrected scaled iLISI on the integrated embedding (0.67 against a 0.5 floor and a theoretical ceiling of 1.70 for the 29/71 dataset split); the per-cluster minority criterion was demoted to a quality flag, which flagged one Mutter_02-specific tumor cluster (cluster 3, 2.6% Mutter_01). Marker recall passed for every lineage, and the negative-probe gate held as standing quality control (maximum per-cluster mean 0.023, minimum signal-to-background 9.0). A cluster received a label only with at least 100 cells and a signal-to-background of at least 2; this left 4 cells in one fragment cluster unassigned. The coarse layer resolved into tumor (1,577,685 cells, 48.1%), stroma (1,331,601, 40.6%), and immune (367,800, 11.2%) compartments.
+
+**** Immune subtyping by cluster-level SingleR
+
+We subtyped the 367,800 immune cells by rebuilding a neighbor graph on their scVI latent space, subclustering with Leiden, and annotating each subcluster with SingleR [cite:@aran2019singler] against the celldex ImmGen reference (label.main, 20 classes over 22,134 genes). Immune resolution was walked from 1.0 to 3.0 to 6.0 (16, 65, and 298 subclusters). At resolution 1.0 the lymphoid cells over-merged into a single 71,128-cell block that SingleR labeled T cells, and mast and dendritic populations were missed. At resolution 3.0 the block split into marker-confirmed T cells (16,300 cells, highest Cd3d/Cd3e/Cd3g) and an innate-lymphoid population (Ncr1, Nkg7, and Gzma dominant), and a mast population (1,169 cells, Cma1 highest) resolved. Per-cluster gold-marker means adjudicated the calls and confirmed resolution 3.0 over resolution 1.0. Resolution 6.0 recovered nothing further: 256 of 298 subclusters were macrophage fragments, neutrophils stayed marginal (about 2,834 cells, mostly mixed), and the only gain was a sharpened plasma core (subcluster 21, 3,573 cells, Jchain and Mzb1 at 1.06).
+
+Two marker-based corrections were applied over the SingleR output. NK and ILC calls were pooled as innate lymphoid, since the two are not separable on this panel. The plasma-leaning subcluster that SingleR labeled dendritic (Jchain and Mzb1 highest) was relabeled plasma. SingleR assignment deltas were low throughout (below 0.04 for lymphoid subclusters), consistent with the sparse imaging panel. The immune compartment was overwhelmingly macrophage (about 301,000 cells, 82%) with a lymphoid minority skewed toward NK/ILC (about 39,500) over T cells (about 16,300), plus plasma (about 6,700), mast (about 1,200), and small dendritic populations.
+
+**** B cells are near-absent in the 4T1 flank
+
+No subcluster expressed B-lineage markers as its dominant signal at any resolution, including 0 of 298 subclusters at immune resolution 6.0. A cohort-wide diagnostic distinguished biological absence from technical loss. The B markers Cd19, Ms4a1, Cd79a, and Ighm were present on the 950-gene panel (Cd79b, Cd22, and Iglc1 were not), so marker dropout does not explain the result. Across all 3,277,090 cells, only 2.4 to 3.3% carried any B-marker count (Cd19 2.40%, Ms4a1 2.52%, Cd79a 3.25%, Ighm 2.71%), distributed diffusely rather than concentrated in a population. The B-marker score was 0.22 in the immune compartment against 0.11 in both stroma and tumor, and the highest-scoring cluster of all 90 reached only 0.365, against the 1.0 to 1.8 a genuine lineage scores in its own markers. B cells are therefore near-absent in this 4T1 flank tumor, consistent with the immune-cold, myeloid-dominated biology of the model, and not an artifact of clustering resolution, panel content, or compartment misassignment.
+
+**** Marked divergence from the original Mutter_01 (Yi) typing
+
+The aggregate scheme reassigned a large fraction of Mutter_01 cells at the compartment level relative to the original per-sample labels, which typed Mutter_01 alone with InSituType against an ImmGen immune reference (with a confident-epithelial relabel to =tumor_epithelial=). That reference carried no native epithelial anchor and only four stromal profiles, so a solid tumor that is mostly non-immune was forced into an immune-cell vocabulary. The single largest original label was the uninterpretable ImmGen "a" attractor cluster (315,678 cells, 28.0%); a further 7.1% of cells carried thymocyte-development labels (DN2 through DN4, immature single-positive, and thymic CD4/CD8 single-positive and CD3-low double-positive) that cannot occur in a flank tumor, and splenic, microglial, germinal-center, and peritoneal-macrophage labels appeared at lower frequency by the same mechanism. Stromal identity was largely unrecoverable: the four ImmGen stromal labels (blood and lymphatic endothelium, fibroblastic reticular, pericyte) summed to only 11.5% of Mutter_01.
+
+The aggregate scVI cluster-then-annotate scheme recovered the expected solid-tumor architecture on the same Mutter_01 cells (952,121 after the merged-cohort quality filter): stroma 55.3%, tumor 29.2%, and immune 15.5%, with 3 cells unassigned. The explicit tumor compartment rose from the 6.1% captured by the original =tumor_epithelial= relabel to 29.2%, and stroma rose from 11.5% to 55.3%, because the tissue-matched external reference represents the epithelium and stroma the ImmGen-only reference could not. The immune profile also inverted: the largest original immune label was CD8 T cells (7.9% of Mutter_01), whereas the aggregate immune compartment is macrophage-dominated with marker-confirmed T cells a minority. The two schemes disagree on coarse identity rather than on fine subtype, and the disagreement is structural, not a tuning artifact. The original Mutter_01 labels, and any Mutter_01-to-Mutter_02 transfer derived from them, are superseded for all downstream cross-dataset analysis.
 
 *** Layer 2 -- MBRT vs SBRT vs Control Comparative Kinetics
 :PROPERTIES:
@@ -747,43 +831,11 @@ library(tidyverse)
 all_degs <- read.csv("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/deg_all_cells.csv")
 cat(sprintf("Loaded %d DEG rows\n", nrow(all_degs)))
 
-# --- Volcano: MBRT vs SBRT ---
-all_degs %>%
-  filter(comparison_type == "mbrt_vs_sbrt") %>%
-  ggplot(aes(x = avg_log2FC, y = -log10(p_val), color = abs(avg_log2FC) > 0.5)) +
-  geom_point(alpha = 0.5, size = 0.5) +
-  facet_wrap(~comparison) +
-  scale_color_manual(values = c("grey60", "red3"), guide = "none") +
-  geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "grey40") +
-  labs(title = "MBRT vs SBRT DEGs (effect size ranked)",
-       x = "log2FC", y = "-log10(p)",
-       caption = "n=1 per condition; p-values for visualization only") +
-  theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_sbrt.pdf",
-       width = 12, height = 5)
-
-# --- Volcano: MBRT vs Control ---
-all_degs %>%
-  filter(comparison_type == "mbrt_vs_ctrl") %>%
-  ggplot(aes(x = avg_log2FC, y = -log10(p_val), color = abs(avg_log2FC) > 0.5)) +
-  geom_point(alpha = 0.5, size = 0.5) +
-  facet_wrap(~comparison) +
-  scale_color_manual(values = c("grey60", "red3"), guide = "none") +
-  geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "grey40") +
-  labs(title = "MBRT vs Control DEGs",
-       x = "log2FC", y = "-log10(p)",
-       caption = "n=1 per condition; p-values for visualization only") +
-  theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_ctrl.pdf",
-       width = 14, height = 5)
-cat("Volcano plots saved.\n")
+# Volcanoes retired: -log10(p_val) is a cell-level Wilcoxon p, which pseudoreplicates the
+# n=1-per-condition design (cells are not biological replicates). all_degs effect sizes
+# (avg_log2FC, pct.1/pct.2) stay valid descriptively. Correct significance test deferred
+# until Mutter_02 (2d) replicates: pseudobulk per sample -> DESeq2/edgeR/limma -> MA/volcano.
 #+end_src
-
-#+ATTR_ORG: :width 800
-[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_sbrt.pdf]]
-
-#+ATTR_ORG: :width 800
-[[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_ctrl.pdf]]
 
 **** Pathway score kinetics
 :PROPERTIES:
@@ -1001,16 +1053,9 @@ Top MBRT-vs-SBRT effect sizes by cell type and timepoint (selected highlights):
 - *Day2 T cell* (MBRT-up): Ccl8 (+1.79), Il24 (+1.10), Arg1 (+0.74), Cd44 (+0.58). Activation + chemokine signature.
 - *Day6 B cell* (MBRT-up): Ighg1 (+4.40), Igkc (+3.30), Mzb1 (+1.94), Hsp90b1 (+1.71), Jchain (+1.65), Ighm (+1.53), Xbp1 (+1.06). Plasmablast/plasma cell differentiation with class switching to IgG and ER-stress chaperones. MBRT-driven humoral immune response.
 
-Outputs: =dev/mbrt_vs_sbrt/data/degs_kinetics.tsv= (14,704 rows long format), =data/degs_top10_per_stratum.tsv=, plus volcano plots:
+Outputs: =dev/mbrt_vs_sbrt/data/degs_kinetics.tsv= (14,704 rows long format), =data/degs_top10_per_stratum.tsv=.
 
-#+ATTR_ORG: :width 800
-[[file:dev/mbrt_vs_sbrt/plots/volcano_bulk_kinetics.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/mbrt_vs_sbrt/plots/volcano_mbrt_vs_sbrt_by_celltype.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/mbrt_vs_sbrt/plots/volcano_tumor_mbrt_vs_control_kinetics.png]]
+Volcano plots retired: -log10(p_val) is a cell-level Wilcoxon p, which pseudoreplicates the n=1-per-condition design (cells are not biological replicates). The effect-size tables above stay valid descriptively. Correct significance test deferred until Mutter_02 (2d) replicates: pseudobulk per sample → DESeq2/edgeR/limma → MA-plot/volcano with real p-values.
 
 **** Pathway kinetics by cell type
 
@@ -1591,18 +1636,10 @@ all_degs <- bind_rows(
 write_tsv(all_degs, file.path(DATA_DIR, "deg_all_cells.tsv"))
 cat(sprintf("Total bulk DEG rows: %d\n", nrow(all_degs)))
 
-# ---- Volcano: MBRT vs SBRT ----
-p_vol <- all_degs %>%
-  filter(comparison_type == "mbrt_vs_sbrt") %>%
-  ggplot(aes(x = avg_log2FC, y = -log10(p_val), color = abs(avg_log2FC) > 0.5)) +
-  geom_point(alpha = 0.5, size = 0.5) +
-  facet_wrap(~comparison) +
-  scale_color_manual(values = c("grey60", "red3"), guide = "none") +
-  geom_vline(xintercept = c(-0.5, 0.5), linetype = "dashed", color = "grey40") +
-  labs(title = "MBRT vs SBRT DEGs (effect-size ranked)", x = "log2FC", y = "-log10(p)",
-       caption = "n=1 per condition; p-values for visualization only") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "volcano_mbrt_vs_sbrt.png"), plot = p_vol, width = 12, height = 5, dpi = 150)
+# Volcano retired: -log10(p_val) is a cell-level Wilcoxon p, which pseudoreplicates the
+# n=1-per-condition design. all_degs (written above) stays valid as a descriptive
+# effect-size table. Correct significance test deferred until Mutter_02 (2d) replicates:
+# pseudobulk per sample -> DESeq2/edgeR/limma -> MA-plot/volcano with real p-values.
 
 # ---- Pathway kinetics ----
 kinetics <- obj@meta.data %>%
@@ -1666,9 +1703,6 @@ ggsave(file.path(PLOT_DIR, "spatial_nn_immune_frac.png"), plot = p_nn, width = 1
 
 cat("Layer 2 condensed analysis complete.\n")
 #+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/volcano_mbrt_vs_sbrt.png]]
 
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pathway_kinetics.png]]
@@ -2165,16 +2199,11 @@ cat(sprintf("Bulk peak vs valley DEGs: %d\n", nrow(bulk_degs)))
 cat("\nTop 20 by effect size:\n")
 print(head(bulk_degs %>% select(gene, avg_log2FC, pct.1, pct.2, p_val_adj), 20))
 
-# Volcano plot
-p_vol <- ggplot(bulk_degs, aes(x = avg_log2FC, y = -log10(p_val), color = abs(avg_log2FC) > 0.25)) +
-  geom_point(alpha = 0.5, size = 1) +
-  scale_color_manual(values = c("grey60", "red3"), guide = "none") +
-  geom_vline(xintercept = c(-0.25, 0.25), linetype = "dashed", color = "grey40") +
-  labs(title = "Peak vs Valley DEGs (MBRT_4h, all cells)",
-       subtitle = "Positive = higher in peaks; n=1, effect-size ranked",
-       x = "log2FC (peak / valley)", y = "-log10(p)") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "pv_volcano_bulk.png"), plot = p_vol, width = 8, height = 6, dpi = 150)
+# Volcano retired: -log10(p_val) pseudoreplicates the n=1 design. Mutter_02 is 2d-only and
+# H2AX peak/valley ground truth is 4h-only, so NO biological replicates are coming for this
+# 4h contrast -- the n=1 spatial-descriptive views ARE final: across-stripe profiles +
+# spatial pathway maps (05), zone maps (07), gradient + dot/box plots. bulk_degs (written
+# above) is the descriptive effect-size table.
 
 # ---- Per-cell-type DEGs ----
 cat("\nRunning per-cell-type peak vs valley DEGs...\n")
@@ -2200,9 +2229,6 @@ cat(sprintf("Per-cell-type DEGs: %d rows across %d types\n",
 
 cat("Peak vs valley DEG analysis complete.\n")
 #+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/pv_volcano_bulk.png]]
 
 **** Peak vs Valley Pathway Scores
 :PROPERTIES:

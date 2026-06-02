@@ -13,10 +13,11 @@
 # test on per-sample means (~slide_id+condition, same abundance floor as the DE
 # track, global BH); M01 is descriptive timecourse only. UCell-vs-AMS concordance is
 # Pearson r across samples per (cell_type x pathway x dataset).
-# Args: <merged_typed.rds> <pathway_yaml> <out_summary.tsv> <out_test.tsv>
-#       <out_concordance.tsv> <plot_heatmap> <plot_timecourse> <plot_scatter>
+# Args: <merged.rds> <full_labels.parquet> <pathway_yaml> <out_summary.tsv>
+#       <out_test.tsv> <out_concordance.tsv> <plot_heatmap> <plot_timecourse> <plot_scatter>
 suppressPackageStartupMessages({
   library(Seurat)
+  library(arrow)
   library(UCell)
   library(msigdbr)
   library(yaml)
@@ -27,18 +28,19 @@ suppressPackageStartupMessages({
 
 args        <- commandArgs(trailingOnly = TRUE)
 merged_path <- args[1]
-yaml_path   <- args[2]
-out_summary <- args[3]
-out_test    <- args[4]
-out_conc    <- args[5]
-plot_heat   <- args[6]
-plot_tc     <- args[7]
-plot_scatter<- args[8]
+labels_path <- args[2]
+yaml_path   <- args[3]
+out_summary <- args[4]
+out_test    <- args[5]
+out_conc    <- args[6]
+plot_heat   <- args[7]
+plot_tc     <- args[8]
+plot_scatter<- args[9]
 
 MIN_CELLS   <- 10L
 MIN_SAMPLES <- 3L
 CONDS       <- c("Control", "MBRT_day2", "SBRT_day2")
-UCELL_CORES <- 4L
+UCELL_CORES <- 8L
 AMS_NBIN    <- 24L
 AMS_CTRL    <- 20L
 SEED        <- 42L
@@ -59,10 +61,14 @@ all_sets    <- c(prim_lists, hm_lists)
 set_meta    <- rbind(prim_meta, hm_meta)
 set_meta[, n_set_genes := vapply(all_sets[pathway], length, integer(1))]
 
-# --- load typed object, swap in atlas labels, drop unassigned, intersect sets ---
+# --- load merged object, attach canonical aggregate labels, drop unassigned ------
+# cell_subtype from the unified tier-1/2 label table (full_labels.parquet) replaces
+# the stale per-sample cell_type; barcodes are the globally-unique sample_cell keys.
 o      <- readRDS(merged_path)
-o$cell_type <- o$cell_type_atlas                    # aggregate atlas labels (plan-aggregate.md)
-o <- subset(o, cells = colnames(o)[!is.na(o$cell_type)])
+lab    <- as.data.table(read_parquet(labels_path))[, .(cell, cell_subtype)]
+lv     <- setNames(lab$cell_subtype, lab$cell)
+o$cell_type <- unname(lv[colnames(o)])
+o <- subset(o, cells = colnames(o)[!is.na(o$cell_type) & o$cell_type != "unassigned"])
 panel  <- rownames(o)
 sets_p <- lapply(all_sets, intersect, panel)            # panel-restricted gene sets
 np     <- lengths(sets_p)

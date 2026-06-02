@@ -2,7 +2,7 @@ library(Seurat)
 library(RANN)
 library(tidyverse)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 # --- Nearest-neighbor immune fraction at 4h ---
 cat("Computing spatial nearest neighbors at 4h...\n")
@@ -28,7 +28,7 @@ nn_results %>%
   labs(x = "Fraction immune neighbors (k=20)",
        title = "Spatial immune neighborhoods: MBRT vs SBRT at 4h") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_nn_immune_frac.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/spatial_nn_immune_frac.pdf",
        width = 14, height = 10)
 cat("Spatial NN plot saved.\n")
 

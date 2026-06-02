@@ -1,0 +1,4 @@
+resolution	n_clusters	n_major	immune_frac	stroma_frac	tumor_frac	max_label	max_label_share	scaled_iLISI	Q41	Q42	Q43	ALL_PASS
+1.0	106	6	0.1996	0.3706	0.4298	Epithelial	0.4298	0.6697	True	True	False	False
+2.0	56	13	0.0748	0.3952	0.53	Epithelial	0.53	0.6697	True	True	False	False
+3.0	90	25	0.1122	0.4063	0.4814	Epithelial	0.4814	0.6697	True	False	True	False

@@ -2,7 +2,7 @@ library(Seurat)
 library(tidyverse)
 library(zoo)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 mbrt4h <- obj@meta.data %>%
   as.data.frame() %>%
@@ -80,7 +80,7 @@ for (bc in beam_centers) {
   p1 <- p1 + geom_abline(intercept = bc, slope = -tan(rad),
                            color = "yellow", linewidth = 0.6, alpha = 0.8)
 }
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_final_zones.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_final_zones.pdf",
        plot = p1, width = 14, height = 10)
 
 # With FOV labels
@@ -92,7 +92,7 @@ fov_centroids <- mbrt4h %>%
 p2 <- p1 +
   geom_text(data = fov_centroids, aes(x = x, y = y, label = fov),
             color = "black", size = 2, fontface = "bold", inherit.aes = FALSE)
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_final_zones_labels.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_final_zones_labels.pdf",
        plot = p2, width = 14, height = 10)
 
 cat("\nPlots saved: mbrt4h_final_zones.pdf and mbrt4h_final_zones_labels.pdf\n")

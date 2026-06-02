@@ -1,6 +1,6 @@
 library(tidyverse)
 
-all_degs <- read.csv("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/deg_all_cells.csv")
+all_degs <- read.csv("/mnt/data/projects/spatial-rads/analysis/tables/deg_all_cells.csv")
 cat(sprintf("Loaded %d DEG rows\n", nrow(all_degs)))
 
 # --- Volcano: MBRT vs SBRT ---
@@ -15,7 +15,7 @@ all_degs %>%
        x = "log2FC", y = "-log10(p)",
        caption = "n=1 per condition; p-values for visualization only") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_sbrt.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_sbrt.pdf",
        width = 12, height = 5)
 cat("Volcano plot saved.\n")
 
@@ -31,7 +31,7 @@ all_degs %>%
        x = "log2FC", y = "-log10(p)",
        caption = "n=1 per condition; p-values for visualization only") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_ctrl.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/volcano_mbrt_vs_ctrl.pdf",
        width = 14, height = 5)
 cat("MBRT vs Control volcano saved.\n")
 

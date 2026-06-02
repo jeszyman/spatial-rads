@@ -1,7 +1,7 @@
 library(Seurat)
 library(tidyverse)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 # --- Tabulate Yi's labels ---
 ct_table <- sort(table(obj$ImmuneAtlas_ImmGen_Main_cell_Types), decreasing = TRUE)
@@ -30,7 +30,7 @@ p <- DotPlot(obj, features = available_markers,
              group.by = "ImmuneAtlas_ImmGen_Main_cell_Types") +
   RotatedAxis() +
   labs(title = "Marker validation: Yi's cell type labels")
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/celltype_marker_validation.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/celltype_marker_validation.pdf",
        plot = p, width = 14, height = 8)
 cat("Marker validation dot plot saved.\n")
 
@@ -41,7 +41,7 @@ cat(sprintf("\nEpithelial markers available: %s\n", paste(epi_markers, collapse 
 if (length(epi_markers) > 0) {
   p2 <- VlnPlot(obj, features = epi_markers,
                  group.by = "ImmuneAtlas_ImmGen_Main_cell_Types", pt.size = 0)
-  ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/a_population_markers.pdf",
+  ggsave("/mnt/data/projects/spatial-rads/analysis/figures/a_population_markers.pdf",
          plot = p2, width = 12, height = 6)
   cat("'a' population marker plot saved.\n")
 

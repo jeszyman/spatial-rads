@@ -1,0 +1,15 @@
+metric	value
+n_cells	3277090
+n_genes	950
+n_pcs	30
+leiden_resolution	0.5
+n_clusters	68996
+sil_dataset_pre	0.1142
+sil_dataset_post	0.0284
+sil_slide_pre	-0.0168
+sil_slide_post	-0.0355
+lisi_dataset_pre	1.0989
+lisi_dataset_post	1.2755
+lisi_slide_pre	2.6781
+lisi_slide_post	3.4278
+lisi_min_gate	1.5

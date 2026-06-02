@@ -14,12 +14,12 @@ SS <- args[1]; PANEL <- args[2]; OUT <- args[3]
 ss <- read_tsv(SS, show_col_types = FALSE)
 panel <- readLines(PANEL)
 
-m02_paths <- unique(ss$raw_input_path[ss$dataset == "Mutter_02"])
+m02_paths <- unique(ss$raw_input_path[ss$name == "Mutter_02"])
 o1 <- UpdateSeuratObject(readRDS(m02_paths[1]))
 NEG_N <- nrow(GetAssayData(o1, assay = "negprobes", layer = "counts")); rm(o1); gc()
 
 ## Mutter_01: per-gene mean (counts parquet); per-negprobe background (metadata negprobe summary)
-m01 <- ss %>% filter(dataset == "Mutter_01")
+m01 <- ss %>% filter(name == "Mutter_01")
 cdt <- as.data.table(read_parquet(unique(m01$counts_path)))
 gcols <- intersect(setdiff(names(cdt), c("Slide", "fov", "cell_id")), panel)
 m01_mean <- unlist(cdt[, lapply(.SD, mean), .SDcols = gcols]); rm(cdt); gc()

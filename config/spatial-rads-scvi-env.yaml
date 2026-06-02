@@ -1,0 +1,14 @@
+name: spatial-rads-scvi
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - scvi-tools
+  - scanpy
+  - anndata
+  - python-igraph
+  - leidenalg
+  - pyarrow
+  - scipy
+  - numpy
+  - pandas

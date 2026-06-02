@@ -1,0 +1,13 @@
+lineage	gold_n	recall_pct	recall_M01_pct	recall_M02_pct
+tumor_epithelial	104305	98.7	99.5	98.5
+T	358730	3.3	1.4	4.6
+B	6745	0.4	0.2	2
+Plasma	5661	13.9	22.3	4.2
+NK	52681	2.8	0.3	7.7
+Macrophage	455394	4.3	2.3	5.1
+DC	6809	2.2	0.1	4.3
+Neutrophil	19179	43.1	9.6	68.9
+Endothelial	6258	19	5	33.1
+Fibroblast	115806	21.6	13.8	23.4
+SmoothMuscle	8974	0	0	0
+Pericyte	4492	2.8	0.4	4.1

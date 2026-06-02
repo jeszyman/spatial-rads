@@ -11,7 +11,7 @@ p_box <- ggplot(pathway_by_zone, aes(x = pathway, y = score, fill = zone)) +
   geom_boxplot(outlier.size = 0.1, outlier.alpha = 0.1) +
   scale_fill_manual(values = ZONE_COLORS) +
   labs(title = "Pathway scores: Peak vs Valley (MBRT_4h)",
-       subtitle = "Caveat: pathway gene lists not yet provided by Yi",
+       subtitle = "NanoString Mouse UCC standard modules (DDR/IFN-I/IFN-II) + custom STING",
        y = "Score", x = NULL) +
   theme_bw() + theme(axis.text.x = element_text(angle = 30, hjust = 1))
 ggsave(file.path(PLOT_DIR, "pv_pathway_boxplots.png"), plot = p_box, width = 10, height = 6, dpi = 150)

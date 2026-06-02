@@ -1,7 +1,7 @@
 library(Seurat)
 library(tidyverse)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 mbrt4h <- obj@meta.data %>%
   as.data.frame() %>%
@@ -69,7 +69,7 @@ p1 <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = zone)) +
        subtitle = "Red = peak (H2AX+ band), Blue = valley (gap between beams)",
        color = "Zone") +
   theme_bw(base_size = 14)
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_image_based_zones.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_image_based_zones.pdf",
        plot = p1, width = 14, height = 10)
 
 # --- Same plot with FOV labels ---
@@ -87,7 +87,7 @@ p2 <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = zone)) +
        subtitle = "CHECK: do red/blue bands match H2AX image stripes?",
        color = "Zone") +
   theme_bw(base_size = 14)
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_zones_with_fov_labels.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_zones_with_fov_labels.pdf",
        plot = p2, width = 14, height = 10)
 
 cat("\nVerification plots saved. Compare mbrt4h_zones_with_fov_labels.pdf with H2AX image.\n")

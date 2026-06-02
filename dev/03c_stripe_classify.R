@@ -1,7 +1,7 @@
 library(Seurat)
 library(tidyverse)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 mbrt4h <- obj@meta.data %>%
   as.data.frame() %>%
@@ -36,7 +36,7 @@ p1 <- ggplot(y_profile, aes(x = y_bin)) +
   labs(x = "y position (mm)", y = "Mean p21 (Cdkn1a)",
        title = "MBRT_4h: p21 y-axis profile with smoothing (0.5mm window)") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_p21_y_smooth.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_p21_y_smooth.pdf",
        plot = p1, width = 12, height = 5)
 
 # --- Also do per-FOV with explicit row assignment ---
@@ -61,7 +61,7 @@ p2 <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
   coord_fixed() +
   labs(title = "MBRT_4h: p21 spatial heatmap (0.1mm bins)") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_p21_heatmap_fine.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_p21_heatmap_fine.pdf",
        plot = p2, width = 12, height = 8)
 
 # --- Multiple pathway 2D heatmaps for comparison ---
@@ -91,7 +91,7 @@ p5 <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
 
 library(patchwork)
 combo <- (p2 | p3) / (p4 | p5)
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_4pathway_heatmaps.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_4pathway_heatmaps.pdf",
        plot = combo, width = 20, height = 16)
 cat("4-pathway spatial heatmap saved.\n")
 
@@ -133,6 +133,6 @@ p6 <- ggplot(y_profile, aes(x = y_bin)) +
   labs(x = "y position (mm)", y = "Mean p21 (Cdkn1a)",
        title = "MBRT_4h: p21 profile with detected peaks (P) and valleys (V)") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_p21_peaks_valleys.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_p21_peaks_valleys.pdf",
        plot = p6, width = 14, height = 6)
 cat("\nPeak/valley annotated profile saved.\n")

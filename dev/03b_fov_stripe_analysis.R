@@ -1,7 +1,7 @@
 library(Seurat)
 library(tidyverse)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 mbrt4h <- obj@meta.data %>%
   as.data.frame() %>%
@@ -63,7 +63,7 @@ p1 <- ggplot(fov_summary, aes(x = mean_x, y = mean_y, fill = mean_p21)) +
        x = "x_slide_mm", y = "y_slide_mm", fill = "Mean p21") +
   coord_fixed() +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_fov_p21_grid.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_fov_p21_grid.pdf",
        plot = p1, width = 10, height = 8)
 
 # --- Heatmap: FOV grid colored by DDR ---
@@ -75,7 +75,7 @@ p2 <- ggplot(fov_summary, aes(x = mean_x, y = mean_y, fill = mean_ddr)) +
        x = "x_slide_mm", y = "y_slide_mm", fill = "Mean DDR") +
   coord_fixed() +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_fov_ddr_grid.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_fov_ddr_grid.pdf",
        plot = p2, width = 10, height = 8)
 
 # --- Line profile: mean p21 by FOV row ---
@@ -85,7 +85,7 @@ p3 <- ggplot(row_summary, aes(x = y_row, y = mean_p21)) +
   labs(x = "y position (mm)", y = "Mean p21",
        title = "p21 profile by FOV row — looking for stripe oscillation") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_p21_by_fov_row.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_p21_by_fov_row.pdf",
        plot = p3, width = 10, height = 5)
 
 # --- Also STING by FOV row ---
@@ -95,7 +95,7 @@ p4 <- ggplot(row_summary, aes(x = y_row, y = mean_sting)) +
   labs(x = "y position (mm)", y = "Mean STING",
        title = "STING profile by FOV row") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_sting_by_fov_row.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_sting_by_fov_row.pdf",
        plot = p4, width = 10, height = 5)
 
 cat("\nAll FOV grid plots saved.\n")

@@ -2,7 +2,7 @@ library(Seurat)
 library(tidyverse)
 library(zoo)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 mbrt4h <- obj@meta.data %>%
   as.data.frame() %>%
@@ -60,7 +60,7 @@ p1 <- ggplot(y_profile, aes(x = y_bin)) +
   labs(x = "Tilt-corrected y (mm)", y = "Mean p21",
        title = sprintf("p21 profile along tilt-corrected axis (%d deg)", tilt_deg)) +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_p21_tilted_profile.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_p21_tilted_profile.pdf",
        plot = p1, width = 14, height = 6)
 
 # --- Now classify FOVs using corrected coordinate ---
@@ -168,7 +168,7 @@ for (bc in beam_centers) {
   p2 <- p2 + geom_abline(intercept = bc, slope = -tan(tilt_rad),
                            color = "yellow", linewidth = 0.5, alpha = 0.7)
 }
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_tilted_zones.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_tilted_zones.pdf",
        plot = p2, width = 14, height = 10)
 
 # --- With FOV labels ---
@@ -193,7 +193,7 @@ for (bc in beam_centers) {
   p3 <- p3 + geom_abline(intercept = bc, slope = -tan(tilt_rad),
                            color = "yellow", linewidth = 0.5, alpha = 0.7)
 }
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_tilted_zones_labels.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_tilted_zones_labels.pdf",
        plot = p3, width = 14, height = 10)
 
 cat("\nTilted zone plots saved. Check mbrt4h_tilted_zones_labels.pdf against H2AX image.\n")

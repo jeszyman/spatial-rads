@@ -355,3 +355,25 @@ docs/superpowers/
 /local-data
 # Large regenerable intermediate (1.4M-cell Mutter_01 vendor reference for the Yi concordance check)
 results/processing/yi_reference.tsv
+
+# Claude Code local settings (machine-local, not shared)
+.claude/
+
+# Heavy regenerable binary intermediates (Seurat objects, label/NN caches).
+# Convention: heavy data lives on /mnt/data or dev/*/data; only small TSVs +
+# plots are version-controlled. data_model.rda and stripe_model.rds predate
+# this rule and stay tracked.
+*.rds
+*.parquet
+*.tsv.gz
+*.pptx
+
+# Run artifacts (stdout captures, Snakemake internal markers)
+*.stdout
+.snakemake_timestamp
+
+# Large regenerable aggregate dumps (per-cell / full-gene-set result tables;
+# parquet twins already ignored above). Small result TSVs stay tracked.
+results/aggregate/degs_pseudobulk_m02day2.tsv
+results/aggregate/umap_integration.tsv
+results/aggregate/qc_metrics_per_cell.tsv

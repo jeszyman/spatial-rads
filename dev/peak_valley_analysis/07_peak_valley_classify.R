@@ -66,8 +66,6 @@ ggsave(file.path(PLOT_DIR, "peak_valley_zones.png"), plot = p, width = 14, heigh
 
 # --- Add zone to Seurat object for downstream use ---
 zone_lookup <- setNames(mbrt4h$zone, mbrt4h$cell_id)
-obj$peak_valley_zone <- ifelse(colnames(obj) %in% names(zone_lookup),
-                               zone_lookup[colnames(obj)],
-                               NA_character_)
+obj$peak_valley_zone <- zone_lookup[colnames(obj)]
 saveRDS(obj, file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
 cat("Zone added to Seurat metadata and saved.\n")

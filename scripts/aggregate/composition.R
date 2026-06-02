@@ -6,17 +6,18 @@
 # M01 (n=1 timecourse) is descriptive proportions only. Per plan-aggregate.md
 # Track 1: no silent drops -- a cell type is logged to the dropped table only if
 # the logit transform yields a non-finite row (genuine method failure).
-# Args: <cell_metadata.tsv> <cell_atlas_labels.tsv> <out_by_sample> <out_test>
+# Args: <obs.parquet> <full_labels.parquet> <out_by_sample> <out_test>
 #       <out_dropped> <plot_bars> <plot_forest> <plot_timecourse>
 suppressPackageStartupMessages({
   library(data.table)
+  library(arrow)
   library(speckle)
   library(limma)
   library(ggplot2)
 })
 
 args             <- commandArgs(trailingOnly = TRUE)
-meta_path        <- args[1]
+obs_path         <- args[1]
 labels_path      <- args[2]
 out_by_sample    <- args[3]
 out_test         <- args[4]
@@ -28,10 +29,10 @@ plot_timecourse  <- args[8]
 dir.create(dirname(out_test), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(plot_bars), recursive = TRUE, showWarnings = FALSE)
 
-m <- fread(meta_path)
-# Use the aggregate InSituType atlas labels in place of the stale per-sample
-# cell_type, so composition reflects identical cross-dataset typing (plan-aggregate.md).
-lab <- fread(labels_path)[, .(cell = cell_id, cell_type = cell_type_atlas)]
+m <- as.data.table(read_parquet(obs_path))   # cell, sample_id, dataset, slide_id, condition, treatment, timepoint_h, cell_type(stale), neg
+# Use the unified cross-dataset cell_subtype (tier-1/2 joined) in place of the
+# stale per-sample cell_type, so composition reflects identical typing (plan-aggregate.md).
+lab <- as.data.table(read_parquet(labels_path))[, .(cell, cell_type = cell_subtype)]
 m[, cell_type := NULL]
 m <- merge(m, lab, by = "cell", all.x = TRUE)
 m <- m[!is.na(cell_type)]

@@ -204,7 +204,7 @@ Key paths:
 - Mutter_01 analysis data: $REPO/dev/peak_valley_analysis/data/
 - Mutter_02 RDS files: $SCRATCH/mutter02/
 - Mutter_02 sample layout: $SCRATCH/mutter02/sample_layout.tsv (slide → sample_id → treatment; per Jenn Fazzari 2026-04-09)
-- Gene list XLSX: $REPO/config/CosMx-Mouse-Universal-Cell-Characterization-Gene-List-(1).XLSX
+- Gene list XLSX: $REPO/data/sources/2026-01-30-nanostring-mouse-ucc-gene-list.xlsx
 - Write deliverables to: $RESULTS/
 
 Write R scripts to $RESULTS/ and execute them. Save output data to $RESULTS/data/ and plots to $RESULTS/plots/.

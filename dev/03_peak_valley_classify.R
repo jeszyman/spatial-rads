@@ -1,7 +1,7 @@
 library(Seurat)
 library(tidyverse)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 # --- Extract MBRT_4h spatial coordinates ---
 mbrt4h <- obj@meta.data %>%
@@ -23,7 +23,7 @@ p1 <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = DNA_Damage_Repa
        color = "DDR score") +
   coord_fixed() +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_ddr_spatial.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_ddr_spatial.pdf",
        plot = p1, width = 10, height = 6)
 cat("DDR spatial plot saved.\n")
 
@@ -41,7 +41,7 @@ p2 <- ggplot(y_profile, aes(x = y_bin, y = mean_ddr)) +
   labs(x = "y_slide_mm", y = "Mean DDR score",
        title = "DDR profile along y-axis (MBRT_4h) -- looking for stripes") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_ddr_y_profile.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_ddr_y_profile.pdf",
        plot = p2, width = 10, height = 5)
 cat("Y-axis DDR profile saved.\n")
 
@@ -58,7 +58,7 @@ p3 <- ggplot(x_profile, aes(x = x_bin, y = mean_ddr)) +
   labs(x = "x_slide_mm", y = "Mean DDR score",
        title = "DDR profile along x-axis (MBRT_4h) -- looking for stripes") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_ddr_x_profile.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_ddr_x_profile.pdf",
        plot = p3, width = 10, height = 5)
 cat("X-axis DDR profile saved.\n")
 
@@ -69,7 +69,7 @@ p4 <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = STING)) +
   labs(title = "MBRT_4h: STING score (spatial)", color = "STING") +
   coord_fixed() +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_sting_spatial.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_sting_spatial.pdf",
        plot = p4, width = 10, height = 6)
 cat("STING spatial plot saved.\n")
 
@@ -80,7 +80,7 @@ p5 <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = TypeI_interfero
   labs(title = "MBRT_4h: Type I IFN score (spatial)", color = "TypeI IFN") +
   coord_fixed() +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_ifn1_spatial.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_ifn1_spatial.pdf",
        plot = p5, width = 10, height = 6)
 cat("Type I IFN spatial plot saved.\n")
 

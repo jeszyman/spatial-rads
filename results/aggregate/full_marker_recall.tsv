@@ -1,0 +1,11 @@
+lineage	dataset	n_cells	marker_mean	neg_mean	recall_s2b
+Epithelial	Mutter_01	509466	0.2101	0.0193	10.88
+Epithelial	Mutter_02	1186287	0.5449	0.0173	31.52
+Fibroblast	Mutter_01	389188	0.0749	0.0106	7.07
+Fibroblast	Mutter_02	1005177	0.1865	0.0071	26.15
+Mast	Mutter_01	22	4.3409	0.0227	191.0
+Mast	Mutter_02	317	10.969	0.0139	790.27
+NK	Mutter_01	16	2.1518	0.0312	68.86
+NK	Mutter_02	505	2.2238	0.0558	39.82
+SmoothMuscle	Mutter_01	53429	0.1148	0.0135	8.51
+SmoothMuscle	Mutter_02	132683	0.3895	0.0075	51.97

@@ -55,15 +55,6 @@ all_degs <- bind_rows(
 write.csv(all_degs, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/deg_all_cells.csv", row.names = FALSE)
 cat(sprintf("Total DEG rows: %d\n", nrow(all_degs)))
 
-# Top 10 by effect size for each MBRT vs SBRT comparison
-cat("\nTop DEGs by effect size (MBRT vs SBRT):\n")
-all_degs %>%
-  filter(comparison_type == "mbrt_vs_sbrt") %>%
-  group_by(comparison) %>%
-  slice_max(abs(avg_log2FC), n = 5) %>%
-  select(comparison, gene, avg_log2FC, pct.1, pct.2) %>%
-  print(n = 30)
-
 # --- Per-cell-type DEGs (MBRT vs SBRT at 4h) ---
 cat("\nRunning per-cell-type DEGs (MBRT vs SBRT at 4h)...\n")
 ct_counts <- table(obj$cell_type_validated[obj$Condition %in% c("MBRT_4h", "SBRT_4h")])

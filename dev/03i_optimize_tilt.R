@@ -2,7 +2,7 @@ library(Seurat)
 library(tidyverse)
 library(zoo)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 mbrt4h <- obj@meta.data %>%
   as.data.frame() %>%
@@ -63,7 +63,7 @@ p0 <- ggplot(angle_results, aes(x = angle, y = contrast)) +
   labs(x = "Tilt angle (degrees)", y = "Peak - Valley p21 contrast",
        title = "Optimal tilt angle for stripe detection") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_tilt_angle_scan.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_tilt_angle_scan.pdf",
        plot = p0, width = 10, height = 6)
 
 # --- Apply optimal model ---
@@ -113,7 +113,7 @@ for (bc in beam_centers) {
   p1 <- p1 + geom_abline(intercept = bc, slope = -tan(rad),
                            color = "yellow", linewidth = 0.5, alpha = 0.7)
 }
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_optimal_zones.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_optimal_zones.pdf",
        plot = p1, width = 14, height = 10)
 
 # --- With FOV labels ---
@@ -136,7 +136,7 @@ for (bc in beam_centers) {
   p2 <- p2 + geom_abline(intercept = bc, slope = -tan(rad),
                            color = "yellow", linewidth = 0.5, alpha = 0.7)
 }
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_optimal_zones_labels.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_optimal_zones_labels.pdf",
        plot = p2, width = 14, height = 10)
 
 cat("\nOptimal zone plots saved.\n")

@@ -1,7 +1,7 @@
 library(Seurat)
 library(tidyverse)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 # --- Proportions ---
 composition <- obj@meta.data %>%
@@ -24,7 +24,7 @@ composition %>%
   labs(x = NULL, y = "Proportion", fill = "Cell type",
        title = "Cell type composition (flank)") +
   theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/composition_stacked.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/composition_stacked.pdf",
        width = 10, height = 6)
 cat("Stacked bar saved.\n")
 
@@ -37,11 +37,11 @@ composition %>%
   labs(x = "Hours post-RT", y = "Proportion", color = "Treatment",
        caption = "n=1 per condition") +
   theme_bw()
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/composition_trajectories.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/composition_trajectories.pdf",
        width = 14, height = 10)
 cat("Composition trajectories saved.\n")
 
-write.csv(composition, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/composition.csv", row.names = FALSE)
+write.csv(composition, "/mnt/data/projects/spatial-rads/analysis/tables/composition.csv", row.names = FALSE)
 cat("Composition table saved.\n")
 
 # --- Key findings ---

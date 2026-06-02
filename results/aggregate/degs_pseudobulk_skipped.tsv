@@ -1,0 +1,19 @@
+cell_type	contrast	reason	n_cells_in_failed_group
+DN2a	MBRT_vs_Ctrl	abundance_floor: condition MBRT_day2 has 2/4 samples >=10 cells (need 3)	43
+DN2a	SBRT_vs_Ctrl	abundance_floor: condition Control has 2/4 samples >=10 cells (need 3)	39
+DN2a	MBRT_vs_SBRT	abundance_floor: condition MBRT_day2 has 2/4 samples >=10 cells (need 3)	43
+DN2b	MBRT_vs_Ctrl	abundance_floor: condition MBRT_day2 has 2/4 samples >=10 cells (need 3)	35
+DN2b	SBRT_vs_Ctrl	abundance_floor: condition SBRT_day2 has 2/4 samples >=10 cells (need 3)	43
+DN2b	MBRT_vs_SBRT	abundance_floor: condition MBRT_day2 has 2/4 samples >=10 cells (need 3)	35
+DN3	MBRT_vs_Ctrl	abundance_floor: condition Control has 2/4 samples >=10 cells (need 3)	59
+DN3	SBRT_vs_Ctrl	abundance_floor: condition Control has 2/4 samples >=10 cells (need 3)	59
+DN3	MBRT_vs_SBRT	abundance_floor: condition Control has 2/4 samples >=10 cells (need 3)	59
+ISP	MBRT_vs_Ctrl	abundance_floor: condition MBRT_day2 has 0/4 samples >=10 cells (need 3)	7
+ISP	SBRT_vs_Ctrl	abundance_floor: condition SBRT_day2 has 0/4 samples >=10 cells (need 3)	8
+ISP	MBRT_vs_SBRT	abundance_floor: condition MBRT_day2 has 0/4 samples >=10 cells (need 3)	7
+Spleen.LN.Naive.CD4	MBRT_vs_Ctrl	abundance_floor: condition MBRT_day2 has 2/4 samples >=10 cells (need 3)	39
+Spleen.LN.Naive.CD4	SBRT_vs_Ctrl	abundance_floor: condition SBRT_day2 has 2/4 samples >=10 cells (need 3)	35
+Spleen.LN.Naive.CD4	MBRT_vs_SBRT	abundance_floor: condition MBRT_day2 has 2/4 samples >=10 cells (need 3)	39
+Spleen.Naive.CD8	MBRT_vs_Ctrl	abundance_floor: condition MBRT_day2 has 0/4 samples >=10 cells (need 3)	5
+Spleen.Naive.CD8	SBRT_vs_Ctrl	abundance_floor: condition SBRT_day2 has 0/4 samples >=10 cells (need 3)	4
+Spleen.Naive.CD8	MBRT_vs_SBRT	abundance_floor: condition MBRT_day2 has 0/4 samples >=10 cells (need 3)	5

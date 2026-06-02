@@ -1,7 +1,7 @@
 library(Seurat)
 library(tidyverse)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 mbrt4h <- obj@meta.data %>%
   as.data.frame() %>%
@@ -43,7 +43,7 @@ p1 <- ggplot(fov_centroids, aes(x = x, y = y)) +
        x = "x_slide_mm", y = "y_slide_mm") +
   theme_bw(base_size = 14) +
   theme(panel.grid.minor = element_blank())
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_fov_grid_clean.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_fov_grid_clean.pdf",
        plot = p1, width = 14, height = 10)
 
 # --- Overlay: cell density background + FOV labels ---
@@ -57,7 +57,7 @@ p2 <- ggplot() +
   labs(title = "MBRT_4h: Cell density with FOV labels",
        x = "x_slide_mm", y = "y_slide_mm") +
   theme_bw(base_size = 14)
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/mbrt4h_density_fov_overlay.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/mbrt4h_density_fov_overlay.pdf",
        plot = p2, width = 14, height = 10)
 
 # --- Print FOV list in a format ready for manual peak/valley annotation ---

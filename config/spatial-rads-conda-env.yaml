@@ -24,6 +24,23 @@ dependencies:
   - r-ape            # Moran.I() for spatial autocorrelation
   # --- Signature scoring ---
   - bioconductor-ucell  # rank-based signature scoring (primary)
+  # --- Integration (aggregate.smk) ---
+  - r-harmony           # batch integration of cell-type + Banksy PCs
+  # NOTE: LISI (immunogenomics/lisi) is not on conda; the LISI(dataset) gate
+  # in embed_celltype.R is computed manually (local inverse Simpson on the
+  # Harmony kNN graph) -- see scripts/aggregate/embed_celltype.R.
+  # --- Spatial niche (aggregate.smk) ---
+  - bioconductor-banksy            # spatial niche embedding
+  - bioconductor-spatialexperiment # SPE container for Banksy
+  # --- Composition / DE / pathway inference (aggregate.smk) ---
+  - bioconductor-speckle  # propeller composition test
+  - bioconductor-deseq2   # pseudobulk DE
+  - bioconductor-apeglm   # lfcShrink for DESeq2
+  - bioconductor-fgsea    # pathway GSEA on ranked stats
+  - bioconductor-limma    # pathway-score inference on per-sample means
+  - r-msigdbr             # MSigDB Hallmark gene sets (exploratory tier)
+  # --- Spatial colocalization (aggregate.smk) ---
+  - bioconductor-spicyr   # cell-cell colocalization inference
   # --- Signal processing ---
   - r-zoo
   # --- PPTX/image handling (H2AX validation) ---

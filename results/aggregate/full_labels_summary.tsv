@@ -1,0 +1,17 @@
+compartment	cell_subtype	n_cells	frac
+tumor	Tumor	1577685	0.4814
+stroma	Fibroblast	732099	0.2234
+stroma	unassigned	441227	0.1346
+immune	Macrophages	300975	0.0918
+stroma	SmoothMuscle	72124	0.022
+stroma	Adipocyte	49214	0.015
+stroma	Endothelial	36937	0.0113
+immune	ILC	34340	0.0105
+immune	T cells	16046	0.0049
+immune	DC	5315	0.0016
+immune	NK cells	4991	0.0015
+immune	Plasma cells	3573	0.0011
+immune	Epithelial cells	1180	0.0004
+immune	Mast cells	1121	0.0003
+immune	Neutrophils	259	0.0001
+unassigned	unassigned	4	0.0

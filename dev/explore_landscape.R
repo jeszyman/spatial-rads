@@ -2,12 +2,12 @@ library(Seurat)
 library(tidyverse)
 library(patchwork)
 
-obj <- readRDS("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
+obj <- readRDS("/mnt/data/projects/spatial-rads/analysis/objects/seurat_clustered.rds")
 
 # --- Batch assessment ---
 p_batch <- DimPlot(obj, group.by = "Slide", raster = TRUE) +
   labs(title = "UMAP by Slide — batch check")
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/umap_by_slide.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/umap_by_slide.pdf",
        plot = p_batch, width = 8, height = 6)
 cat("Batch assessment plot saved.\n")
 
@@ -18,7 +18,7 @@ p3 <- DimPlot(obj, group.by = "ImmuneAtlas_ImmGen_Main_cell_Types",
               raster = TRUE, label = TRUE, repel = TRUE) + labs(title = "Cell type")
 p4 <- DimPlot(obj, group.by = "treatment", raster = TRUE) + labs(title = "Treatment")
 p_landscape <- (p1 | p2) / (p3 | p4)
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/umap_landscape.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/umap_landscape.pdf",
        plot = p_landscape, width = 16, height = 12)
 cat("Landscape UMAP saved.\n")
 
@@ -33,7 +33,7 @@ p_spatial <- obj@meta.data %>%
   theme_bw() +
   theme(legend.position = "bottom") +
   guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))
-ggsave("/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_celltype_flank.pdf",
+ggsave("/mnt/data/projects/spatial-rads/analysis/figures/spatial_celltype_flank.pdf",
        plot = p_spatial, width = 16, height = 12)
 cat("Spatial cell type map saved.\n")
 
@@ -42,6 +42,6 @@ cell_counts <- obj@meta.data %>%
   as.data.frame() %>%
   count(Condition, ImmuneAtlas_ImmGen_Main_cell_Types) %>%
   pivot_wider(names_from = ImmuneAtlas_ImmGen_Main_cell_Types, values_from = n, values_fill = 0)
-write.csv(cell_counts, "/mnt/gcs/jeszyman/projects/spatial-rads/analysis/tables/cell_counts_by_condition_celltype.csv", row.names = FALSE)
+write.csv(cell_counts, "/mnt/data/projects/spatial-rads/analysis/tables/cell_counts_by_condition_celltype.csv", row.names = FALSE)
 cat("Cell count table saved.\n")
 print(cell_counts)

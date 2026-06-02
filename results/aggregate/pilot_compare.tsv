@@ -1,0 +1,4 @@
+embedding	n_clusters	scib_ilisi	scaled_ilisi	pct_clusters_both_ds	silhouette_label	silhouette_batch	compartments	compartment_set	frac_clusters_above_negbg	min_s2b	bio	pilot_total	premise_pass
+X_pca	7	0.1007	0.1525	0.571	0.3082		3	immune+stroma+tumor	1.0	7.12	0.7694	0.5227	False
+X_harmony	7	0.1306	0.1977	1.0	0.4202		3	immune+stroma+tumor	1.0	8.21	0.8067	0.5631	False
+X_scvi	6	0.4675	0.7077	0.333	0.4618		3	immune+stroma+tumor	1.0	24.56	0.8206	0.7754	True
