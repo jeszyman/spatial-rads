@@ -8,3 +8,14 @@ TypeI_interferon: [Ifit1, Ifit2, Ifit3, Isg15, Mx1, Mx2, Oas1a, Oas2, Oasl1, Rsa
 TypeII_interferon: [Gbp2, Gbp3, Gbp4, Gbp5, Gbp6, Gbp7, Irf1, Irf8, Stat1, Cxcl9, Cxcl10, Cxcl11, Ciita, H2-Aa, H2-Ab1, H2-Eb1, Cd74]
 DNA_Damage_Repair: [Cdkn1a, Gadd45a, Gadd45b, Mdm2, Bax, Pmaip1, Bbc3, Ddit3, Atm, Atr, Chek1, Chek2, Rad51, Brca1, Brca2, Xrcc5, Xrcc6, Parp1]
 STING: [Irf3, Isg15, Cxcl10]
+
+# MBRT-vs-SBRT stromal/vascular readouts (Hallmark/canonical-curated, primary tier).
+# Full curated lists; off-panel genes drop at scoring time like the sets above.
+# Panel coverage per gene is audited by scripts/aggregate/build_gene_sets.R ->
+# results/aggregate/gene_set_panel_coverage.tsv (panel-present counts as of the
+# 950-gene common panel: Angiogenesis 14/19, Hypoxia 5/13, Fibrosis 13/18,
+# Stromal_stress 8/12; Hypoxia is panel-thin, treat its score cautiously).
+Angiogenesis: [Vegfa, Vegfc, Flt1, Kdr, Pecam1, Cdh5, Vwf, Angpt1, Angpt2, Tek, Pdgfb, Notch1, Dll4, Esm1, Apln, Aplnr, Nrp1, Cldn5, Tie1]
+Hypoxia: [Hif1a, Vegfa, Slc2a1, Car9, Ldha, Pgk1, Bnip3, Ndrg1, Pdk1, Eno1, Aldoa, Hk2, Egln3]
+Fibrosis_remodeling: [Col1a1, Col1a2, Col3a1, Col5a1, Acta2, Tagln, Fn1, Tgfb1, Tgfbr1, Ccn2, Postn, Sparc, Timp1, Mmp2, Mmp9, Lox, Fap, Vim]
+Stromal_stress_senescence: [Cdkn1a, Cdkn2a, Trp53, Glb1, Serpine1, Il6, Cxcl1, Ccl2, Mmp3, Igfbp3, Gdf15, Bcl2l1]

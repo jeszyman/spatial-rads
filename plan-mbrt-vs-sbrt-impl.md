@@ -185,33 +185,30 @@ Fibrosis_remodeling: [Col1a1, Col1a2, Col3a1, Col5a1, Acta2, Tagln, Fn1, Tgfb1, 
 Stromal_stress_senescence: [Cdkn1a, Cdkn2a, Trp53, Glb1, Serpine1, Il6, Cxcl1, Ccl2, Mmp3, Igfbp3, Gdf15, Bcl2l1]
 ```
 
-- [ ] **Step 2: Write the panel-filter + report script** that intersects every YAML set against the 950-gene panel and rewrites the YAML with only panel-present genes, logging drops:
+- [ ] **Step 2: Write the coverage-audit script.** DEVIATION FROM ORIGINAL PLAN (2026-06-02): the script does **not** rewrite the YAML. Both scorers (`pathway_score.R`, `pathway_summary.R`) already drop off-panel genes at scoring time, and the YAML's shipped convention is full curated lists (the header documents drop-at-scoring). Permanently filtering the YAML would conflict with that tested pattern and stale the provenance comments (module sizes 19/17/18). So the script only emits the per-gene coverage audit; the YAML keeps full lists. It also reads the panel from `results/processing/common_genes.tsv` (the `PANEL` var in the smk) instead of loading the 1.3 GB `merged_typed.rds` for a name lookup.
 ```r
 #!/usr/bin/env Rscript
-# Intersect each gene set in config/pathway_gene_lists.yaml against the common
-# 950-gene panel; rewrite YAML keeping only present genes; report drops.
-# Args: <merged_typed.rds> <pathway_gene_lists.yaml> <out_coverage.tsv>
-suppressPackageStartupMessages({library(Seurat); library(yaml); library(data.table)})
-a <- commandArgs(trailingOnly = TRUE)
-o <- readRDS(a[1]); panel <- rownames(o); rm(o); invisible(gc())
-sets <- yaml::read_yaml(a[2])
-rep <- rbindlist(lapply(names(sets), function(s) data.table(
+# Audit each gene set in config/pathway_gene_lists.yaml against the common 950-gene
+# panel; log each gene's panel membership. Does NOT rewrite the YAML (full curated
+# lists kept; off-panel drops at scoring time).
+# Args: <common_genes.tsv> <pathway_gene_lists.yaml> <out_coverage.tsv>
+suppressPackageStartupMessages({library(yaml); library(data.table)})
+a     <- commandArgs(trailingOnly = TRUE)
+panel <- readLines(a[1])
+sets  <- yaml::read_yaml(a[2])
+cov <- rbindlist(lapply(names(sets), function(s) data.table(
   set = s, gene = sets[[s]], in_panel = sets[[s]] %in% panel)))
-fwrite(rep, a[3], sep = "\t")
-sets2 <- lapply(sets, function(g) g[g %in% panel])
-yaml::write_yaml(sets2, a[2])
-cat(sprintf("gene sets: %d sets; %d/%d genes on panel\n",
-            length(sets), sum(rep$in_panel), nrow(rep)))
+fwrite(cov, a[3], sep = "\t")
 ```
 
 - [ ] **Step 3: Run it.**
 ```bash
 conda run -n spatial-rads Rscript scripts/aggregate/build_gene_sets.R \
-  /mnt/data/projects/spatial-rads/aggregate/merged_typed.rds \
+  results/processing/common_genes.tsv \
   config/pathway_gene_lists.yaml \
   results/aggregate/gene_set_panel_coverage.tsv
 ```
-Expected: each of the 4 new sets retains ≥6 panel genes; `gene_set_panel_coverage.tsv` flags every gene's panel membership. If any confirmatory set (Angiogenesis/Hypoxia/Fibrosis/Stromal) drops below ~5 genes, note it as a panel limitation in `plan-mbrt-vs-sbrt.md`.
+Realized coverage: Angiogenesis 14/19, Fibrosis_remodeling 13/18, Stromal_stress_senescence 8/12, **Hypoxia 5/13** (panel-thin). Hypoxia limitation recorded in `plan-mbrt-vs-sbrt.md` (Panel blind spots) and the YAML comment.
 
 - [ ] **Step 4: Commit.**
 ```bash

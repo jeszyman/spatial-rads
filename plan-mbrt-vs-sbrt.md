@@ -306,7 +306,12 @@ execution; fix them before the first confirmatory run:
 - **Power at n = 4.** 6 residual df; small effects are undetectable. Reported via
   the precomputed minimum detectable effect.
 - **Panel blind spots.** ~950 genes; a negative on an off-panel or near-zero
-  gene is not a biological negative.
+  gene is not a biological negative. The four new stromal/vascular sets carry
+  uneven panel coverage (`results/aggregate/gene_set_panel_coverage.tsv`):
+  Angiogenesis 14/19, Fibrosis_remodeling 13/18, Stromal_stress_senescence
+  8/12, but **Hypoxia only 5/13** (Hif1a, Vegfa, Slc2a1, Ldha, Ndrg1; Car9,
+  Pgk1, Bnip3, Pdk1, Eno1, Aldoa, Hk2, Egln3 all off-panel). The Hypoxia score
+  rests on five genes, so a null on it is panel-limited, not biological.
 - **M01 is n = 1.** Descriptive only; its time course supports, never confirms.
 
 ## Status and next steps
