@@ -83,17 +83,16 @@ git commit -m "fix(aggregate): pseudobulk reads unified full_labels, not rejecte
 ### Task 2: Re-run the DE + GSEA chain
 
 **Files:**
-- Output: `results/aggregate/degs_pseudobulk_m02day2.tsv`, `deg_summary_m02day2.tsv`, `degs_pseudobulk_skipped.tsv`, `plots/volcano/`, `gsea_pseudobulk_m02day2.tsv`
+- Output: `results/aggregate/degs_pseudobulk_m02day2.tsv`, `deg_summary_m02day2.tsv`, `degs_pseudobulk_skipped.tsv`, `gsea_pseudobulk_m02day2.tsv`
 
-- [ ] **Step 1: Run DESeq2.**
+- [ ] **Step 1: Run DESeq2.** No volcano plots: the -log10 p axis + padj<0.05 cutoff reintroduce significance-first framing, which is invalid on this sparse targeted panel (no valid padj floor when most genes sit near the detection floor). Effect-size + CI + MDE carry the inference instead.
 ```bash
 TMPDIR=/mnt/data/projects/spatial-rads/tmp OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 \
 conda run -n spatial-rads Rscript scripts/aggregate/deg_pseudobulk.R \
   /mnt/data/projects/spatial-rads/aggregate/pseudobulk_se.rds \
   results/aggregate/degs_pseudobulk_m02day2.tsv \
   results/aggregate/deg_summary_m02day2.tsv \
-  results/aggregate/degs_pseudobulk_skipped.tsv \
-  results/aggregate/plots/volcano
+  results/aggregate/degs_pseudobulk_skipped.tsv
 ```
 Expected: `deg_summary_m02day2.tsv` lists per cell type × contrast counts of significant genes; `degs_pseudobulk_skipped.tsv` lists cell types failing the abundance floor.
 
@@ -106,9 +105,7 @@ conda run -n spatial-rads Rscript scripts/aggregate/gsea.R \
 ```
 Expected: rows for each (cell_type × contrast × pathway) with NES + padj_bh.
 
-- [ ] **Step 3: View one volcano to confirm rendering.** Read `results/aggregate/plots/volcano/` (pick a high-abundance cell type, e.g. tumor or macrophages) and confirm axes span the data, points not clipped.
-
-- [ ] **Step 4: Commit results.**
+- [ ] **Step 3: Commit results.**
 ```bash
 git add results/aggregate/degs_pseudobulk_m02day2.tsv results/aggregate/deg_summary_m02day2.tsv results/aggregate/degs_pseudobulk_skipped.tsv results/aggregate/gsea_pseudobulk_m02day2.tsv
 git commit -m "results(aggregate): rebuild M02 day2 pseudobulk DE + GSEA on unified labels"

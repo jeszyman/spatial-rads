@@ -7,13 +7,12 @@
 # used. Per type: gene filter (>=10 counts in >=4 samples) -> DESeq2
 # (~slide_id+condition) -> 3 contrasts via results() + apeglm lfcShrink (two fits:
 # Control ref, then SBRT ref for MBRT-vs-SBRT). padj is DESeq2's per-contrast BH.
-# Args: <pseudobulk_se.rds> <out_degs.tsv> <out_summary.tsv> <out_skipped.tsv> <volcano_dir>
+# Args: <pseudobulk_se.rds> <out_degs.tsv> <out_summary.tsv> <out_skipped.tsv>
 suppressPackageStartupMessages({
   library(SummarizedExperiment)
   library(DESeq2)
   library(apeglm)
   library(data.table)
-  library(ggplot2)
 })
 
 args        <- commandArgs(trailingOnly = TRUE)
@@ -21,7 +20,6 @@ se_path     <- args[1]
 out_degs    <- args[2]
 out_summary <- args[3]
 out_skipped <- args[4]
-volcano_dir <- args[5]
 
 MIN_CELLS    <- 10L     # per (sample x cell_type) to count a usable replicate
 MIN_SAMPLES  <- 3L      # usable replicates required per condition
@@ -34,7 +32,6 @@ CONTRASTS    <- list(
   MBRT_vs_SBRT = c("MBRT_day2", "SBRT_day2"))
 
 dir.create(dirname(out_degs), recursive = TRUE, showWarnings = FALSE)
-dir.create(volcano_dir, recursive = TRUE, showWarnings = FALSE)
 
 se <- readRDS(se_path)
 cd <- as.data.table(as.data.frame(colData(se)), keep.rownames = "col")
@@ -42,8 +39,6 @@ cd <- as.data.table(as.data.frame(colData(se)), keep.rownames = "col")
 deg_rows  <- list()
 summ_rows <- list()
 skip_rows <- list()
-
-sanitize <- function(x) gsub("[^A-Za-z0-9]+", "_", x)
 
 # --- abundance floor: usable replicates per (cell_type, condition) ---
 usable <- cd[n_cells >= MIN_CELLS, .(n_pass = .N), by = .(cell_type, condition)]
@@ -129,20 +124,6 @@ for (ct in all_types) {
       n_padj_05_lfc_1 = sig[abs(log2FC) > 1, .N],
       top5_up = paste(up, collapse = ","),
       top5_down = paste(down, collapse = ","))
-
-    # volcano (build plot data as a copy -- do not mutate the stored degs rows)
-    vd <- dt[!is.na(pvalue), .(log2FC, pvalue, padj)]
-    vd[, sig := !is.na(padj) & padj < 0.05]
-    p <- ggplot(vd, aes(log2FC, -log10(pvalue), colour = sig)) +
-      geom_point(size = 0.6, alpha = 0.6) +
-      geom_vline(xintercept = c(-1, 1), linetype = 2, colour = "grey60") +
-      scale_colour_manual(values = c(`FALSE` = "grey70", `TRUE` = "firebrick"),
-                          name = "padj<0.05") +
-      labs(title = sprintf("%s  |  %s", ct, cn), x = "log2FC (apeglm)",
-           y = "-log10 p") +
-      theme_bw(base_size = 9)
-    ggsave(file.path(volcano_dir, sprintf("volcano_%s_%s.png", sanitize(ct), cn)),
-           p, width = 5, height = 4, dpi = 130)
   }
 }
 

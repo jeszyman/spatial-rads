@@ -228,13 +228,12 @@ rule deg_pseudobulk:
         degs    = "results/aggregate/degs_pseudobulk_m02day2.tsv",
         summary = "results/aggregate/deg_summary_m02day2.tsv",
         skipped = "results/aggregate/degs_pseudobulk_skipped.tsv",
-        volcano = directory("results/aggregate/plots/volcano"),
     threads: 1
     log:
         "logs/aggregate/deg_pseudobulk.log",
     shell:
         "{RSCRIPT} {input.script} {input.se} {output.degs} {output.summary} "
-        "{output.skipped} {output.volcano} > {log} 2>&1"
+        "{output.skipped} > {log} 2>&1"
 
 # --- Track 2 pathway: GSEA on pseudobulk stat-ranked genes (primary + Hallmark) ---
 rule gsea:
