@@ -55,6 +55,12 @@ rule all:
         f"{AGG}/merged_typed.rds",
         "results/aggregate/celltype_atlas_summary.tsv",
         "results/aggregate/celltype_atlas_validation.tsv",
+        # --- MBRT-vs-SBRT downstream differential layer (plan-mbrt-vs-sbrt-impl.md) ---
+        "results/aggregate/gene_set_panel_coverage.tsv",
+        "results/aggregate/readout_detection_m02.tsv",
+        "results/aggregate/celltype_qc_markers.tsv",
+        "results/aggregate/concordance_m01_m02.tsv",
+        "results/aggregate/results_master.tsv",   # terminal: tier-tagged master table
 
 # --- Stage 0a: memory pilot (characterize peak RSS, choose merge strategy) ---
 rule merge_pilot:
@@ -273,3 +279,184 @@ rule pathway_summary:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.yaml} {output.summary} "
         "{output.test} {output.conc} {output.heatmap} {output.timecourse} "
         "{output.scatter} > {log} 2>&1"
+
+# ============================================================================
+# MBRT-vs-SBRT downstream differential layer (plan-mbrt-vs-sbrt-impl.md T4-T13).
+# All consume the unified per-cell labels (results/aggregate/full_labels.parquet)
+# and the day-2 readout tables, terminating in the tier-tagged results_master.tsv.
+# ============================================================================
+
+# --- T4: panel coverage of the curated gene sets (which programs are scorable) ---
+rule build_gene_sets:
+    input:
+        script = "scripts/aggregate/build_gene_sets.R",
+        panel  = PANEL,
+        yaml   = "config/pathway_gene_lists.yaml",
+    output:
+        coverage = "results/aggregate/gene_set_panel_coverage.tsv",
+    threads: 1
+    log:
+        "logs/aggregate/build_gene_sets.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.panel} {input.yaml} {output.coverage} > {log} 2>&1"
+
+# --- T5: per-cell-type readout detection report (panel detectability in M02) ---
+rule panel_coverage:
+    input:
+        script = "scripts/aggregate/panel_coverage.R",
+        rds    = f"{AGG}/merged_typed.rds",
+        labels = "results/aggregate/full_labels.parquet",
+        yaml   = "config/pathway_gene_lists.yaml",
+    output:
+        detection = "results/aggregate/readout_detection_m02.tsv",
+    threads: 1
+    log:
+        "logs/aggregate/panel_coverage.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.yaml} "
+        "{output.detection} > {log} 2>&1"
+
+# --- T6: power / minimum-detectable-effect table at n=4 ---
+rule power_mde:
+    input:
+        script = "scripts/aggregate/power_mde.R",
+        comp   = "results/aggregate/composition_by_sample.tsv",
+        se     = f"{AGG}/pseudobulk_se.rds",
+        path   = "results/aggregate/pathway_scores_summary.tsv",
+    output:
+        mde = "results/aggregate/power_mde.tsv",
+    threads: 1
+    log:
+        "logs/aggregate/power_mde.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.comp} {input.se} {input.path} {output.mde} > {log} 2>&1"
+
+# --- T7: per-cell slide coords + per-sample necrosis flag (spatial-track input) ---
+rule coords_necrosis:
+    input:
+        script = "scripts/aggregate/coords_necrosis.R",
+        ss     = MASTER,
+        rds    = expand(f"{SCORED}/{{s}}.scored.rds", s=FLANK),
+    output:
+        coords = f"{AGG}/coords_necrosis.parquet",
+    threads: 1
+    log:
+        "logs/aggregate/coords_necrosis.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.ss} {output.coords} {input.rds} > {log} 2>&1"
+
+# --- T8: cell-type-label QC marker dotplot (does each label express its markers) ---
+rule celltype_qc:
+    input:
+        script = "scripts/aggregate/celltype_qc.R",
+        rds    = f"{AGG}/merged.rds",
+        labels = "results/aggregate/full_labels.parquet",
+    output:
+        markers = "results/aggregate/celltype_qc_markers.tsv",
+        dotplot = "results/aggregate/plots/celltype_qc_dotplot.png",
+    threads: 1
+    log:
+        "logs/aggregate/celltype_qc.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.markers} "
+        "{output.dotplot} > {log} 2>&1"
+
+# --- T9: data-driven spatial niches (k=20 NN composition -> K=6 k-means) ---
+rule niches:
+    input:
+        script = "scripts/aggregate/niches.R",
+        labels = "results/aggregate/full_labels.parquet",
+        coords = f"{AGG}/coords_necrosis.parquet",
+        obs    = f"{AGG}/full/obs.parquet",
+    output:
+        per_cell  = f"{AGG}/niche_per_cell.parquet",
+        centroids = "results/aggregate/niche_centroids.tsv",
+        freq      = "results/aggregate/niche_frequency.tsv",
+        test      = "results/aggregate/niche_test_m02day2.tsv",
+        heatmap   = "results/aggregate/plots/niche_centroids_heatmap.png",
+        freq_plot = "results/aggregate/plots/niche_frequency_m02.png",
+    threads: 1
+    log:
+        "logs/aggregate/niches.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.labels} {input.coords} {input.obs} "
+        "{output.per_cell} {output.centroids} {output.freq} {output.test} "
+        "{output.heatmap} {output.freq_plot} > {log} 2>&1"
+
+# --- T10: tumor-immune spatial mixing (immune-neighbour fraction + Keren score) ---
+rule spatial_mixing:
+    input:
+        script = "scripts/aggregate/spatial_mixing.R",
+        labels = "results/aggregate/full_labels.parquet",
+        coords = f"{AGG}/coords_necrosis.parquet",
+        obs    = f"{AGG}/full/obs.parquet",
+    output:
+        per_sample = "results/aggregate/spatial_mixing_per_sample.tsv",
+        test       = "results/aggregate/spatial_mixing_test_m02day2.tsv",
+        per_cell   = f"{AGG}/spatial_mixing_per_cell.parquet",
+        plot       = "results/aggregate/plots/mixing_m02.png",
+    threads: 1
+    log:
+        "logs/aggregate/spatial_mixing.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.labels} {input.coords} {input.obs} "
+        "{output.per_sample} {output.test} {output.per_cell} {output.plot} > {log} 2>&1"
+
+# --- T11: myeloid M1/M2 polarization (UCell M1/M2 panels -> per-sample ratio) ---
+# threads: 8 -- AddModuleScore_UCell forks UCELL_CORES=8 workers (BiocParallel, not
+# BLAS), so reserve 8 to avoid oversubscription; BLAS stays pinned to 1 via shell.prefix.
+rule myeloid_polarization:
+    input:
+        script = "scripts/aggregate/myeloid_polarization.R",
+        rds    = f"{AGG}/merged.rds",
+        labels = "results/aggregate/full_labels.parquet",
+    output:
+        scores = "results/aggregate/myeloid_m1m2_scores.tsv",
+        test   = "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
+        plot   = "results/aggregate/plots/myeloid_m1m2_m02.png",
+    threads: 8
+    log:
+        "logs/aggregate/myeloid_polarization.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.scores} "
+        "{output.test} {output.plot} > {log} 2>&1"
+
+# --- T12: M01<->M02 day-2 effect-size concordance on the unified labels ---
+rule concordance_m01_m02:
+    input:
+        script = "scripts/aggregate/concordance_m01_m02.R",
+        rds    = f"{AGG}/merged.rds",
+        labels = "results/aggregate/full_labels.parquet",
+        degs   = "results/aggregate/degs_pseudobulk_m02day2.tsv",
+    output:
+        tsv     = "results/aggregate/concordance_m01_m02.tsv",
+        scatter = "results/aggregate/plots/concordance_scatter.png",
+    threads: 1
+    log:
+        "logs/aggregate/concordance_m01_m02.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.degs} "
+        "{output.tsv} {output.scatter} > {log} 2>&1"
+
+# --- T13: tier-tagged master results table with confirmatory-family FDR ---
+rule assemble_results:
+    input:
+        script  = "scripts/aggregate/assemble_results.R",
+        comp    = "results/aggregate/composition_test_m02day2.tsv",
+        degs    = "results/aggregate/degs_pseudobulk_m02day2.tsv",
+        gsea    = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
+        pathway = "results/aggregate/pathway_test_m02day2.tsv",
+        niche   = "results/aggregate/niche_test_m02day2.tsv",
+        mixing  = "results/aggregate/spatial_mixing_test_m02day2.tsv",
+        myeloid = "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
+        mde     = "results/aggregate/power_mde.tsv",
+        yaml    = "config/pathway_gene_lists.yaml",
+    output:
+        master = "results/aggregate/results_master.tsv",
+    threads: 1
+    log:
+        "logs/aggregate/assemble_results.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
+        "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
+        "{input.mde} {input.yaml} {output.master} > {log} 2>&1"
