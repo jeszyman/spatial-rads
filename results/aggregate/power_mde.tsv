@@ -14,60 +14,116 @@ composition	SmoothMuscle		4	6	2.38075958933969	1.21462780799285	empirical_logit_
 composition	T cells		4	6	2.38075958933969	1.07660024510316	empirical_logit_proportion	2.56312635741482	logit_proportion_difference	12
 composition	Tumor		4	6	2.38075958933969	0.328558604457147	empirical_logit_proportion	0.78221904822142	logit_proportion_difference	12
 composition	unassigned		4	6	2.38075958933969	0.341601599445184	empirical_logit_proportion	0.813271283612899	logit_proportion_difference	12
+program_score	Adipocyte	Angiogenesis	4	6	2.38075958933969	0.00193672042288217	ucell_score	0.00461086571864675	ucell_score_delta	12
 program_score	Adipocyte	DNA_Damage_Repair	4	6	2.38075958933969	0.00215211649579384	ucell_score	0.00512367198473733	ucell_score_delta	12
+program_score	Adipocyte	Fibrosis_remodeling	4	6	2.38075958933969	0.00325757920159464	ucell_score	0.00775551292222999	ucell_score_delta	12
+program_score	Adipocyte	Hypoxia	4	6	2.38075958933969	0.00328288542654154	ucell_score	0.0078157609599423	ucell_score_delta	12
 program_score	Adipocyte	STING	4	6	2.38075958933969	0.00437781395366102	ucell_score	0.0104225225505236	ucell_score_delta	12
+program_score	Adipocyte	Stromal_stress_senescence	4	6	2.38075958933969	0.00154486870834161	ucell_score	0.0036779609916551	ucell_score_delta	12
 program_score	Adipocyte	TypeII_interferon	4	6	2.38075958933969	0.0165963020340098	ucell_score	0.0395118052150467	ucell_score_delta	12
 program_score	Adipocyte	TypeI_interferon	4	6	2.38075958933969	0.00481743478394467	ucell_score	0.0114691540578949	ucell_score_delta	12
+program_score	DC	Angiogenesis	4	6	2.38075958933969	0.00341513787330005	ucell_score	0.00813062224077626	ucell_score_delta	12
 program_score	DC	DNA_Damage_Repair	4	6	2.38075958933969	0.00384193493885935	ucell_score	0.00914672344730861	ucell_score_delta	12
+program_score	DC	Fibrosis_remodeling	4	6	2.38075958933969	0.00608579521319326	ucell_score	0.0144888153125675	ucell_score_delta	12
+program_score	DC	Hypoxia	4	6	2.38075958933969	0.00926916687135473	ucell_score	0.0220676579141676	ucell_score_delta	12
 program_score	DC	STING	4	6	2.38075958933969	0.00964369265526677	ucell_score	0.0229593137656711	ucell_score_delta	12
+program_score	DC	Stromal_stress_senescence	4	6	2.38075958933969	0.00477803782771397	ucell_score	0.0113753593765578	ucell_score_delta	12
 program_score	DC	TypeII_interferon	4	6	2.38075958933969	0.0230445906089024	ucell_score	0.0548636300745519	ucell_score_delta	12
 program_score	DC	TypeI_interferon	4	6	2.38075958933969	0.00468646273716948	ucell_score	0.0111573411015994	ucell_score_delta	12
+program_score	Endothelial	Angiogenesis	4	6	2.38075958933969	0.00701235997933016	ucell_score	0.0166947432646922	ucell_score_delta	12
 program_score	Endothelial	DNA_Damage_Repair	4	6	2.38075958933969	0.00566019102964001	ucell_score	0.01347555407131	ucell_score_delta	12
+program_score	Endothelial	Fibrosis_remodeling	4	6	2.38075958933969	0.00869810798859427	ucell_score	0.020708104002958	ucell_score_delta	12
+program_score	Endothelial	Hypoxia	4	6	2.38075958933969	0.0071003086907822	ucell_score	0.0169041280028517	ucell_score_delta	12
 program_score	Endothelial	STING	4	6	2.38075958933969	0.0134332427121715	ucell_score	0.03198132140293	ucell_score_delta	12
+program_score	Endothelial	Stromal_stress_senescence	4	6	2.38075958933969	0.00295206061834898	ucell_score	0.00702814662544641	ucell_score_delta	12
 program_score	Endothelial	TypeII_interferon	4	6	2.38075958933969	0.0307755156878778	ucell_score	0.0732691040907894	ucell_score_delta	12
 program_score	Endothelial	TypeI_interferon	4	6	2.38075958933969	0.00892169815811058	ucell_score	0.021240418443116	ucell_score_delta	12
+program_score	Epithelial cells	Angiogenesis	4	6	2.38075958933969	0.00696993176072955	ucell_score	0.0165937318764002	ucell_score_delta	12
 program_score	Epithelial cells	DNA_Damage_Repair	4	6	2.38075958933969	0.00528138384334634	ucell_score	0.0125737052300305	ucell_score_delta	12
+program_score	Epithelial cells	Fibrosis_remodeling	4	6	2.38075958933969	0.0186671540577082	ucell_score	0.0444420060285702	ucell_score_delta	12
+program_score	Epithelial cells	Hypoxia	4	6	2.38075958933969	0.0206003531126844	ucell_score	0.0490444882168073	ucell_score_delta	12
 program_score	Epithelial cells	STING	4	6	2.38075958933969	0.00639386113633813	ucell_score	0.0152222462132434	ucell_score_delta	12
+program_score	Epithelial cells	Stromal_stress_senescence	4	6	2.38075958933969	0.00786290675107659	ucell_score	0.0187196906477094	ucell_score_delta	12
 program_score	Epithelial cells	TypeII_interferon	4	6	2.38075958933969	0.0279342770990776	ucell_score	0.0665047980749012	ucell_score_delta	12
 program_score	Epithelial cells	TypeI_interferon	4	6	2.38075958933969	0.00974830545841642	ucell_score	0.0232083716999374	ucell_score_delta	12
+program_score	Fibroblast	Angiogenesis	4	6	2.38075958933969	0.0013235222585792	ucell_score	0.00315098830881696	ucell_score_delta	12
 program_score	Fibroblast	DNA_Damage_Repair	4	6	2.38075958933969	0.00293484382883321	ucell_score	0.00698715758870908	ucell_score_delta	12
+program_score	Fibroblast	Fibrosis_remodeling	4	6	2.38075958933969	0.00683271637000279	ucell_score	0.0162670550191224	ucell_score_delta	12
+program_score	Fibroblast	Hypoxia	4	6	2.38075958933969	0.00837074269775548	ucell_score	0.0199287259475766	ucell_score_delta	12
 program_score	Fibroblast	STING	4	6	2.38075958933969	0.00633192144336493	ucell_score	0.0150747826952367	ucell_score_delta	12
+program_score	Fibroblast	Stromal_stress_senescence	4	6	2.38075958933969	0.00224053131358035	ucell_score	0.00533416641002227	ucell_score_delta	12
 program_score	Fibroblast	TypeII_interferon	4	6	2.38075958933969	0.0212880526436629	ucell_score	0.0506817354697687	ucell_score_delta	12
 program_score	Fibroblast	TypeI_interferon	4	6	2.38075958933969	0.00662473972933419	ucell_score	0.015771912637492	ucell_score_delta	12
+program_score	ILC	Angiogenesis	4	6	2.38075958933969	0.00345193688072203	ucell_score	0.00821823183057433	ucell_score_delta	12
 program_score	ILC	DNA_Damage_Repair	4	6	2.38075958933969	0.00742025332752183	ucell_score	0.0176658392648274	ucell_score_delta	12
+program_score	ILC	Fibrosis_remodeling	4	6	2.38075958933969	0.00555044252514833	ucell_score	0.0132142692668257	ucell_score_delta	12
+program_score	ILC	Hypoxia	4	6	2.38075958933969	0.0145419180352181	ucell_score	0.0346208108097374	ucell_score_delta	12
 program_score	ILC	STING	4	6	2.38075958933969	0.0139184658074259	ucell_score	0.0331365209399258	ucell_score_delta	12
+program_score	ILC	Stromal_stress_senescence	4	6	2.38075958933969	0.00422357586582233	ucell_score	0.0100553187438602	ucell_score_delta	12
 program_score	ILC	TypeII_interferon	4	6	2.38075958933969	0.0301208758425265	ucell_score	0.0717105640014053	ucell_score_delta	12
 program_score	ILC	TypeI_interferon	4	6	2.38075958933969	0.0140286075982924	ucell_score	0.0333987420647182	ucell_score_delta	12
+program_score	Macrophages	Angiogenesis	4	6	2.38075958933969	0.00290227395084934	ucell_score	0.00690961653937536	ucell_score_delta	12
 program_score	Macrophages	DNA_Damage_Repair	4	6	2.38075958933969	0.00563815757058241	ucell_score	0.0134230977023723	ucell_score_delta	12
+program_score	Macrophages	Fibrosis_remodeling	4	6	2.38075958933969	0.00504748674967858	ucell_score	0.0120168524813623	ucell_score_delta	12
+program_score	Macrophages	Hypoxia	4	6	2.38075958933969	0.0143266425995351	ucell_score	0.0341082917518857	ucell_score_delta	12
 program_score	Macrophages	STING	4	6	2.38075958933969	0.0129959993509905	ucell_score	0.0309403500779232	ucell_score_delta	12
+program_score	Macrophages	Stromal_stress_senescence	4	6	2.38075958933969	0.00470256122976592	ucell_score	0.0111956677422223	ucell_score_delta	12
 program_score	Macrophages	TypeII_interferon	4	6	2.38075958933969	0.0450491692254863	ucell_score	0.107251241625363	ucell_score_delta	12
 program_score	Macrophages	TypeI_interferon	4	6	2.38075958933969	0.0143740500151878	ucell_score	0.0342211574113067	ucell_score_delta	12
+program_score	Mast cells	Angiogenesis	4	6	2.38075958933969	0.00676593881268748	ucell_score	0.0161080737091913	ucell_score_delta	12
 program_score	Mast cells	DNA_Damage_Repair	4	6	2.38075958933969	0.00602644397610591	ucell_score	0.0143475142857326	ucell_score_delta	12
+program_score	Mast cells	Fibrosis_remodeling	4	6	2.38075958933969	0.00807347146973471	ucell_score	0.0192209946208313	ucell_score_delta	12
+program_score	Mast cells	Hypoxia	4	6	2.38075958933969	0.0155461202622074	ucell_score	0.0370115748912784	ucell_score_delta	12
 program_score	Mast cells	STING	4	6	2.38075958933969	0.0133765019409908	ucell_score	0.031846235267835	ucell_score_delta	12
+program_score	Mast cells	Stromal_stress_senescence	4	6	2.38075958933969	0.00294420032761411	ucell_score	0.00700943316290435	ucell_score_delta	12
 program_score	Mast cells	TypeII_interferon	4	6	2.38075958933969	0.0362390836627118	ucell_score	0.0862765459388845	ucell_score_delta	12
 program_score	Mast cells	TypeI_interferon	4	6	2.38075958933969	0.0192076709511276	ucell_score	0.0457288468057786	ucell_score_delta	12
+program_score	NK cells	Angiogenesis	4	6	2.38075958933969	0.00691908924896866	ucell_score	0.0164726880789793	ucell_score_delta	12
 program_score	NK cells	DNA_Damage_Repair	4	6	2.38075958933969	0.00698046947895567	ucell_score	0.0166188196501168	ucell_score_delta	12
+program_score	NK cells	Fibrosis_remodeling	4	6	2.38075958933969	0.0126079772036021	ucell_score	0.030016562629652	ucell_score_delta	12
+program_score	NK cells	Hypoxia	4	6	2.38075958933969	0.0303579204483331	ucell_score	0.0722749102197807	ucell_score_delta	12
 program_score	NK cells	STING	4	6	2.38075958933969	0.0172125573222227	ucell_score	0.0409789609019408	ucell_score_delta	12
+program_score	NK cells	Stromal_stress_senescence	4	6	2.38075958933969	0.00468981439688457	ucell_score	0.0111653205976063	ucell_score_delta	12
 program_score	NK cells	TypeII_interferon	4	6	2.38075958933969	0.0410783795754658	ucell_score	0.097797746088826	ucell_score_delta	12
 program_score	NK cells	TypeI_interferon	4	6	2.38075958933969	0.0199488290930138	ucell_score	0.0474933661592913	ucell_score_delta	12
+program_score	Neutrophils	Angiogenesis	4	6	2.38075958933969	0.00598723287150117	ucell_score	0.0142541620724363	ucell_score_delta	12
 program_score	Neutrophils	DNA_Damage_Repair	4	6	2.38075958933969	0.0204031008774293	ucell_score	0.048574878066205	ucell_score_delta	12
+program_score	Neutrophils	Fibrosis_remodeling	4	6	2.38075958933969	0.0160400489979426	ucell_score	0.0381875004653304	ucell_score_delta	12
+program_score	Neutrophils	Hypoxia	4	6	2.38075958933969	0.0448448995812422	ucell_score	0.106764924711018	ucell_score_delta	12
 program_score	Neutrophils	STING	4	6	2.38075958933969	0.0124174515718583	ucell_score	0.0295629669048628	ucell_score_delta	12
+program_score	Neutrophils	Stromal_stress_senescence	4	6	2.38075958933969	0.00818190693836027	ucell_score	0.0194791534025862	ucell_score_delta	12
 program_score	Neutrophils	TypeII_interferon	4	6	2.38075958933969	0.0352400708260447	ucell_score	0.0838981365481158	ucell_score_delta	12
 program_score	Neutrophils	TypeI_interferon	4	6	2.38075958933969	0.0175137375395	ucell_score	0.0416959985923432	ucell_score_delta	12
+program_score	Plasma cells	Angiogenesis	4	6	2.38075958933969	0.00697777012851705	ucell_score	0.016612393145675	ucell_score_delta	12
 program_score	Plasma cells	DNA_Damage_Repair	4	6	2.38075958933969	0.0148382398585251	ucell_score	0.035326281832106	ucell_score_delta	12
+program_score	Plasma cells	Fibrosis_remodeling	4	6	2.38075958933969	0.00646944689799877	ucell_score	0.0154021977401345	ucell_score_delta	12
+program_score	Plasma cells	Hypoxia	4	6	2.38075958933969	0.0161597645406042	ucell_score	0.0384725143915149	ucell_score_delta	12
 program_score	Plasma cells	STING	4	6	2.38075958933969	0.0158829196693534	ucell_score	0.0378134133095252	ucell_score_delta	12
+program_score	Plasma cells	Stromal_stress_senescence	4	6	2.38075958933969	0.0142466530294096	ucell_score	0.0339178558157624	ucell_score_delta	12
 program_score	Plasma cells	TypeII_interferon	4	6	2.38075958933969	0.0284908807581079	ucell_score	0.0678299375735992	ucell_score_delta	12
 program_score	Plasma cells	TypeI_interferon	4	6	2.38075958933969	0.0133252598132796	ucell_score	0.0317242400809082	ucell_score_delta	12
+program_score	SmoothMuscle	Angiogenesis	4	6	2.38075958933969	0.00114956730322535	ucell_score	0.00273684338074512	ucell_score_delta	12
 program_score	SmoothMuscle	DNA_Damage_Repair	4	6	2.38075958933969	0.00269134208661793	ucell_score	0.00640743848090914	ucell_score_delta	12
+program_score	SmoothMuscle	Fibrosis_remodeling	4	6	2.38075958933969	0.00526709765771276	ucell_score	0.0125396932565883	ucell_score_delta	12
+program_score	SmoothMuscle	Hypoxia	4	6	2.38075958933969	0.0167915495101479	ucell_score	0.0399766425161568	ucell_score_delta	12
 program_score	SmoothMuscle	STING	4	6	2.38075958933969	0.00295784722272949	ucell_score	0.00704192313931501	ucell_score_delta	12
+program_score	SmoothMuscle	Stromal_stress_senescence	4	6	2.38075958933969	0.0022919006381774	ucell_score	0.00545646442215461	ucell_score_delta	12
 program_score	SmoothMuscle	TypeII_interferon	4	6	2.38075958933969	0.0121920795749622	ucell_score	0.0290264103620838	ucell_score_delta	12
 program_score	SmoothMuscle	TypeI_interferon	4	6	2.38075958933969	0.00282228367295899	ucell_score	0.00671917891823397	ucell_score_delta	12
+program_score	T cells	Angiogenesis	4	6	2.38075958933969	0.00174709054792547	ucell_score	0.0041594025754183	ucell_score_delta	12
 program_score	T cells	DNA_Damage_Repair	4	6	2.38075958933969	0.00541575860267457	ucell_score	0.0128936192268664	ucell_score_delta	12
+program_score	T cells	Fibrosis_remodeling	4	6	2.38075958933969	0.00463293885910944	ucell_score	0.0110299136156493	ucell_score_delta	12
+program_score	T cells	Hypoxia	4	6	2.38075958933969	0.00597008343268038	ucell_score	0.0142133333815119	ucell_score_delta	12
 program_score	T cells	STING	4	6	2.38075958933969	0.00451543810338577	ucell_score	0.0107501725647055	ucell_score_delta	12
+program_score	T cells	Stromal_stress_senescence	4	6	2.38075958933969	0.00457464565071538	ucell_score	0.0108911315007718	ucell_score_delta	12
 program_score	T cells	TypeII_interferon	4	6	2.38075958933969	0.018339814590659	ucell_score	0.0436626894534234	ucell_score_delta	12
 program_score	T cells	TypeI_interferon	4	6	2.38075958933969	0.00542532302793975	ucell_score	0.012916389824033	ucell_score_delta	12
+program_score	Tumor	Angiogenesis	4	6	2.38075958933969	0.00391889871017104	ucell_score	0.00932995568389066	ucell_score_delta	12
 program_score	Tumor	DNA_Damage_Repair	4	6	2.38075958933969	0.00434133094397846	ucell_score	0.0103356652753739	ucell_score_delta	12
+program_score	Tumor	Fibrosis_remodeling	4	6	2.38075958933969	0.00859152611809326	ucell_score	0.020454358192713	ucell_score_delta	12
+program_score	Tumor	Hypoxia	4	6	2.38075958933969	0.0156340252390726	ucell_score	0.037220855507901	ucell_score_delta	12
 program_score	Tumor	STING	4	6	2.38075958933969	0.0137607265286333	ucell_score	0.0327609816393249	ucell_score_delta	12
+program_score	Tumor	Stromal_stress_senescence	4	6	2.38075958933969	0.00430670731479484	ucell_score	0.0102532347381772	ucell_score_delta	12
 program_score	Tumor	TypeII_interferon	4	6	2.38075958933969	0.0489650606040684	ucell_score	0.116574037575735	ucell_score_delta	12
 program_score	Tumor	TypeI_interferon	4	6	2.38075958933969	0.0232934936156687	ucell_score	0.0554562082947262	ucell_score_delta	12
 pseudobulk_DE	Adipocyte	median_dispersion=0.0718; BCV=0.268	4	6	2.38075958933969	0.386580660622617	log2_expression	0.920355614830569	log2_fold_change	12
