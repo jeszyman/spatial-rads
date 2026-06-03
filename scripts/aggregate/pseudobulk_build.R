@@ -5,22 +5,25 @@
 # SummarizedExperiment with quality columns. No filtering here -- the abundance
 # floor and gene filter are applied downstream in deg_pseudobulk.R so the choice
 # is explicit and auditable. Per plan-aggregate.md Track 2 inference.
-# Args: <merged_typed.rds> <out_se.rds> <out_qc.tsv>
+# Args: <merged_typed.rds> <full_labels.parquet> <out_se.rds> <out_qc.tsv>
 suppressPackageStartupMessages({
   library(Seurat)
   library(Matrix)
   library(SummarizedExperiment)
   library(data.table)
+  library(arrow)
 })
 
-args     <- commandArgs(trailingOnly = TRUE)
-merged   <- args[1]
-out_se   <- args[2]
-out_qc   <- args[3]
+args        <- commandArgs(trailingOnly = TRUE)
+merged      <- args[1]
+labels_path <- args[2]
+out_se      <- args[3]
+out_qc      <- args[4]
 
 o   <- readRDS(merged)
 md  <- o@meta.data
-md$cell_type <- md$cell_type_atlas                  # aggregate atlas labels (plan-aggregate.md)
+lab <- as.data.table(read_parquet(labels_path))[, .(cell, cell_subtype)]
+md$cell_type <- lab$cell_subtype[match(rownames(md), lab$cell)]   # unified labels (full_labels.parquet)
 keep <- which(md$dataset == "Mutter_02" & !is.na(md$cell_type))
 stopifnot(length(keep) > 0)
 
