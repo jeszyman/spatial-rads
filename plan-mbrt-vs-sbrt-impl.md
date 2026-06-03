@@ -253,7 +253,7 @@ git commit -m "feat(aggregate): power / minimum-detectable-effect table for n=4 
 **Files:**
 - Create: `scripts/aggregate/coords_necrosis.R`
 - Modify: `scripts/aggregate/merge.R:100-101` (add coords to the durable slim cache)
-- Output: `results/aggregate/coords_necrosis.parquet`
+- Output: `/mnt/data/projects/spatial-rads/aggregate/coords_necrosis.parquet` (heavy per-cell parquet → data disk, not git-tracked `results/`)
 
 - [ ] **Step 1: Write the extraction + necrosis script.** Iterate the 20 per-sample flank `scored.rds`, build the global cell id `paste0(sample_id, "_", colnames(counts))` (matching `merge.R:50`), pull `x_slide_mm`, `y_slide_mm`. For each `sample_id` (each a contiguous tissue region — the right unit; physical slides carry multiple non-overlapping M02 regions), compute the mean distance to the 20 nearest neighbors with `RANN::nn2(coords, k=21)` (drop self), and set `necrosis_zone = mean_knn_dist > quantile(., 0.90)` within that sample. This is the dev necrosis rule (`dev/mbrt_vs_sbrt/00_load_and_filter.R`) re-keyed to sample-level coordinate space. Write `cell, sample_id, x_slide_mm, y_slide_mm, mean_knn_dist, necrosis_zone` to parquet.
 
@@ -305,7 +305,7 @@ git commit -m "feat(aggregate): per-cell coords + per-sample necrosis flag for s
 
 ## Phase 2 — Re-implement the spatial / structural tracks on canonical inputs
 
-Each of these is a clean re-implementation. Common input contract: join `full_labels.parquet` (compartment, cell_subtype) + `coords_necrosis.parquet` (x/y, necrosis_zone) by `cell`; pull metadata (sample_id, dataset, condition, slide_id, timepoint_h) from `full/obs.parquet`. Method/parameters are ported from the cited dev script; the object and labels are new, so each prior finding is **re-tested, not imported**.
+Each of these is a clean re-implementation. Common input contract: join `results/aggregate/full_labels.parquet` (compartment, cell_subtype) + `/mnt/data/projects/spatial-rads/aggregate/coords_necrosis.parquet` (x/y, necrosis_zone) by `cell`; pull metadata (sample_id, dataset, condition, slide_id, timepoint_h) from `/mnt/data/projects/spatial-rads/aggregate/full/obs.parquet`. Method/parameters are ported from the cited dev script; the object and labels are new, so each prior finding is **re-tested, not imported**. Convention: heavy per-cell parquets land on the data disk (`/mnt/data/projects/spatial-rads/aggregate/`); only small TSVs + plots go to git-tracked `results/aggregate/`.
 
 ### Task 8: Cell-type-label QC (gate before anything rests on the labels)
 
@@ -327,7 +327,7 @@ git commit -m "feat(aggregate): cell-type-label QC dotplot on unified labels"
 
 **Files:**
 - Create: `scripts/aggregate/niches.R`
-- Output: `results/aggregate/niche_per_cell.parquet`, `niche_centroids.tsv`, `niche_frequency.tsv`, `niche_test_m02day2.tsv`, `plots/niche_centroids_heatmap.png`, `plots/niche_frequency_m02.png`
+- Output: `/mnt/data/projects/spatial-rads/aggregate/niche_per_cell.parquet` (heavy → data disk); `results/aggregate/niche_centroids.tsv`, `niche_frequency.tsv`, `niche_test_m02day2.tsv`, `plots/niche_centroids_heatmap.png`, `plots/niche_frequency_m02.png`
 
 - [ ] **Step 1: Write the script (port method from `dev/mbrt_vs_sbrt/07_niche_clustering.R`).** Per sample, `RANN::nn2(xy, k=21)`; for each cell build the composition vector = fraction of each `compartment`-level type (tumor/stroma/immune; or a coarse cell_subtype grouping) among its 20 neighbors; stack all cells; `kmeans(comp, centers=6, nstart=10, iter.max=50, seed=42)` → niches N1–N6. Emit per-cell niche, per-niche centroid composition, and niche frequency per sample. **New vs dev:** uses unified labels, runs per sample over all 20 flank samples.
 
@@ -345,7 +345,7 @@ git commit -m "feat(aggregate): spatial niches (k=20 NN composition, k-means K=6
 
 **Files:**
 - Create: `scripts/aggregate/spatial_mixing.R`
-- Output: `results/aggregate/spatial_mixing_per_sample.tsv`, `spatial_mixing_test_m02day2.tsv`, `spatial_mixing_per_cell.parquet`, `plots/mixing_m02.png`
+- Output: `results/aggregate/spatial_mixing_per_sample.tsv`, `spatial_mixing_test_m02day2.tsv`, `plots/mixing_m02.png`; `/mnt/data/projects/spatial-rads/aggregate/spatial_mixing_per_cell.parquet` (heavy → data disk)
 
 - [ ] **Step 1: Write the script (port from `dev/mbrt_vs_sbrt/05_spatial_nn.R` + `12_mixing_score.R`).** Per sample, k=20 NN; per cell compute immune-neighbor fraction (fraction of 20 neighbors with `compartment=="immune"`). Keren 2018 mixing score per sample = (tumor↔immune neighbor edges) / (immune↔immune edges). **Necrosis exclusion:** drop `necrosis_zone==TRUE` cells before aggregating at day-2 (the dev convention at timepoint_h ∈ {48,144}). Aggregate to per-sample×condition.
 

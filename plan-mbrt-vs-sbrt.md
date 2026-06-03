@@ -288,23 +288,36 @@ execution; fix them before the first confirmatory run:
   bites the snakemake path.) BLAS hygiene in the workflow is already correct
   (shell.prefix BLAS-pin + threads:1).
 
-## Limitations (stated up front; the spatial-dilution one written after looking)
+## Limitations (the spatial-dilution and power magnitudes written after looking)
 
-- **Spatial dilution of the MBRT signal.** Whole-sample (and even whole-
-  compartment) aggregation averages MBRT peak and valley together; if a true
-  effect is confined to peaks or valleys, it can cancel toward zero in an
-  arm-level contrast (exactly the pattern seen in the earlier whole-sample
-  pseudobulk, `project_mbrt_mechanism_status.md`). Per-cell-type resolution and
-  the spatial-niche track partly mitigate this; the full mitigation is the
-  deferred peak/valley reanalysis. We document the realized magnitude of this
-  after the contrasts are run, not as a reason to change the design — the
-  per-cell-type and modality-direct contrasts have not been run yet, so we look
-  first.
-- **Dose mismatch.** SBRT 20 Gy uniform vs MBRT mean dose unrecorded; an
-  MBRT-vs-SBRT difference may reflect dose magnitude, not pattern, until the beam
-  physics are in hand.
-- **Power at n = 4.** 6 residual df; small effects are undetectable. Reported via
-  the precomputed minimum detectable effect.
+- **Spatial dilution of the MBRT signal (realized magnitude).** Whole-compartment
+  aggregation averages MBRT peak and valley together, and the run bears this out
+  starkly. In the confirmatory family (207 rows per contrast), `MBRT_vs_Ctrl`
+  produced 2 hits at `padj_confirmatory < 0.05` with a median |effect| of 0 and a
+  max |effect| of 1.23, whereas `SBRT_vs_Ctrl` produced 27 hits (median |effect|
+  0.057, max 1.63) and the modality-direct `MBRT_vs_SBRT` produced 20 hits, 19 of
+  them H3 stromal genes all in the SBRT > MBRT direction. At whole-compartment
+  scale MBRT therefore shows essentially no day-2 transcriptional response while
+  uniform SBRT does. This reproduces the earlier whole-sample pseudobulk pattern
+  (`project_mbrt_mechanism_status.md`). Whether MBRT's near-zero arm-level effect
+  is genuine tissue sparing or a peak-restricted signal cancelled by averaging
+  across the ~50% valley volume cannot be separated here; the per-cell-type and
+  spatial-niche tracks did not rescue an MBRT effect, and the full mitigation
+  remains the deferred peak/valley reanalysis (needs the FOV-condition map).
+- **Dose mismatch (still open).** SBRT = 20 Gy uniform; the M02 MBRT mean/integral
+  dose is unrecorded (metadata field blank — a microbeam array has no single dose
+  number). The stronger SBRT response may therefore reflect higher mean dose, not
+  uniform *pattern*, and the `MBRT_vs_SBRT` contrast cannot cleanly attribute its
+  20 stromal hits to dose pattern until the beam physics arrive from Fazzari/Mutter.
+  Asked of the lab; not returned as of 2026-06-02.
+- **Power at n = 4 (realized).** 6 residual df. 578 / 621 (93%) of confirmatory
+  rows fell below their minimum detectable effect; by contrast 207/207 (100%) for
+  `MBRT_vs_Ctrl`, 185/207 (89%) for `SBRT_vs_Ctrl`, 186/207 (90%) for
+  `MBRT_vs_SBRT`. The only confirmatory signal that clears its MDE is SBRT-driven
+  H3 stromal activation (collagens + `Acta2`) plus a few endothelial/ISG rows.
+  Every MBRT confirmatory non-result is underpowered (100% below MDE), so the
+  absence of an MBRT immune-activation signal is NOT established as a true null —
+  it is jointly underpowered and spatially diluted.
 - **Panel blind spots.** ~950 genes; a negative on an off-panel or near-zero
   gene is not a biological negative. The four new stromal/vascular sets carry
   uneven panel coverage (`results/aggregate/gene_set_panel_coverage.tsv`):
