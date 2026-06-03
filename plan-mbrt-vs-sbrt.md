@@ -14,6 +14,20 @@ Brainstormed and full-panel-reviewed 2026-06-02. Companion to
 `plan-aggregate.md` (the upstream cell-typing this consumes) and
 `plan-processing-pipeline.md` (the per-sample pipeline beneath that).
 
+> **STATUS — EXECUTED (2026-06-03).** The full layer ran and is committed on
+> `main`; implementation tracked in `plan-mbrt-vs-sbrt-impl.md` (all 15 tasks
+> complete). Single canonical output `results/aggregate/results_master.tsv`
+> (32,961 tier-tagged rows; 621 confirmatory / 32,340 exploratory), produced by
+> `workflows/aggregate.smk`. **Realized result:** the dominant day-2 signal was
+> SBRT-driven stromal fibrosis (collagens + Acta2; H3 = 20 of 27 SBRT_vs_Ctrl
+> confirmatory hits, padj_confirmatory to ~2e-11); MBRT was essentially null at
+> whole-compartment scale (MBRT_vs_Ctrl 2/207 confirmatory hits, all 207 below
+> the n=4 MDE); MBRT_vs_SBRT confirmed SBRT > MBRT for the same stromal genes
+> (19/20 hits H3). Critically, 578/621 (93%) confirmatory rows fell below their
+> n=4 MDE, so most MBRT non-results are underpowered, not established nulls.
+> See the Limitations section below for realized magnitudes and the
+> dose-mismatch + spatial-dilution caveats.
+
 ## Governing principle: look first
 
 This is an initial, agnostic spatial-omics survey, not a confirmatory test of a
