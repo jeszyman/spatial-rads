@@ -98,7 +98,7 @@ saveRDS(merged, out_rds)
 # (composition / niche_composition / pseudobulk colData read this 30 MB table
 # instead of re-loading the ~17 GB merged object).
 meta_cols <- c("sample_id", "cell_type", "condition", "treatment",
-               "timepoint_h", "dataset", "slide_id")
+               "timepoint_h", "dataset", "slide_id", "x_slide_mm", "y_slide_mm")
 meta_out  <- data.table(cell = rownames(md), md[, meta_cols])
 fwrite(meta_out, out_meta, sep = "\t")
 
