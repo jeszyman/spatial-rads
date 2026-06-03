@@ -188,8 +188,8 @@ rule typing_insitutype:
 rule composition:
     input:
         script = "scripts/aggregate/composition.R",
-        meta   = f"{AGG}/cell_metadata.tsv",
-        labels = f"{AGG}/cell_atlas_labels.tsv",
+        obs    = f"{AGG}/full/obs.parquet",
+        labels = "results/aggregate/full_labels.parquet",
     output:
         by_sample  = "results/aggregate/composition_by_sample.tsv",
         test       = "results/aggregate/composition_test_m02day2.tsv",
@@ -201,7 +201,7 @@ rule composition:
     log:
         "logs/aggregate/composition.log",
     shell:
-        "{RSCRIPT} {input.script} {input.meta} {input.labels} {output.by_sample} "
+        "{RSCRIPT} {input.script} {input.obs} {input.labels} {output.by_sample} "
         "{output.test} {output.dropped} {output.bars} {output.forest} "
         "{output.timecourse} > {log} 2>&1"
 
@@ -210,6 +210,7 @@ rule pseudobulk_build:
     input:
         script = "scripts/aggregate/pseudobulk_build.R",
         rds    = f"{AGG}/merged_typed.rds",
+        labels = "results/aggregate/full_labels.parquet",
     output:
         se = f"{AGG}/pseudobulk_se.rds",
         qc = "results/aggregate/pseudobulk_qc.tsv",
@@ -217,7 +218,7 @@ rule pseudobulk_build:
     log:
         "logs/aggregate/pseudobulk_build.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {output.se} {output.qc} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.se} {output.qc} > {log} 2>&1"
 
 # --- Track 2 inference: pseudobulk DESeq2 DE (M02 day2, abundance-floored) ---
 rule deg_pseudobulk:
@@ -256,6 +257,7 @@ rule pathway_summary:
     input:
         script = "scripts/aggregate/pathway_summary.R",
         rds    = f"{AGG}/merged_typed.rds",
+        labels = "results/aggregate/full_labels.parquet",
         yaml   = "config/pathway_gene_lists.yaml",
     output:
         summary    = "results/aggregate/pathway_scores_summary.tsv",
@@ -268,6 +270,6 @@ rule pathway_summary:
     log:
         "logs/aggregate/pathway_summary.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.yaml} {output.summary} "
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.yaml} {output.summary} "
         "{output.test} {output.conc} {output.heatmap} {output.timecourse} "
         "{output.scatter} > {log} 2>&1"
