@@ -1,0 +1,86 @@
+readout_class	cell_type	detail	n_per_arm	residual_df	cohens_d	observed_sd	sd_scale	mde	mde_scale	n_samples
+composition	Adipocyte		4	6	2.38075958933969	0.203959633654707	empirical_logit_proportion	0.485578853661656	logit_proportion_difference	12
+composition	DC		4	6	2.38075958933969	0.385384806006002	empirical_logit_proportion	0.917508572484607	logit_proportion_difference	12
+composition	Endothelial		4	6	2.38075958933969	0.247234998275717	empirical_logit_proportion	0.588607092965296	logit_proportion_difference	12
+composition	Epithelial cells		4	6	2.38075958933969	1.09065573455561	empirical_logit_proportion	2.59658909871161	logit_proportion_difference	12
+composition	Fibroblast		4	6	2.38075958933969	0.191721464470723	empirical_logit_proportion	0.456442715020924	logit_proportion_difference	12
+composition	ILC		4	6	2.38075958933969	0.634062203422008	empirical_logit_proportion	1.5095496710348	logit_proportion_difference	12
+composition	Macrophages		4	6	2.38075958933969	0.54481546547121	empirical_logit_proportion	1.29707464384115	logit_proportion_difference	12
+composition	Mast cells		4	6	2.38075958933969	0.641253760130842	empirical_logit_proportion	1.52667103863164	logit_proportion_difference	12
+composition	NK cells		4	6	2.38075958933969	0.656322107470816	empirical_logit_proportion	1.56254515105678	logit_proportion_difference	12
+composition	Neutrophils		4	6	2.38075958933969	0.675136809242664	empirical_logit_proportion	1.60733843272067	logit_proportion_difference	12
+composition	Plasma cells		4	6	2.38075958933969	0.77425738608521	empirical_logit_proportion	1.84332069653945	logit_proportion_difference	12
+composition	SmoothMuscle		4	6	2.38075958933969	1.21462780799285	empirical_logit_proportion	2.89173680135764	logit_proportion_difference	12
+composition	T cells		4	6	2.38075958933969	1.07660024510316	empirical_logit_proportion	2.56312635741482	logit_proportion_difference	12
+composition	Tumor		4	6	2.38075958933969	0.328558604457147	empirical_logit_proportion	0.78221904822142	logit_proportion_difference	12
+composition	unassigned		4	6	2.38075958933969	0.341601599445184	empirical_logit_proportion	0.813271283612899	logit_proportion_difference	12
+program_score	Adipocyte	DNA_Damage_Repair	4	6	2.38075958933969	0.00215211649579384	ucell_score	0.00512367198473733	ucell_score_delta	12
+program_score	Adipocyte	STING	4	6	2.38075958933969	0.00437781395366102	ucell_score	0.0104225225505236	ucell_score_delta	12
+program_score	Adipocyte	TypeII_interferon	4	6	2.38075958933969	0.0165963020340098	ucell_score	0.0395118052150467	ucell_score_delta	12
+program_score	Adipocyte	TypeI_interferon	4	6	2.38075958933969	0.00481743478394467	ucell_score	0.0114691540578949	ucell_score_delta	12
+program_score	DC	DNA_Damage_Repair	4	6	2.38075958933969	0.00384193493885935	ucell_score	0.00914672344730861	ucell_score_delta	12
+program_score	DC	STING	4	6	2.38075958933969	0.00964369265526677	ucell_score	0.0229593137656711	ucell_score_delta	12
+program_score	DC	TypeII_interferon	4	6	2.38075958933969	0.0230445906089024	ucell_score	0.0548636300745519	ucell_score_delta	12
+program_score	DC	TypeI_interferon	4	6	2.38075958933969	0.00468646273716948	ucell_score	0.0111573411015994	ucell_score_delta	12
+program_score	Endothelial	DNA_Damage_Repair	4	6	2.38075958933969	0.00566019102964001	ucell_score	0.01347555407131	ucell_score_delta	12
+program_score	Endothelial	STING	4	6	2.38075958933969	0.0134332427121715	ucell_score	0.03198132140293	ucell_score_delta	12
+program_score	Endothelial	TypeII_interferon	4	6	2.38075958933969	0.0307755156878778	ucell_score	0.0732691040907894	ucell_score_delta	12
+program_score	Endothelial	TypeI_interferon	4	6	2.38075958933969	0.00892169815811058	ucell_score	0.021240418443116	ucell_score_delta	12
+program_score	Epithelial cells	DNA_Damage_Repair	4	6	2.38075958933969	0.00528138384334634	ucell_score	0.0125737052300305	ucell_score_delta	12
+program_score	Epithelial cells	STING	4	6	2.38075958933969	0.00639386113633813	ucell_score	0.0152222462132434	ucell_score_delta	12
+program_score	Epithelial cells	TypeII_interferon	4	6	2.38075958933969	0.0279342770990776	ucell_score	0.0665047980749012	ucell_score_delta	12
+program_score	Epithelial cells	TypeI_interferon	4	6	2.38075958933969	0.00974830545841642	ucell_score	0.0232083716999374	ucell_score_delta	12
+program_score	Fibroblast	DNA_Damage_Repair	4	6	2.38075958933969	0.00293484382883321	ucell_score	0.00698715758870908	ucell_score_delta	12
+program_score	Fibroblast	STING	4	6	2.38075958933969	0.00633192144336493	ucell_score	0.0150747826952367	ucell_score_delta	12
+program_score	Fibroblast	TypeII_interferon	4	6	2.38075958933969	0.0212880526436629	ucell_score	0.0506817354697687	ucell_score_delta	12
+program_score	Fibroblast	TypeI_interferon	4	6	2.38075958933969	0.00662473972933419	ucell_score	0.015771912637492	ucell_score_delta	12
+program_score	ILC	DNA_Damage_Repair	4	6	2.38075958933969	0.00742025332752183	ucell_score	0.0176658392648274	ucell_score_delta	12
+program_score	ILC	STING	4	6	2.38075958933969	0.0139184658074259	ucell_score	0.0331365209399258	ucell_score_delta	12
+program_score	ILC	TypeII_interferon	4	6	2.38075958933969	0.0301208758425265	ucell_score	0.0717105640014053	ucell_score_delta	12
+program_score	ILC	TypeI_interferon	4	6	2.38075958933969	0.0140286075982924	ucell_score	0.0333987420647182	ucell_score_delta	12
+program_score	Macrophages	DNA_Damage_Repair	4	6	2.38075958933969	0.00563815757058241	ucell_score	0.0134230977023723	ucell_score_delta	12
+program_score	Macrophages	STING	4	6	2.38075958933969	0.0129959993509905	ucell_score	0.0309403500779232	ucell_score_delta	12
+program_score	Macrophages	TypeII_interferon	4	6	2.38075958933969	0.0450491692254863	ucell_score	0.107251241625363	ucell_score_delta	12
+program_score	Macrophages	TypeI_interferon	4	6	2.38075958933969	0.0143740500151878	ucell_score	0.0342211574113067	ucell_score_delta	12
+program_score	Mast cells	DNA_Damage_Repair	4	6	2.38075958933969	0.00602644397610591	ucell_score	0.0143475142857326	ucell_score_delta	12
+program_score	Mast cells	STING	4	6	2.38075958933969	0.0133765019409908	ucell_score	0.031846235267835	ucell_score_delta	12
+program_score	Mast cells	TypeII_interferon	4	6	2.38075958933969	0.0362390836627118	ucell_score	0.0862765459388845	ucell_score_delta	12
+program_score	Mast cells	TypeI_interferon	4	6	2.38075958933969	0.0192076709511276	ucell_score	0.0457288468057786	ucell_score_delta	12
+program_score	NK cells	DNA_Damage_Repair	4	6	2.38075958933969	0.00698046947895567	ucell_score	0.0166188196501168	ucell_score_delta	12
+program_score	NK cells	STING	4	6	2.38075958933969	0.0172125573222227	ucell_score	0.0409789609019408	ucell_score_delta	12
+program_score	NK cells	TypeII_interferon	4	6	2.38075958933969	0.0410783795754658	ucell_score	0.097797746088826	ucell_score_delta	12
+program_score	NK cells	TypeI_interferon	4	6	2.38075958933969	0.0199488290930138	ucell_score	0.0474933661592913	ucell_score_delta	12
+program_score	Neutrophils	DNA_Damage_Repair	4	6	2.38075958933969	0.0204031008774293	ucell_score	0.048574878066205	ucell_score_delta	12
+program_score	Neutrophils	STING	4	6	2.38075958933969	0.0124174515718583	ucell_score	0.0295629669048628	ucell_score_delta	12
+program_score	Neutrophils	TypeII_interferon	4	6	2.38075958933969	0.0352400708260447	ucell_score	0.0838981365481158	ucell_score_delta	12
+program_score	Neutrophils	TypeI_interferon	4	6	2.38075958933969	0.0175137375395	ucell_score	0.0416959985923432	ucell_score_delta	12
+program_score	Plasma cells	DNA_Damage_Repair	4	6	2.38075958933969	0.0148382398585251	ucell_score	0.035326281832106	ucell_score_delta	12
+program_score	Plasma cells	STING	4	6	2.38075958933969	0.0158829196693534	ucell_score	0.0378134133095252	ucell_score_delta	12
+program_score	Plasma cells	TypeII_interferon	4	6	2.38075958933969	0.0284908807581079	ucell_score	0.0678299375735992	ucell_score_delta	12
+program_score	Plasma cells	TypeI_interferon	4	6	2.38075958933969	0.0133252598132796	ucell_score	0.0317242400809082	ucell_score_delta	12
+program_score	SmoothMuscle	DNA_Damage_Repair	4	6	2.38075958933969	0.00269134208661793	ucell_score	0.00640743848090914	ucell_score_delta	12
+program_score	SmoothMuscle	STING	4	6	2.38075958933969	0.00295784722272949	ucell_score	0.00704192313931501	ucell_score_delta	12
+program_score	SmoothMuscle	TypeII_interferon	4	6	2.38075958933969	0.0121920795749622	ucell_score	0.0290264103620838	ucell_score_delta	12
+program_score	SmoothMuscle	TypeI_interferon	4	6	2.38075958933969	0.00282228367295899	ucell_score	0.00671917891823397	ucell_score_delta	12
+program_score	T cells	DNA_Damage_Repair	4	6	2.38075958933969	0.00541575860267457	ucell_score	0.0128936192268664	ucell_score_delta	12
+program_score	T cells	STING	4	6	2.38075958933969	0.00451543810338577	ucell_score	0.0107501725647055	ucell_score_delta	12
+program_score	T cells	TypeII_interferon	4	6	2.38075958933969	0.018339814590659	ucell_score	0.0436626894534234	ucell_score_delta	12
+program_score	T cells	TypeI_interferon	4	6	2.38075958933969	0.00542532302793975	ucell_score	0.012916389824033	ucell_score_delta	12
+program_score	Tumor	DNA_Damage_Repair	4	6	2.38075958933969	0.00434133094397846	ucell_score	0.0103356652753739	ucell_score_delta	12
+program_score	Tumor	STING	4	6	2.38075958933969	0.0137607265286333	ucell_score	0.0327609816393249	ucell_score_delta	12
+program_score	Tumor	TypeII_interferon	4	6	2.38075958933969	0.0489650606040684	ucell_score	0.116574037575735	ucell_score_delta	12
+program_score	Tumor	TypeI_interferon	4	6	2.38075958933969	0.0232934936156687	ucell_score	0.0554562082947262	ucell_score_delta	12
+pseudobulk_DE	Adipocyte	median_dispersion=0.0718; BCV=0.268	4	6	2.38075958933969	0.386580660622617	log2_expression	0.920355614830569	log2_fold_change	12
+pseudobulk_DE	DC	median_dispersion=0.1598; BCV=0.400	4	6	2.38075958933969	0.576763840844503	log2_expression	1.37313604487494	log2_fold_change	12
+pseudobulk_DE	Endothelial	median_dispersion=0.0552; BCV=0.235	4	6	2.38075958933969	0.339013931046357	log2_expression	0.80711066725836	log2_fold_change	12
+pseudobulk_DE	Epithelial cells	median_dispersion=0.5510; BCV=0.742	4	6	2.38075958933969	1.07094565893805	log2_expression	2.54966414717848	log2_fold_change	10
+pseudobulk_DE	Fibroblast	median_dispersion=0.0240; BCV=0.155	4	6	2.38075958933969	0.223576434709596	log2_expression	0.532281740885252	log2_fold_change	12
+pseudobulk_DE	ILC	median_dispersion=0.0557; BCV=0.236	4	6	2.38075958933969	0.340406124807013	log2_expression	0.81042514590426	log2_fold_change	12
+pseudobulk_DE	Macrophages	median_dispersion=0.0299; BCV=0.173	4	6	2.38075958933969	0.249257947297275	log2_expression	0.593423248247115	log2_fold_change	12
+pseudobulk_DE	Mast cells	median_dispersion=0.1329; BCV=0.365	4	6	2.38075958933969	0.525926009776515	log2_expression	1.2521033910586	log2_fold_change	12
+pseudobulk_DE	NK cells	median_dispersion=0.1105; BCV=0.332	4	6	2.38075958933969	0.479600564221668	log2_expression	1.14181364232346	log2_fold_change	12
+pseudobulk_DE	Plasma cells	median_dispersion=0.1600; BCV=0.400	4	6	2.38075958933969	0.577096470656291	log2_expression	1.37392795648906	log2_fold_change	11
+pseudobulk_DE	SmoothMuscle	median_dispersion=0.0785; BCV=0.280	4	6	2.38075958933969	0.404091372952447	log2_expression	0.962044411125982	log2_fold_change	12
+pseudobulk_DE	T cells	median_dispersion=0.1404; BCV=0.375	4	6	2.38075958933969	0.540616385338421	log2_expression	1.28707764354861	log2_fold_change	12
+pseudobulk_DE	Tumor	median_dispersion=0.0267; BCV=0.163	4	6	2.38075958933969	0.235694036786962	log2_expression	0.561130838230743	log2_fold_change	12
+pseudobulk_DE	unassigned	median_dispersion=0.0325; BCV=0.180	4	6	2.38075958933969	0.259991361595079	log2_expression	0.618976927262969	log2_fold_change	12
