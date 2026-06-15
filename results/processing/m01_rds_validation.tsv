@@ -1,0 +1,5 @@
+file	slide	n_cells	join_pct	neg_identical	rna_identical
+seuratObject_01_Mutter_01_CosMmR.RDS	20250529_214712_S1	324129	100	TRUE	TRUE
+seuratObject_02_Mutter_01_CosMmR.RDS	20250529_214712_S2	404106	100	TRUE	TRUE
+seuratObject_03_Mutter_01_CosMmR.RDS	20250529_214712_S3	253190	100	TRUE	TRUE
+seuratObject_04_Mutter_01_CosMmR.RDS	20250529_214712_S4	450603	100	TRUE	TRUE
