@@ -20,6 +20,9 @@ GENES   = "results/processing/common_genes.tsv"  # common panel (Mutter_01 ∩ M
 YIREF   = "results/processing/yi_reference.tsv"
 QC      = config["qc"]
 NRM     = config["normalize"]
+M01_RDS_DIR = f"{DATADIR}/inputs/mutter01"
+M02_RDS_DIR = f"{DATADIR}/inputs/mutter02"
+M01_META_PQ = f"{DATADIR}/inputs/mutter01/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"
 
 # Parse-time sample lists come from the existing master sheet.
 _s = pd.read_csv(MASTER, sep="\t")
@@ -36,6 +39,9 @@ rule all:
         "results/processing/probe_qc_report.tsv",
         "results/processing/plots/qc_removal_attribution.png",
         "results/processing/plots/qc_metric_distributions.png",
+        "results/processing/m01_rds_validation.tsv",
+        "results/processing/control_characterization.tsv",
+        "results/processing/fov_falsecode_qc.tsv",
 
 # --- workflow-linked sample sheet (scoped view of the data model) ---
 rule processing_samplesheet:
@@ -73,6 +79,29 @@ rule probe_qc:
         "logs/probe_qc.log",
     shell:
         "{RSCRIPT} scripts/probe_qc.R {input.ss} {input.panel} {output} > {log} 2>&1"
+
+# --- Control QC (report-only): negprobe + falsecode characterization & per-cell sidecar ---
+# Additive diagnostic. Depends on raw RDS + M01 parquet, NOT scored.rds -> cannot re-fire the
+# locked aggregate. propNegative/scored objects are untouched.
+rule control_qc:
+    input:
+        validate     = "scripts/validate_m01_rds.R",
+        characterize = "scripts/characterize_controls.R",
+        sidecar      = "scripts/control_sidecar.R",
+        m01_meta     = M01_META_PQ,
+    output:
+        valid   = "results/processing/m01_rds_validation.tsv",
+        charac  = "results/processing/control_characterization.tsv",
+        scatter = "results/processing/plots/control_cohort_scatter.png",
+        cells   = f"{DATADIR}/processing/cell_controls.parquet",
+        fovqc   = "results/processing/fov_falsecode_qc.tsv",
+    log:
+        "logs/control_qc.log",
+    threads: 1
+    shell:
+        "{RSCRIPT} {input.validate} " + M01_RDS_DIR + " {input.m01_meta} {output.valid} > {log} 2>&1 && "
+        "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.scatter} >> {log} 2>&1 && "
+        "{RSCRIPT} {input.sidecar} " + M01_RDS_DIR + " {input.m01_meta} " + M02_RDS_DIR + " {output.cells} {output.fovqc} >> {log} 2>&1"
 
 # --- Stage B adapters: raw -> per-sample common-format Seurat ---
 rule adapt_mutter01:
