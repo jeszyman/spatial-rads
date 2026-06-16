@@ -7,7 +7,6 @@ a <- commandArgs(trailingOnly = TRUE)
 M01_DIR <- a[1]; M02_DIR <- a[2]; OUT_TSV <- a[3]; OUT_PNG <- a[4]
 NNEG <- 10; NFALSE <- 184
 
-per_fov <- list(); quant <- list()
 load_set <- function(dir, pat, ds) {
   files <- sort(list.files(dir, pattern = pat, full.names = TRUE))
   out <- vector("list", length(files))

@@ -35,7 +35,6 @@ for (i in seq_along(files)) {
   # reconstruct global cell_id from object-local c_1_<fov>_<cell>
   p   <- tstrsplit(colnames(o), "_")
   gid <- paste0(slide_full, "_", p[[3]], "_", p[[4]])
-  sub <- meta[slide_full == Slide]                 # parquet cells for this slide
   m   <- meta[gid]                                  # join RDS->parquet by reconstructed id
   n_match <- sum(!is.na(m$cell_id))
   if (n_match != ncol(o)) stop(sprintf("%s: only %d/%d cells reconstruct to a parquet cell_id",
