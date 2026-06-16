@@ -8,7 +8,7 @@ First-in-field spatial transcriptomics study of MBRT peak/valley biology. MBRT d
 
 ## Datasets
 
-- **Mutter_01** (current): 11 conditions (MBRT/SBRT/Control × timepoints), 971K cells post-QC, CosMx ~1000-gene panel. Input parquets at `/mnt/data/projects/spatial-rads/inputs/mutter01/`
+- **Mutter_01** (current): 11 conditions (MBRT/SBRT/Control × timepoints), 971K cells post-QC, CosMx ~1000-gene panel. Input parquets at `/mnt/data/projects/spatial-rads/inputs/mutter01/` Raw per-slide Seurat RDS (negprobes+falsecode assays) also at inputs/mutter01/; additive per-cell control sidecar at /mnt/data/projects/spatial-rads/processing/cell_controls.parquet + flag-only per-FOV falsecode QC (results/processing/fov_falsecode_qc.tsv); negprobe-mean and RNA counts verified bit-identical to the parquet across all 4 slides, so the locked aggregate is unchanged. Full adapter re-base deferred — see plan-mutter01-controls.md.
 - **Mutter_02**: 4 slides, 12 samples (3 per slide: Control/MBRT/SBRT at 2d), 2.35M cells post-QC. Raw Seurat RDS at `/mnt/data/projects/spatial-rads/inputs/mutter02/`. Fully processed via `processing.smk` (2026-05-30): sample assignment, QC, LogNormalize, cell typing via Seurat anchor TransferData against a pooled M01 cell reference (replaces InSituType, which failed on cross-dataset batch shift in this per-sample application — see `plan-processing-pipeline.md`; note the `aggregate.smk` layer re-types all cells at merged scale via scVI integration + cluster-then-annotate, a different application that supersedes these per-sample labels for cross-dataset work — see Analysis Architecture), and UCell/AddModuleScore pathway scoring.
 
 ## Analysis Architecture

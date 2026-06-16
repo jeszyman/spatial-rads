@@ -438,6 +438,8 @@ cohort); metrics on a common **50k dataset-stratified subsample**. Scripts:
 
 ## v2.5 — Cluster-then-annotate executed; tier-1 + tier-2 locked (2026-06-02)
 
+**Deferred (2026-06-15):** at the next aggregate rebuild, adopt the Mutter_01 raw RDS — retain negprobes+falsecode assays through processing and retire recover_negprobes.R; until then the locked typing stands (negprobe-mean inputs verified identical). See plan-mutter01-controls.md.
+
 The v2.4 design ran on the full 3.27M-cell cohort. **Coarse (tier-1) and immune (tier-2)
 typing are complete and locked**; the run is written up in `spatial-rads.org`
 (`*** Aggregate atlas cell typing`). The tier scripts are authored directly under
