@@ -21,11 +21,11 @@
 #                         adipocyte restricted to Fibrosis + Stromal-stress genes;
 #                         those 2 programs in stroma.
 # Args: <composition_test> <degs> <gsea> <pathway_test> <niche_test> <mixing_test>
-#       <myeloid_test> <power_mde> <pathway_yaml> <out_master>
-suppressPackageStartupMessages({ library(data.table); library(yaml) })
+#       <myeloid_test> <power_mde> <pathway_sets.tsv> <out_master>
+suppressPackageStartupMessages({ library(data.table) })
 a <- commandArgs(trailingOnly = TRUE)
 comp_p <- a[1]; de_p <- a[2]; gsea_p <- a[3]; pw_p <- a[4]; ni_p <- a[5]
-mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; yaml_p <- a[9]; out_p <- a[10]
+mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; out_p <- a[10]
 
 IMMUNE   <- c("T cells","NK cells","ILC","Plasma cells","Macrophages","DC",
               "Mast cells","Neutrophils")
@@ -35,7 +35,9 @@ H1_PROG  <- c("TypeI_interferon","TypeII_interferon","STING")
 H2_PROG  <- c("Angiogenesis","Hypoxia")
 H3_PROG  <- c("Fibrosis_remodeling","Stromal_stress_senescence")
 
-gs <- lapply(read_yaml(yaml_p), as.character)
+# Primary (curated) sets from the tier-structured artifact; H1/H2/H3 picked by name.
+gs_dt <- fread(sets_p)                                   # set, tier, source, gene
+gs    <- split(gs_dt[tier == "primary", gene], gs_dt[tier == "primary", set])
 H1_GENES <- unique(unlist(gs[H1_PROG]))
 H2_GENES <- unique(unlist(gs["Angiogenesis"]))           # H2 DE: Angiogenesis only
 H3_GENES <- unique(unlist(gs[H3_PROG]))

@@ -54,7 +54,7 @@ rule all:
         "results/aggregate/full_coarse_labels.parquet",   # tier-1 coarse (finalized)
         "results/aggregate/full_labels.parquet",          # canonical unified per-cell labels
         # --- MBRT-vs-SBRT downstream differential layer (plan-mbrt-vs-sbrt-impl.md) ---
-        "results/aggregate/gene_set_panel_coverage.tsv",
+        "results/data_model/gene_set_panel_coverage.tsv",   # built in data_model.smk
         "results/aggregate/readout_detection_m02.tsv",
         "results/aggregate/celltype_qc_markers.tsv",
         "results/aggregate/concordance_m01_m02.tsv",
@@ -431,14 +431,14 @@ rule gsea:
     input:
         script = "scripts/aggregate/gsea.R",
         degs   = "results/aggregate/degs_pseudobulk_m02day2.tsv",
-        yaml   = "config/pathway_gene_lists.yaml",
+        sets   = "results/data_model/pathway_sets.tsv",
     output:
         gsea = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
     threads: 1
     log:
         "logs/aggregate/gsea.log",
     shell:
-        "{RSCRIPT} {input.script} {input.degs} {input.yaml} {output.gsea} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.degs} {input.sets} {output.gsea} > {log} 2>&1"
 
 # --- Track 2 pathway: per-cell UCell + AddModuleScore scoring + M02 limma test ---
 # threads: 4 -- UCell runs ncores=4 fork (BiocParallel) parallelism, not BLAS, so the
@@ -448,7 +448,7 @@ rule pathway_summary:
         script = "scripts/aggregate/pathway_summary.R",
         rds    = f"{AGG}/merged.rds",   # re-pointed off the deleted merged_typed.rds (count-only consumer; labels from full_labels.parquet)
         labels = "results/aggregate/full_labels.parquet",
-        yaml   = "config/pathway_gene_lists.yaml",
+        sets   = "results/data_model/pathway_sets.tsv",
     output:
         summary    = "results/aggregate/pathway_scores_summary.tsv",
         test       = "results/aggregate/pathway_test_m02day2.tsv",
@@ -460,7 +460,7 @@ rule pathway_summary:
     log:
         "logs/aggregate/pathway_summary.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.yaml} {output.summary} "
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.sets} {output.summary} "
         "{output.test} {output.conc} {output.heatmap} {output.timecourse} "
         "{output.scatter} > {log} 2>&1"
 
@@ -470,34 +470,20 @@ rule pathway_summary:
 # and the day-2 readout tables, terminating in the tier-tagged results_master.tsv.
 # ============================================================================
 
-# --- T4: panel coverage of the curated gene sets (which programs are scorable) ---
-rule build_gene_sets:
-    input:
-        script = "scripts/aggregate/build_gene_sets.R",
-        panel  = PANEL,
-        yaml   = "config/pathway_gene_lists.yaml",
-    output:
-        coverage = "results/aggregate/gene_set_panel_coverage.tsv",
-    threads: 1
-    log:
-        "logs/aggregate/build_gene_sets.log",
-    shell:
-        "{RSCRIPT} {input.script} {input.panel} {input.yaml} {output.coverage} > {log} 2>&1"
-
 # --- T5: per-cell-type readout detection report (panel detectability in M02) ---
 rule panel_coverage:
     input:
         script = "scripts/aggregate/panel_coverage.R",
         rds    = f"{AGG}/merged.rds",   # re-pointed off the deleted merged_typed.rds (count-only consumer; labels from full_labels.parquet)
         labels = "results/aggregate/full_labels.parquet",
-        yaml   = "config/pathway_gene_lists.yaml",
+        sets   = "results/data_model/pathway_sets.tsv",
     output:
         detection = "results/aggregate/readout_detection_m02.tsv",
     threads: 1
     log:
         "logs/aggregate/panel_coverage.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.yaml} "
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.sets} "
         "{output.detection} > {log} 2>&1"
 
 # --- T6: power / minimum-detectable-effect table at n=4 ---
@@ -634,7 +620,7 @@ rule assemble_results:
         mixing  = "results/aggregate/spatial_mixing_test_m02day2.tsv",
         myeloid = "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
         mde     = "results/aggregate/power_mde.tsv",
-        yaml    = "config/pathway_gene_lists.yaml",
+        sets    = "results/data_model/pathway_sets.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
     threads: 1
@@ -643,4 +629,4 @@ rule assemble_results:
     shell:
         "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.yaml} {output.master} > {log} 2>&1"
+        "{input.mde} {input.sets} {output.master} > {log} 2>&1"

@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # Per-(set x gene x cell_group) detection report for the pathway readout genes,
-# M02 day2 cells only. For each gene in every config/pathway_gene_lists.yaml set:
+# M02 day2 cells only. For each gene in every primary (curated) pathway set:
 # fraction of cells with count>0 and mean count, overall ("all"), within the
 # tumor/stroma/immune compartments, and within the Endothelial subtype (Angiogenesis
 # is an endothelial program; its markers are endothelial-specific, so against the
@@ -9,9 +9,9 @@
 # (immune for IFN/STING, tumor for DDR, Endothelial for Angiogenesis, stroma for the
 # remaining vascular/fibrosis sets); near_floor flags a (set,gene) whose detection in
 # that target group is <5%, so a null on it is read as panel-limited, not biological.
-# Args: <merged_typed.rds> <full_labels.parquet> <pathway_yaml> <out.tsv>
+# Args: <merged_typed.rds> <full_labels.parquet> <pathway_sets.tsv> <out.tsv>
 suppressPackageStartupMessages({
-  library(Seurat); library(Matrix); library(arrow); library(yaml); library(data.table)
+  library(Seurat); library(Matrix); library(arrow); library(data.table)
 })
 
 a  <- commandArgs(trailingOnly = TRUE)
@@ -28,7 +28,10 @@ m    <- match(cells, lab$cell)
 comp <- lab$compartment[m]
 subt <- lab$cell_subtype[m]
 
-sets  <- yaml::read_yaml(a[3])
+# Primary (curated) readout sets from the tier-structured artifact; the target map
+# below covers exactly these, so restrict to tier=primary (Hallmark sets excluded).
+sets_dt <- fread(a[3])                                   # set, tier, source, gene
+sets    <- split(sets_dt[tier == "primary", gene], sets_dt[tier == "primary", set])
 genes <- sort(unique(unlist(sets)))
 genes <- genes[genes %in% rownames(cnt)]          # panel-present only
 cm    <- cnt[genes, , drop = FALSE]

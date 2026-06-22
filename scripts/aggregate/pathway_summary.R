@@ -2,7 +2,7 @@
 # aggregate.smk pathway track -- per-cell module scoring + summaries (flank cohort).
 # Recomputes BOTH scores (UCell and Seurat AddModuleScore) on the merged 3.27M-cell
 # object for one consistent, auditable pass over 4 project-priority pathways
-# (config yaml, tier=primary) + 50 MSigDB Hallmark sets (msigdbr human->mouse
+# (pathway_sets.tsv, tier=primary) + usable MSigDB Hallmark sets (human->mouse
 # orthologs, tier=exploratory). No coverage filtering: every set with >=1 panel gene
 # is scored and n_set_genes / n_panel_genes / panel_coverage_frac are attached so
 # downstream applies thresholds. AddModuleScore ctrl is lowered to 20 because the
@@ -13,14 +13,12 @@
 # test on per-sample means (~slide_id+condition, same abundance floor as the DE
 # track, global BH); M01 is descriptive timecourse only. UCell-vs-AMS concordance is
 # Pearson r across samples per (cell_type x pathway x dataset).
-# Args: <merged.rds> <full_labels.parquet> <pathway_yaml> <out_summary.tsv>
+# Args: <merged.rds> <full_labels.parquet> <pathway_sets.tsv> <out_summary.tsv>
 #       <out_test.tsv> <out_concordance.tsv> <plot_heatmap> <plot_timecourse> <plot_scatter>
 suppressPackageStartupMessages({
   library(Seurat)
   library(arrow)
   library(UCell)
-  library(msigdbr)
-  library(yaml)
   library(limma)
   library(data.table)
   library(ggplot2)
@@ -29,7 +27,7 @@ suppressPackageStartupMessages({
 args        <- commandArgs(trailingOnly = TRUE)
 merged_path <- args[1]
 labels_path <- args[2]
-yaml_path   <- args[3]
+sets_path   <- args[3]
 out_summary <- args[4]
 out_test    <- args[5]
 out_conc    <- args[6]
@@ -48,17 +46,12 @@ SEED        <- 42L
 dir.create(dirname(out_summary), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(plot_heat),  recursive = TRUE, showWarnings = FALSE)
 
-# --- gene sets: 4 project-priority (primary) + 50 MSigDB Hallmark (exploratory) ---
-prim_lists <- lapply(read_yaml(yaml_path), as.character)
-prim_meta  <- data.table(pathway = names(prim_lists),
-                         pathway_source = "project", tier = "primary")
-hm       <- as.data.table(msigdbr(species = "Mus musculus", collection = "H"))
-hm_lists <- lapply(split(hm$gene_symbol, hm$gs_name), unique)
-hm_meta  <- data.table(pathway = names(hm_lists),
-                       pathway_source = "MSigDB_Hallmark", tier = "exploratory")
-
-all_sets    <- c(prim_lists, hm_lists)
-set_meta    <- rbind(prim_meta, hm_meta)
+# --- gene sets: tier-structured artifact (single source of truth, no live MSigDB pull) ---
+# pathway_sets.tsv (built in data_model.smk): primary + usable Hallmark; thin Hallmark
+# sets (< min_panel_genes on panel) already gate-excluded.
+gs_long  <- fread(sets_path)                            # set, tier, source, gene
+all_sets <- lapply(split(gs_long$gene, gs_long$set), unique)
+set_meta <- unique(gs_long[, .(pathway = set, pathway_source = source, tier)])
 set_meta[, n_set_genes := vapply(all_sets[pathway], length, integer(1))]
 
 # --- load merged object, attach canonical aggregate labels, drop unassigned ------

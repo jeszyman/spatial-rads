@@ -1,42 +1,34 @@
 #!/usr/bin/env Rscript
 # aggregate.smk Track 2 pathway -- GSEA on pseudobulk DESeq2 stat-ranked genes.
 # Per (cell_type x contrast), rank panel genes by DESeq2 Wald `stat` (descending)
-# and run fgseaMultilevel against 4 project-priority pathways (config yaml,
-# tier=primary) plus the 50 MSigDB Hallmark sets (msigdbr human->mouse ortholog
-# symbols, tier=exploratory). On a ~950-gene targeted panel most Hallmark sets
+# and run fgseaMultilevel against 4 project-priority pathways (pathway_sets.tsv,
+# tier=primary) plus the usable MSigDB Hallmark sets (human->mouse orthologs,
+# tier=exploratory). On a ~950-gene targeted panel most Hallmark sets
 # overlap the panel only partially, so n_set_genes (full set) and n_panel_genes
 # (overlap with the ranked list = the genes fgsea actually scored) are reported per
 # row and downstream applies coverage thresholds. minSize=3 retains the small
 # curated primary sets (STING has 3 genes). padj_bh is fgsea's BH across the sets
 # tested within each (cell_type x contrast) ranking; pvalue is kept so a tier-scoped
-# re-adjustment is possible downstream. Args: <degs.tsv> <pathway_yaml> <out_gsea.tsv>
+# re-adjustment is possible downstream. Args: <degs.tsv> <pathway_sets.tsv> <out_gsea.tsv>
 suppressPackageStartupMessages({
   library(data.table)
   library(fgsea)
-  library(msigdbr)
-  library(yaml)
 })
 
 args      <- commandArgs(trailingOnly = TRUE)
 degs_path <- args[1]
-yaml_path <- args[2]
+sets_path <- args[2]
 out_gsea  <- args[3]
 
 MIN_SIZE <- 3L     # keep small curated primary sets (STING = 3 genes)
 MAX_SIZE <- 500L
 
-# --- gene sets: 4 project-priority (primary) + 50 MSigDB Hallmark (exploratory) ---
-prim_lists <- lapply(read_yaml(yaml_path), as.character)
-prim_meta  <- data.table(pathway_name = names(prim_lists),
-                         pathway_source = "project", tier = "primary")
-
-hm       <- as.data.table(msigdbr(species = "Mus musculus", collection = "H"))
-hm_lists <- lapply(split(hm$gene_symbol, hm$gs_name), unique)
-hm_meta  <- data.table(pathway_name = names(hm_lists),
-                       pathway_source = "MSigDB_Hallmark", tier = "exploratory")
-
-all_sets      <- c(prim_lists, hm_lists)
-set_meta      <- rbind(prim_meta, hm_meta)
+# --- gene sets: tier-structured artifact (single source of truth, no live MSigDB pull) ---
+# pathway_sets.tsv (built in data_model.smk) carries primary + usable Hallmark sets;
+# thin Hallmark sets (< min_panel_genes on panel) are already gate-excluded.
+gs_long       <- fread(sets_path)                       # set, tier, source, gene
+all_sets      <- lapply(split(gs_long$gene, gs_long$set), unique)
+set_meta      <- unique(gs_long[, .(pathway_name = set, pathway_source = source, tier)])
 set_size_full <- vapply(all_sets, length, integer(1))   # full set size (panel-independent)
 
 # --- DE stats: one ranking per (cell_type x contrast) over tested genes ---
