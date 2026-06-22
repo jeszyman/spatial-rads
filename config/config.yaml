@@ -20,4 +20,5 @@ normalize:
   scale_factor: 10000
   n_variable_features: 2000
 pathway:
+  gene_lists: config/pathway_gene_lists.yaml   # curated tier-1 (primary) set source
   min_panel_genes: 5        # tier-2 (exploratory) set kept only if >= this many genes on panel; tier-1 always kept (flagged thin)

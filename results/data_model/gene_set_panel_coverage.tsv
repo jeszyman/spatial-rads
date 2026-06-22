@@ -1,0 +1,60 @@
+# msigdbr_version: 26.1.0
+set	tier	source	n_total	n_panel	usable	thin
+TypeI_interferon	primary	NanoString Mouse UCC panel module annotation (Annotations sheet)	19	7	TRUE	FALSE
+TypeII_interferon	primary	NanoString Mouse UCC panel module annotation (Annotations sheet)	17	8	TRUE	FALSE
+DNA_Damage_Repair	primary	NanoString Mouse UCC panel module annotation (Annotations sheet)	18	10	TRUE	FALSE
+STING	primary	hand-curated cGAS-STING (panel-available genes)	3	2	TRUE	TRUE
+Angiogenesis	primary	hand-curated (Hallmark/canonical)	19	14	TRUE	FALSE
+Hypoxia	primary	hand-curated (Hallmark/canonical)	13	5	TRUE	FALSE
+Fibrosis_remodeling	primary	hand-curated (Hallmark/canonical)	18	13	TRUE	FALSE
+Stromal_stress_senescence	primary	hand-curated (Hallmark/canonical)	12	8	TRUE	FALSE
+HALLMARK_ADIPOGENESIS	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	200	19	TRUE	FALSE
+HALLMARK_ALLOGRAFT_REJECTION	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	201	102	TRUE	FALSE
+HALLMARK_ANDROGEN_RESPONSE	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	112	17	TRUE	FALSE
+HALLMARK_ANGIOGENESIS	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	36	19	TRUE	FALSE
+HALLMARK_APICAL_JUNCTION	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	199	38	TRUE	FALSE
+HALLMARK_APICAL_SURFACE	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	44	10	TRUE	FALSE
+HALLMARK_APOPTOSIS	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	160	64	TRUE	FALSE
+HALLMARK_BILE_ACID_METABOLISM	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	112	6	TRUE	FALSE
+HALLMARK_CHOLESTEROL_HOMEOSTASIS	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	75	13	TRUE	FALSE
+HALLMARK_COAGULATION	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	139	28	TRUE	FALSE
+HALLMARK_COMPLEMENT	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	196	42	TRUE	FALSE
+HALLMARK_DNA_REPAIR	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	150	5	TRUE	FALSE
+HALLMARK_E2F_TARGETS	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	200	20	TRUE	FALSE
+HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	206	72	TRUE	FALSE
+HALLMARK_ESTROGEN_RESPONSE_EARLY	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	200	33	TRUE	FALSE
+HALLMARK_ESTROGEN_RESPONSE_LATE	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	206	35	TRUE	FALSE
+HALLMARK_FATTY_ACID_METABOLISM	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	157	11	TRUE	FALSE
+HALLMARK_G2M_CHECKPOINT	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	198	23	TRUE	FALSE
+HALLMARK_GLYCOLYSIS	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	200	18	TRUE	FALSE
+HALLMARK_HEDGEHOG_SIGNALING	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	36	5	TRUE	FALSE
+HALLMARK_HEME_METABOLISM	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	194	7	TRUE	FALSE
+HALLMARK_HYPOXIA	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	200	39	TRUE	FALSE
+HALLMARK_IL2_STAT5_SIGNALING	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	199	58	TRUE	FALSE
+HALLMARK_IL6_JAK_STAT3_SIGNALING	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	88	56	TRUE	FALSE
+HALLMARK_INFLAMMATORY_RESPONSE	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	201	86	TRUE	FALSE
+HALLMARK_INTERFERON_ALPHA_RESPONSE	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	100	23	TRUE	FALSE
+HALLMARK_INTERFERON_GAMMA_RESPONSE	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	205	65	TRUE	FALSE
+HALLMARK_KRAS_SIGNALING_DN	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	202	19	TRUE	FALSE
+HALLMARK_KRAS_SIGNALING_UP	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	203	49	TRUE	FALSE
+HALLMARK_MITOTIC_SPINDLE	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	199	11	TRUE	FALSE
+HALLMARK_MTORC1_SIGNALING	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	201	14	TRUE	FALSE
+HALLMARK_MYC_TARGETS_V1	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	201	9	TRUE	FALSE
+HALLMARK_MYC_TARGETS_V2	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	58	2	FALSE	TRUE
+HALLMARK_MYOGENESIS	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	201	39	TRUE	FALSE
+HALLMARK_NOTCH_SIGNALING	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	32	12	TRUE	FALSE
+HALLMARK_OXIDATIVE_PHOSPHORYLATION	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	199	4	FALSE	TRUE
+HALLMARK_P53_PATHWAY	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	199	39	TRUE	FALSE
+HALLMARK_PANCREAS_BETA_CELLS	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	40	4	FALSE	TRUE
+HALLMARK_PEROXISOME	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	102	4	FALSE	TRUE
+HALLMARK_PI3K_AKT_MTOR_SIGNALING	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	105	16	TRUE	FALSE
+HALLMARK_PROTEIN_SECRETION	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	96	9	TRUE	FALSE
+HALLMARK_REACTIVE_OXYGEN_SPECIES_PATHWAY	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	48	5	TRUE	FALSE
+HALLMARK_SPERMATOGENESIS	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	135	6	TRUE	FALSE
+HALLMARK_TGF_BETA_SIGNALING	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	54	15	TRUE	FALSE
+HALLMARK_TNFA_SIGNALING_VIA_NFKB	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	199	76	TRUE	FALSE
+HALLMARK_UNFOLDED_PROTEIN_RESPONSE	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	113	6	TRUE	FALSE
+HALLMARK_UV_RESPONSE_DN	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	144	32	TRUE	FALSE
+HALLMARK_UV_RESPONSE_UP	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	158	24	TRUE	FALSE
+HALLMARK_WNT_BETA_CATENIN_SIGNALING	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	42	15	TRUE	FALSE
+HALLMARK_XENOBIOTIC_METABOLISM	exploratory	MSigDB_Hallmark (msigdbr 26.1.0)	203	20	TRUE	FALSE

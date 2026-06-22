@@ -57,18 +57,6 @@ rule processing_samplesheet:
     shell:
         "{RSCRIPT} scripts/processing_samplesheet.R {input.rda} {output} > {log} 2>&1"
 
-# --- common gene panel (Mutter_01 panel intersect Mutter_02 panel) ---
-rule common_gene_panel:
-    input:
-        ss = SCOPED,
-    output:
-        GENES,
-    threads: 1
-    log:
-        "logs/common_gene_panel.log",
-    shell:
-        "{RSCRIPT} scripts/common_gene_panel.R {input.ss} {output} > {log} 2>&1"
-
 # --- probe-vs-negative-control QC DIAGNOSTIC (report-only; does NOT drop genes -- see scripts/probe_qc.R) ---
 rule probe_qc:
     input:
@@ -94,7 +82,7 @@ rule control_qc:
     output:
         valid   = "results/processing/m01_rds_validation.tsv",
         charac  = "results/processing/control_characterization.tsv",
-        scatter = "results/processing/plots/control_cohort_scatter.png",
+        falsecode_density = "results/processing/plots/fov_falsecode_density.png",
         cells   = f"{DATADIR}/processing/cell_controls.parquet",
         fovqc   = "results/processing/fov_falsecode_qc.tsv",
     log:
@@ -102,7 +90,7 @@ rule control_qc:
     threads: 1
     shell:
         "{RSCRIPT} {input.validate} " + M01_RDS_DIR + " {input.m01_meta} {output.valid} > {log} 2>&1 && "
-        "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.scatter} >> {log} 2>&1 && "
+        "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.falsecode_density} >> {log} 2>&1 && "
         "{RSCRIPT} {input.sidecar} " + M01_RDS_DIR + " {input.m01_meta} " + M02_RDS_DIR + " {output.cells} {output.fovqc} >> {log} 2>&1"
 
 # --- Contamination QC (report-only): SpatialQM MECR marker-bleed metric, sample + FOV grain ---
