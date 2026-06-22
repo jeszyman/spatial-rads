@@ -68,7 +68,7 @@ Staged on VM local disk at `$SCRATCH/mutter02/`:
 
 ### NanoString Pathway Gene Lists (RESOLVED)
 
-Source: `$REPO/data/sources/2026-01-30-nanostring-mouse-ucc-gene-list.xlsx`, Annotations sheet. These are NanoString's standard panel modules — confirmed as the source of Yi's pre-computed Mutter_01 pathway scores.
+Source: `$REPO/data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx`, Annotations sheet. These are NanoString's standard panel modules — confirmed as the source of Yi's pre-computed Mutter_01 pathway scores.
 
 **Type I Interferon Signaling (19 genes):**
 Bst2, Ifi27, Ifit1, Ifit3/b, Ifitm1, Ifitm3, Ifna, Ifnar1, Irf3, Irf4, Isg15, Jak1, Mx1, Oas1a/g, Oas2, Oas3, Oasl1, Rigi, Tyk2
@@ -129,7 +129,7 @@ These must be completed interactively on the VM before launching `run-mbrt-signa
 - [ ] Mutter_02 RDS files copied from Box to `$SCRATCH/mutter02/` (cp, NOT symlink)
 - [ ] Mutter_01 `seurat_clustered.rds` copied from GCS FUSE to `$SCRATCH/`
 - [ ] Sample layout TSV (from Jenn Fazzari 2026-04-09 email) saved as `$SCRATCH/mutter02/sample_layout.tsv` (3 columns: slide, sample_id, treatment). FOV-to-sample inference is done by the executor from Seurat metadata — no FOV map exists.
-- [ ] Gene list XLSX copied to VM: `$REPO/data/sources/2026-01-30-nanostring-mouse-ucc-gene-list.xlsx`
+- [ ] Gene list XLSX copied to VM: `$REPO/data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx`
 - [ ] Load each Mutter_02 RDS, verify: cell counts match QC email (~999K, 649K, 352K, 793K), spatial coordinates present, gene panel size ~971 genes
 - [ ] Verify gene panel overlap with Mutter_01 (expect >95%)
 - [ ] Verify raw Seurat object metadata contains Sample ID or equivalent field that can be mapped to the sample layout
