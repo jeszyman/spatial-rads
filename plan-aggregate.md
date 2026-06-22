@@ -557,6 +557,26 @@ endothelial call (present but unresolvable de novo at this panel). **Label join 
 analysis tracks (composition / pseudobulk DE / GSEA / pathway / colocalization, incl. tumor-state
 program scoring) — these can now proceed off the unified label table.
 
+## v2.6 — Workflow refactor planned: the wired DAG does not reproduce this typing (2026-06-22)
+
+The typing locked above is an **artifact-of-record but is NOT reproducible from
+`workflows/aggregate.smk`**: the wired typing rules are the dead per-cell InSituType chain
+(`embed_celltype`→`prepare_reference`→`typing_insitutype`, the 85%-tumor failure), and the
+labels actually used (`results/aggregate/full_labels.parquet`, 9 consumer rules) plus
+`{AGG}/full/obs.parquet` (3 consumer rules) are **orphan static inputs** produced by the
+hand-run scVI→tier-2 chain, not by any rule. The full-cohort scVI training step is **untracked
+code** (no `full_scvi.py`; only `pilot_scvi.py` exists).
+
+Harmonized fix in `plan-aggregate-refactor.md` (three gating decisions resolved 2026-06-22:
+**A2 full re-wire now · decision-forcing best-practice review · C1 orchestration-only literate
+transfer**) — a **seven-step** sequence: audit → method shoot-out (scVI vs scANVI/scArches on
+the 2-slide pilot; a margin-passing winner feeds the rebuild) → wire the real ~13-node
+multi-env R→GPU-Python→R DAG (authoring `full_scvi.py`; retiring `recover_negprobes` onto the
+re-based M01 RDS) → single full 3.27M-cell rebuild → re-validate the four Q4 gates + marker
+recall → **refresh the differential layer (`results_master.tsv` goes stale when the labels
+regenerate)** → literate transfer. Acceptance = **re-validation, not byte-identity**. Until the
+rebuild runs, the labels and `results_master.tsv` recorded here stand as the locked record.
+
 ---
 
 ## Goal
