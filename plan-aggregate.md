@@ -577,6 +577,32 @@ recall → **refresh the differential layer (`results_master.tsv` goes stale whe
 regenerate)** → literate transfer. Acceptance = **re-validation, not byte-identity**. Until the
 rebuild runs, the labels and `results_master.tsv` recorded here stand as the locked record.
 
+## v2.7 — Best-practice review (Workstream B verdicts, decision-forcing, 2026-06-22)
+
+Step 2 of `plan-aggregate-refactor.md`. Scopus pass 2026-06-22 (SCOPUS_API_KEY; `TITLE-ABS-KEY`
+queries logged below). Per the standing evidence rule (`feedback_verify_method_precedent`) a NULL
+result — "no peer-reviewed support at imaging-spatial / CosMx scale" — is an **acceptable,
+unblocking** verdict. Decision rule: a "change" stands only if it beats current scVI
+cluster-then-annotate on the 2-slide pilot harness by the pre-set margin (scaled iLISI **and**
+marker recall **and** unassigned fraction). **Outcome: 3 KEEP + 1 deferred non-blocking refinement
+→ the rebuild method is locked to the current scVI / swept-res=3.0 / per-sample-MECR stack; no
+method change gates Steps 3–4.**
+
+| Q | Question | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Integrator: scVI vs scANVI vs scArches | **KEEP scVI** | Scopus scVI/scANVI/scArches × imaging-spatial = **2 hits**; deep-generative × imaging benchmark = **3 hits** (NULL at CosMx scale). Architectural mismatch: **scANVI is semi-supervised** (needs trusted labels — the de-anchored design forbids label transfer) and **scArches is reference-mapping** onto a fixed reference atlas we lack at CosMx scale; scVI is the only fully-unsupervised batch-correction-only option and is already pilot-validated (scaled iLISI 0.71 vs Harmony 0.20). Emerging candidate noted, not adopted: interpretable-generative integration+annotation (Cell Genomics 2026, doi:10.1016/j.xgen.2025.101105, 0c). |
+| 2 | Leiden resolution at >3M cells | **KEEP sweep→gates (res=3.0)** | Scopus resolution-selection = 23 hits, none CosMx-scale that clears the margin. The locked run already *selects* res=3.0 empirically by a pre-registered sweep (0.5/1.0/2.0/3.0) against the four Q4 gates — not an arbitrary pick. Future automated-selection option noted: CANTAO average-overlap (Mol Syst Biol 2026, doi:10.1038/s44320-025-00176-4, 0c). |
+| 3 | Recover the 33% unassigned stroma (441k) | **CHANGE-CANDIDATE — deferred, gated, NON-blocking** | Real precedent exists: **TACIT** jointly deconvolves cell types *and states* in spatial multiomics (Nat Commun 2025, doi:10.1038/s41467-025-58874-4, 8c) + active CAF-subpopulation literature (21 hits). This is the only question with a credible challenger, but it refines **only the unassigned-stroma bucket** (not the coarse tier or the integrator), so it does **not** block the rebuild. Decision: defer to a stroma-tier-2 v2 pilot (TACIT vs the current UCell-argmax + identity-marker rescue on the 2-slide harness), keep the specificity-anchor guard; rebuild proceeds on the current stroma method. Aligns with memory `project_stroma_unassigned_recovery` (FUTURE). |
+| 4 | Merged-scale QC beyond per-sample MECR | **KEEP per-sample MECR** | Scopus merged-scale segmentation-contamination QC = **1 hit** (Xenium contamination, Nat Methods 2026, doi:10.1038/s41592-026-03089-8, 0c) — essentially no precedent for a *merged-scale* step. The project already runs per-sample SpatialQM MECR (published-method-backed) and the cohort is clean (`project_contamination_qc`). NULL → keep; note the Xenium paper as a future *per-cell spillover-correction* reference, not a merged-scale step. |
+
+Scopus queries (TITLE-ABS-KEY): Q1 `("scArches" OR "scANVI" OR "scVI") AND ("CosMx" OR "MERFISH"
+OR "Xenium" OR "imaging-based spatial" OR "in situ") AND (integrat* OR annotat* OR "label
+transfer")`; Q2 `("Leiden" OR "clustering resolution" OR "resolution parameter") AND ("single-cell"
+OR scRNA) AND (select* OR optimal OR stability OR benchmark*)`; Q3 `("unassigned" OR "ambiguous" OR
+"unresolved") AND (fibroblast OR stroma* OR mesenchymal) AND (spatial OR "single-cell") AND
+(annotat* OR subtyp* OR cluster*)`; Q4 `(segmentation AND (spillover OR contamination OR "transcript
+bleed" OR missegmentation)) AND ("CosMx" OR "MERFISH" OR "Xenium" OR "imaging-based spatial")`.
+
 ---
 
 ## Goal

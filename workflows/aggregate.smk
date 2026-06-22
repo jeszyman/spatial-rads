@@ -13,12 +13,14 @@ configfile: "config/config.yaml"
 shell.prefix("export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1; ")
 
 RSCRIPT = "conda run -n spatial-rads Rscript"
+PYSCVI  = "conda run -n spatial-rads-scvi python"   # tier-1/2 Python (scVI/scanpy, GPU)
 DATADIR = config["datadir"]
 MASTER  = config["samplesheet"]                  # results/data_model/samples.tsv
 AGG     = f"{DATADIR}/aggregate"                  # heavy intermediates
+FULL    = f"{AGG}/full"                           # tier-1/2 typing intermediate dir
 SCORED  = f"{DATADIR}/processing/scored"          # per-sample inputs
-CPL     = f"{DATADIR}/ref/CellProfileLibrary/Mouse/Adult"    # external atlas profiles
 PANEL   = "results/processing/common_genes.tsv"   # 950 shared-panel gene list
+MARKERS = "config/lineage_markers.yaml"           # coarse + tier-2 lineage marker sets
 # Raw inputs for negprobe recovery (dropped during 950-gene harmonization):
 M01_META = f"{DATADIR}/inputs/mutter01/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"
 M02_RAW  = f"{DATADIR}/inputs/mutter02"                       # 4 raw slide RDS
@@ -49,12 +51,8 @@ rule all:
         "results/aggregate/pathway_scores_summary.tsv",
         "results/aggregate/pathway_test_m02day2.tsv",
         "results/aggregate/plots/pathway_heatmap_m02day2.png",
-        "results/aggregate/celltype_embed_qc.tsv",
-        "results/aggregate/plots/celltype_umap.png",
-        "results/aggregate/reference_coverage.tsv",
-        f"{AGG}/merged_typed.rds",
-        "results/aggregate/celltype_atlas_summary.tsv",
-        "results/aggregate/celltype_atlas_validation.tsv",
+        "results/aggregate/full_coarse_labels.parquet",   # tier-1 coarse (finalized)
+        "results/aggregate/full_labels.parquet",          # canonical unified per-cell labels
         # --- MBRT-vs-SBRT downstream differential layer (plan-mbrt-vs-sbrt-impl.md) ---
         "results/aggregate/gene_set_panel_coverage.tsv",
         "results/aggregate/readout_detection_m02.tsv",
@@ -95,58 +93,15 @@ rule merge:
     shell:
         "{RSCRIPT} {input.script} {input.ss} {params.scale_factor} {output.rds} {output.summary} {output.meta} {input.rds} > {log} 2>&1"
 
-# --- Stage 1a: cell-type integration embedding (Harmony) + QC clusters ---
-# Heavy: ScaleData densifies 950 x 3.27M (~25 GB) + UMAP/SNN on all cells. Run
-# after pathway_summary frees memory; not concurrent with other merged.rds jobs.
-# lisi_min is the post-Harmony LISI(dataset) gate (rule fails below it). Set to
-# 1.5: the in-script LISI is unweighted inverse-Simpson, so the imbalanced flank
-# cohort (M01 29% / M02 71%) caps LISI(dataset) at 1/(.29^2+.71^2) ~= 1.70 even
-# with perfect mixing -- the plan's 1.8 was unachievable. 1.5 ~= 88% of ceiling.
-rule embed_celltype:
-    input:
-        script = "scripts/aggregate/embed_celltype.R",
-        rds    = f"{AGG}/merged.rds",
-    output:
-        rds     = f"{AGG}/merged_celltype.rds",
-        qc      = "results/aggregate/celltype_embed_qc.tsv",
-        metrics = "results/aggregate/celltype_embed_metrics.tsv",
-        umap    = "results/aggregate/plots/celltype_umap.png",
-    params:
-        lisi_min = 1.5,
-    threads: 1
-    log:
-        "logs/aggregate/embed_celltype.log",
-    shell:
-        "{RSCRIPT} {input.script} {input.rds} {output.rds} {output.qc} "
-        "{output.metrics} {output.umap} {params.lisi_min} > {log} 2>&1"
-
-# --- Stage 1b inputs: external-atlas reference profile matrix (de-anchored) ---
-# Mammary-centered per the agreed plan: NanoString CellProfileLibrary MammaryGland_Virgin
-# (tissue-matched, 4T1 = mammary carcinoma) + ImmGen (immune depth). Lung + Muscle dropped
-# 2026-06-01 (off-plan, diluted the match); SmoothMuscle left unanchored. Coarse-relabels to
-# lineages, subsets to the 950 panel. No M01 data: identical knowledge to M01/M02. See prepare_reference.R.
-rule prepare_reference:
-    input:
-        script = "scripts/aggregate/prepare_reference.R",
-        panel  = PANEL,
-    output:
-        ref      = f"{AGG}/ref_profiles.rds",
-        coverage = "results/aggregate/reference_coverage.tsv",
-    params:
-        cpl = CPL,
-    threads: 1
-    log:
-        "logs/aggregate/prepare_reference.log",
-    shell:
-        "{RSCRIPT} {input.script} {params.cpl} {input.panel} {output.ref} "
-        "{output.coverage} > {log} 2>&1"
-
-# --- Stage 1b inputs: per-cell negative-probe background for InSituType ---
-# Negprobes (the platform's background model) were dropped during 950-gene
-# harmonization; recover from raw inputs. M01: metadata parquet nCount_NegativeProbes;
-# M02: raw slide RDS negprobes assay. neg = nCount_neg / 10 (mouse 1k panel has 10
-# negative probes -- one definition spans both datasets). Output barcodes match
-# merge.R's {sample_id}_{raw_barcode} key.
+# --- Tier-1/2 input: per-cell negative-probe background (feeds the scVI export) ---
+# Negprobes (the platform background model) were dropped during 950-gene harmonization;
+# recover from raw inputs. M01: metadata parquet nCount_NegativeProbes -- the M01 raw
+# per-slide RDS DO carry negprobes, but their object-local barcodes (c_1_*) do NOT match
+# the adapter's scored barcodes (0% overlap), so the raw-RDS retire stays DEFERRED; the
+# parquet neg is verified byte-identical to the RDS, so this is invariant (see
+# typing_provenance.md S2 / plan-mutter01-controls.md). M02: raw slide RDS negprobes assay.
+# neg = nCount_neg / 10. Output barcodes match merge.R's {sample_id}_{raw_barcode} key;
+# consumed by full_export.R as the scVI continuous covariate.
 rule recover_negprobes:
     input:
         script = "scripts/aggregate/recover_negprobes.R",
@@ -164,31 +119,260 @@ rule recover_negprobes:
         "{RSCRIPT} {input.script} {output.neg} {input.m01} {params.m02_dir} "
         "{input.rds} > {log} 2>&1"
 
-# --- Stage 1b: field-standard CosMx cell typing via InSituType (Danaher 2022) ---
-# Platform-native semi-supervised classifier: models the CosMx noise structure
-# (per-cell negprobe background + Poisson counts) that flat correlation ignores, and
-# types from RAW COUNTS (merged.rds) -- decoupled from the heavy embed. Runs ONCE on
-# merged M01+M02 against the 12-lineage external atlas, so both cohorts get one
-# identical rule -> structural comparability. De novo clusters absorb the 4T1 tumor
-# (Epcam/Krt8 overlay -> tumor_epithelial); the rest map to nearest lineage.
-rule typing_insitutype:
+# ============================================================================
+# TIER-1 + TIER-2 cell typing: the real scVI cluster-then-annotate chain
+# (Step 3 of plan-aggregate-refactor.md -- replaces the dead per-cell InSituType
+# chain that validated at 85% mistyped tumor). Multi-env: R (spatial-rads) ->
+# GPU Python (spatial-rads-scvi) -> R -> Python. Method LOCKED to the current
+# stack by the Workstream B review (plan-aggregate.md v2.7: keep scVI / swept
+# res=3.0 / per-sample MECR). results/aggregate/full_labels.parquet is the
+# canonical per-cell output; acceptance = re-validation of the 4 Q4 gates, not
+# byte-identity (scVI-GPU + Leiden-igraph are not byte-reproducible).
+# ============================================================================
+
+# --- T1.0: export merged counts (MTX) + obs (+ neg covariate) for scVI ---
+rule full_export:
     input:
-        script = "scripts/aggregate/typing_insitutype.R",
+        script = "scripts/aggregate/full_export.R",
         rds    = f"{AGG}/merged.rds",
-        ref    = f"{AGG}/ref_profiles.rds",
         neg    = f"{AGG}/cell_neg.tsv",
     output:
-        typed      = f"{AGG}/merged_typed.rds",
-        summary    = "results/aggregate/celltype_atlas_summary.tsv",
-        validation = "results/aggregate/celltype_atlas_validation.tsv",
-        labels     = f"{AGG}/cell_atlas_labels.tsv",
+        mtx   = f"{FULL}/mtx/counts.mtx",
+        feats = f"{FULL}/mtx/features.tsv",
+        bars  = f"{FULL}/mtx/barcodes.tsv",
+        obs   = f"{FULL}/obs.parquet",
+    params:
+        outdir = FULL,
     threads: 1
     log:
-        "logs/aggregate/typing_insitutype.log",
+        "logs/aggregate/full_export.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.ref} {input.neg} "
-        "{output.typed} {output.summary} {output.validation} {output.labels} "
-        "> {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.rds} {input.neg} {params.outdir} > {log} 2>&1"
+
+# --- T1.1: scVI integration (GPU-direct on the RTX A4000) -> 30-dim latent ---
+# Params pinned to the locked scvi_model/model.pt (typing_provenance.md S3). GPU resource
+# serializes this rule; run the workflow with --resources gpu=1.
+rule full_scvi:
+    input:
+        script = "scripts/aggregate/full_scvi.py",
+        mtx    = f"{FULL}/mtx/counts.mtx",
+        obs    = f"{FULL}/obs.parquet",
+    output:
+        latent = f"{FULL}/scvi_latent.parquet",
+        model  = directory(f"{FULL}/scvi_model"),
+    params:
+        full = FULL,
+    threads: 4
+    resources:
+        gpu = 1,
+    log:
+        "logs/aggregate/full_scvi.log",
+    shell:
+        "{PYSCVI} {input.script} {params.full} > {log} 2>&1"
+
+# --- T1.2: Leiden sweep on the scVI latent + cluster-level coarse annotation + Q4 gates ---
+# out prefix "results/aggregate/full" -> per-res full_r{tag}_*; finalize consumes res=3.0.
+rule full_cluster:
+    input:
+        script  = "scripts/aggregate/full_cluster.py",
+        latent  = f"{FULL}/scvi_latent.parquet",
+        mtx     = f"{FULL}/mtx/counts.mtx",
+        obs     = f"{FULL}/obs.parquet",
+        markers = MARKERS,
+    output:
+        ckpt   = f"{FULL}/cluster_checkpoint.h5ad",
+        labels = "results/aggregate/full_r3_coarse_labels.parquet",
+        qc     = "results/aggregate/full_r3_cluster_qc.tsv",
+        gates  = "results/aggregate/full_r3_gates.json",
+        sweep  = "results/aggregate/full_sweep_summary.tsv",
+    params:
+        full   = FULL,
+        prefix = "results/aggregate/full",
+        res    = "1.0,2.0,3.0",
+    threads: 4
+    log:
+        "logs/aggregate/full_cluster.log",
+    shell:
+        "{PYSCVI} {input.script} {params.full} {input.markers} {params.prefix} "
+        "{params.res} > {log} 2>&1"
+
+# --- T1.3: finalize tier-1 at the adopted res=3.0 -> canonical coarse labels ---
+rule finalize_tier1:
+    input:
+        script = "scripts/aggregate/finalize_tier1.py",
+        labels = "results/aggregate/full_r3_coarse_labels.parquet",
+        qc     = "results/aggregate/full_r3_cluster_qc.tsv",
+        gates  = "results/aggregate/full_r3_gates.json",
+    output:
+        coarse  = "results/aggregate/full_coarse_labels.parquet",
+        gates   = "results/aggregate/full_gates.json",
+        summary = "results/aggregate/full_coarse_summary.tsv",
+    params:
+        dir = "results/aggregate",
+    threads: 1
+    log:
+        "logs/aggregate/finalize_tier1.log",
+    shell:
+        "{PYSCVI} {input.script} {params.dir} > {log} 2>&1"
+
+# --- T2.immune.a: subcluster the immune compartment (res=3.0 substrate for SingleR) ---
+rule tier2_immune_subcluster:
+    input:
+        script = "scripts/aggregate/tier2_immune_subcluster.py",
+        ckpt   = f"{FULL}/cluster_checkpoint.h5ad",
+        labels = "results/aggregate/full_coarse_labels.parquet",
+    output:
+        sub   = f"{FULL}/immune_subclusters.parquet",
+        mtx   = f"{FULL}/immune_mtx/counts.mtx",
+        feats = f"{FULL}/immune_mtx/features.tsv",
+        bars  = f"{FULL}/immune_mtx/barcodes.tsv",
+        ckpt  = f"{FULL}/immune_checkpoint.h5ad",
+    params:
+        outdir = FULL,
+        res    = "3.0",
+    threads: 4
+    log:
+        "logs/aggregate/tier2_immune_subcluster.log",
+    shell:
+        "{PYSCVI} {input.script} {input.ckpt} {input.labels} {params.outdir} "
+        "{params.res} > {log} 2>&1"
+
+# --- T2.immune.b: finer res=6.0 subclusters (rare-lineage rescue substrate) ---
+rule tier2_immune_subcluster_r6:
+    input:
+        script = "scripts/aggregate/tier2_immune_subcluster.py",
+        ckpt   = f"{FULL}/cluster_checkpoint.h5ad",
+        labels = "results/aggregate/full_coarse_labels.parquet",
+    output:
+        sub = f"{FULL}/immune_r6/immune_subclusters.parquet",
+    params:
+        outdir = f"{FULL}/immune_r6",
+        res    = "6.0",
+    threads: 4
+    log:
+        "logs/aggregate/tier2_immune_subcluster_r6.log",
+    shell:
+        "{PYSCVI} {input.script} {input.ckpt} {input.labels} {params.outdir} "
+        "{params.res} > {log} 2>&1"
+
+# --- T2.immune.c: cluster-level SingleR vs celldex/ImmGen on the res=3.0 subclusters ---
+rule tier2_singler:
+    input:
+        script = "scripts/aggregate/tier2_singler.R",
+        mtx    = f"{FULL}/immune_mtx/counts.mtx",
+        sub    = f"{FULL}/immune_subclusters.parquet",
+    output:
+        singler  = f"{FULL}/immune_subtype_singler.tsv",
+        subtypes = f"{FULL}/immune_subtypes.parquet",
+    params:
+        mtxdir = f"{FULL}/immune_mtx",
+        outdir = FULL,
+    threads: 1
+    log:
+        "logs/aggregate/tier2_singler.log",
+    shell:
+        "{RSCRIPT} {input.script} {params.mtxdir} {input.sub} {params.outdir} > {log} 2>&1"
+
+# --- T2.immune.d: marker-rescue (B/Plasma/Neutrophil) -- res=6.0 identity-marker override ---
+rule tier2_immune_rescue:
+    input:
+        script  = "scripts/aggregate/tier2_immune_rescue.py",
+        mtx     = f"{FULL}/immune_mtx/counts.mtx",
+        obs     = f"{FULL}/obs.parquet",
+        sub6    = f"{FULL}/immune_r6/immune_subclusters.parquet",
+        singler = f"{FULL}/immune_subtypes.parquet",
+    output:
+        rescued = f"{FULL}/immune_subtypes_rescued.parquet",
+        audit   = f"{FULL}/immune_rescue_audit.tsv",
+    params:
+        mtxdir = f"{FULL}/immune_mtx",
+    threads: 1
+    log:
+        "logs/aggregate/tier2_immune_rescue.log",
+    shell:
+        "{PYSCVI} {input.script} {params.mtxdir} {input.obs} {input.sub6} "
+        "{input.singler} {output.rescued} {output.audit} > {log} 2>&1"
+
+# --- T2.stroma.a: subcluster stroma; sweep res (r2 base for UCell, r6 for rescue) ---
+rule tier2_stroma_subcluster:
+    input:
+        script = "scripts/aggregate/tier2_stroma_subcluster.py",
+        ckpt   = f"{FULL}/cluster_checkpoint.h5ad",
+        labels = "results/aggregate/full_coarse_labels.parquet",
+    output:
+        mtx   = f"{FULL}/stroma_mtx/counts.mtx",
+        r2    = f"{FULL}/stroma_r2_subclusters.parquet",
+        r6    = f"{FULL}/stroma_r6_subclusters.parquet",
+        ckpt  = f"{FULL}/stroma_checkpoint.h5ad",
+        sweep = "results/aggregate/stroma_sweep_summary.tsv",
+    params:
+        ddir   = FULL,
+        prefix = "results/aggregate/stroma",
+        res    = "0.5,1,2,3,4,6",
+    threads: 4
+    log:
+        "logs/aggregate/tier2_stroma_subcluster.log",
+    shell:
+        "{PYSCVI} {input.script} {input.ckpt} {input.labels} {params.ddir} "
+        "{params.prefix} {params.res} > {log} 2>&1"
+
+# --- T2.stroma.b: UCell cluster-level argmax+margin on the r2 base subclusters ---
+rule tier2_stroma_ucell:
+    input:
+        script  = "scripts/aggregate/tier2_stroma_ucell.R",
+        sub     = f"{FULL}/stroma_r2_subclusters.parquet",
+        mtx     = f"{FULL}/stroma_mtx/counts.mtx",
+        markers = MARKERS,
+    output:
+        subtypes = f"{FULL}/stroma_subtypes.parquet",
+        summary  = f"{FULL}/stroma_subtype_summary.tsv",
+        ucell    = f"{FULL}/stroma_subcluster_ucell.tsv",
+    params:
+        mtxdir = f"{FULL}/stroma_mtx",
+        outdir = FULL,
+    threads: 4
+    log:
+        "logs/aggregate/tier2_stroma_ucell.log",
+    shell:
+        "{RSCRIPT} {input.script} {params.mtxdir} {input.sub} {input.markers} "
+        "{params.outdir} > {log} 2>&1"
+
+# --- T2.stroma.c: identity-marker rescue (Endothelial/Adipocyte) -- r6 subclusters ---
+rule tier2_stroma_rescue:
+    input:
+        script = "scripts/aggregate/tier2_stroma_rescue.py",
+        mtx    = f"{FULL}/stroma_mtx/counts.mtx",
+        obs    = f"{FULL}/obs.parquet",
+        sub6   = f"{FULL}/stroma_r6_subclusters.parquet",
+        base   = f"{FULL}/stroma_subtypes.parquet",
+    output:
+        rescued = f"{FULL}/stroma_subtypes_rescued.parquet",
+        audit   = f"{FULL}/stroma_rescue_audit.tsv",
+    params:
+        mtxdir = f"{FULL}/stroma_mtx",
+    threads: 1
+    log:
+        "logs/aggregate/tier2_stroma_rescue.log",
+    shell:
+        "{PYSCVI} {input.script} {params.mtxdir} {input.obs} {input.sub6} "
+        "{input.base} {output.rescued} {output.audit} > {log} 2>&1"
+
+# --- T2.unify: join tier-1 coarse + tier-2 immune + tier-2 stroma -> canonical labels ---
+rule unify_labels:
+    input:
+        script = "scripts/aggregate/unify_labels.py",
+        coarse = "results/aggregate/full_coarse_labels.parquet",
+        immune = f"{FULL}/immune_subtypes_rescued.parquet",
+        stroma = f"{FULL}/stroma_subtypes_rescued.parquet",
+    output:
+        labels  = "results/aggregate/full_labels.parquet",
+        summary = "results/aggregate/full_labels_summary.tsv",
+    threads: 1
+    log:
+        "logs/aggregate/unify_labels.log",
+    shell:
+        "{PYSCVI} {input.script} {input.coarse} {input.immune} {input.stroma} "
+        "{output.labels} {output.summary} > {log} 2>&1"
 
 # --- Track 1: cell-type composition (M02 day2 propeller test + M01 descriptive) ---
 rule composition:
@@ -215,7 +399,7 @@ rule composition:
 rule pseudobulk_build:
     input:
         script = "scripts/aggregate/pseudobulk_build.R",
-        rds    = f"{AGG}/merged_typed.rds",
+        rds    = f"{AGG}/merged.rds",   # re-pointed off the deleted merged_typed.rds (count-only consumer; labels from full_labels.parquet)
         labels = "results/aggregate/full_labels.parquet",
     output:
         se = f"{AGG}/pseudobulk_se.rds",
@@ -262,7 +446,7 @@ rule gsea:
 rule pathway_summary:
     input:
         script = "scripts/aggregate/pathway_summary.R",
-        rds    = f"{AGG}/merged_typed.rds",
+        rds    = f"{AGG}/merged.rds",   # re-pointed off the deleted merged_typed.rds (count-only consumer; labels from full_labels.parquet)
         labels = "results/aggregate/full_labels.parquet",
         yaml   = "config/pathway_gene_lists.yaml",
     output:
@@ -304,7 +488,7 @@ rule build_gene_sets:
 rule panel_coverage:
     input:
         script = "scripts/aggregate/panel_coverage.R",
-        rds    = f"{AGG}/merged_typed.rds",
+        rds    = f"{AGG}/merged.rds",   # re-pointed off the deleted merged_typed.rds (count-only consumer; labels from full_labels.parquet)
         labels = "results/aggregate/full_labels.parquet",
         yaml   = "config/pathway_gene_lists.yaml",
     output:
