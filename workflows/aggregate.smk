@@ -19,7 +19,7 @@ MASTER  = config["samplesheet"]                  # results/data_model/samples.ts
 AGG     = f"{DATADIR}/aggregate"                  # heavy intermediates
 FULL    = f"{AGG}/full"                           # tier-1/2 typing intermediate dir
 SCORED  = f"{DATADIR}/processing/scored"          # per-sample inputs
-PANEL   = "results/processing/common_genes.tsv"   # 950 shared-panel gene list
+PANEL   = "results/data_model/common_genes.tsv"   # 950 shared-panel gene list (built in data_model.smk)
 MARKERS = "config/lineage_markers.yaml"           # coarse + tier-2 lineage marker sets
 # Raw inputs for negprobe recovery (dropped during 950-gene harmonization):
 M01_META = f"{DATADIR}/inputs/mutter01/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"

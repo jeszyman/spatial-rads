@@ -1,5 +1,5 @@
 # Coarse cell-lineage marker sets for DE-ANCHORED cell typing (plan-processing-pipeline.md v2.0).
-# Every gene is verified present in results/processing/common_genes.tsv (the M01 1000 INT M02 972
+# Every gene is verified present in results/data_model/common_genes.tsv (the M01 1000 INT M02 972
 # common ~950-gene panel) -- a marker absent from the panel silently weakens its lineage, so unlike
 # config/pathway_gene_lists.yaml (which lets scoring drop absentees) these are pre-filtered.
 #
