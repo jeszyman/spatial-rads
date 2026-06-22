@@ -14,6 +14,14 @@ Brainstormed and full-panel-reviewed 2026-06-02. Companion to
 `plan-aggregate.md` (the upstream cell-typing this consumes) and
 `plan-processing-pipeline.md` (the per-sample pipeline beneath that).
 
+> **FRAMING SUPERSEDED 2026-06-22 by `plan-mbrt-vs-sbrt-reanalysis.md`.** The "MBRT
+> essentially null" reading below is **reframed**: MBRT's response is **spatially localized to
+> the beam peaks** (the M01 4h peak/valley work already found a 37-gene MHC-I/IFN/damage
+> signature) and is *averaged out* at whole-compartment scale — a **dilution, not a biological
+> null**. The reanalysis keeps all three contrasts effect-size-forward, makes panel coverage
+> symmetric, and gates the resolving spatial analysis on M02 peak/valley staining (absent). This
+> doc remains the run-record of the executed layer.
+>
 > **STATUS — EXECUTED (2026-06-03).** The full layer ran and is committed on
 > `main` (the 15-task build; commits `ce660ca`..`b8be903`. The spent
 > implementation checklist `plan-mbrt-vs-sbrt-impl.md` was removed once executed —

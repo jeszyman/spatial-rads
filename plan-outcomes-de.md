@@ -1,5 +1,11 @@
 # Planning brief — aggregate DE → clinically relevant outcomes
 
+> **Harmonization note (2026-06-22):** the DE findings recorded below are on PRE-atlas labels and
+> pre-reframe. The current canonical MBRT/SBRT framing is `plan-mbrt-vs-sbrt-reanalysis.md` (MBRT
+> arm-level result is spatial *dilution*, not a null; all 3 contrasts effect-size-forward; spatial
+> gated on M02 staining). This brief is a still-open *outcomes/clinical-relevance* direction —
+> distinct from the mechanism reanalysis; re-pull any numbers against the reproducible labels.
+
 **Status: plan-of-plan (handoff seed, NOT a committed plan).** Hand off to a
 fresh session to brainstorm + devils-advocate before writing a real
 `plan-*.md`. Captures context from the 2026-05-31 discussion so planning can

@@ -1,5 +1,11 @@
 # Autonomous Run: MBRT Peak/Valley Signature Persistence and Replication
 
+> **This is the deferred SPATIAL track** that `plan-mbrt-vs-sbrt-reanalysis.md` names as the
+> instrument which actually *resolves* MBRT (dose-confound-immune because it is within-slide at
+> fixed total dose). **Gated on peak/valley staining: present for M01 4h (H2AX), ABSENT for the
+> M02 inference cohort** — so M02 spatial cannot run until that staining arrives. The arm-level
+> reanalysis *bounds* MBRT; this track *resolves* it.
+
 ## v2.0 — use external-atlas typing, not M01 TransferData (2026-05-31)
 
 The "Cell type annotation" step below currently specifies TransferData from a

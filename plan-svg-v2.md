@@ -1,5 +1,9 @@
 # Planning brief — spatially-variable-gene analysis v2
 
+> **Spatial axis of the deferred MBRT track** (see `plan-mbrt-vs-sbrt-reanalysis.md`). The continuous
+> `dist_to_peak` / beam-frequency method needs peak/valley localization — available for M01 4h,
+> **absent for the M02 inference cohort** (the staining gate). Runs on M01 now; M02 awaits staining.
+
 **Status: plan-of-plan (handoff seed, NOT a committed plan).** Hand off to a
 fresh session to brainstorm + devils-advocate before writing a real
 `plan-*.md`. Captures the 2026-05-31 audit of the v1 one-shot so planning can
