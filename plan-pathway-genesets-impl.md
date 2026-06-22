@@ -8,6 +8,10 @@
 
 **Tech Stack:** Snakemake (driver in `basecamp` env), R via `conda run -n spatial-rads Rscript` (data.table, yaml, arrow, Seurat, UCell, msigdbr, fgsea). Spec: `plan-pathway-genesets.md`.
 
+> **STATUS (2026-06-22) — PHASE 1 COMPLETE, committed + pushed.** Tasks 1–5 done across commits `0ee5af6` (T1), `0c85dd0` (T2), `3b3f567` (T3), `0f6cbee` (T4), `12bc1d3` (T5), plus `7d7b201` (these plan docs). Verified: artifacts `common_genes.tsv` (950, invariance held) / `pathway_sets.tsv` (54 usable sets) / `gene_set_panel_coverage.tsv` (msigdbr 26.1.0, 58 logged) built + git-tracked; tier-1 freeze and panel-invariance guards fire; gene-set equivalence old-vs-new passes on all 54 shared sets (only the 4 gate-excluded thin Hallmark sets differ, by design); `msigdbr` confined to `scripts/build_gene_sets.R`; `data_model`/`processing` dry-runs clean, `aggregate` resolves with the audit `build_gene_sets` rule retired.
+>
+> **PHASE 2 (Task 6) NOT STARTED** — gated on the aggregate rebuild (`plan-aggregate-refactor.md`): the `scored.rds`→`typed.rds` merge-input change must run *with* that rebuild, not piecemeal against the locked aggregate. Code edits are stageable anytime; the run waits so the merge re-runs once. The plan's live numeric reproduction (execute `gsea.R`/`pathway_summary.R`, diff result tables) also rides that rebuild — Phase 1 validated only static gene-membership equivalence.
+
 ## Global Constraints
 
 - Snakemake invocation: `TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/<name>.smk --cores N`; dry-run before execute.
@@ -34,7 +38,7 @@
 - Produces: `results/data_model/pathway_sets.tsv` (columns `set, tier, source, gene`), `results/data_model/gene_set_panel_coverage.tsv` (columns `set, tier, source, n_total, n_panel, usable, thin`), and a header `# msigdbr_version: X.Y.Z` line in the coverage file.
 - Consumes: `config/pathway_gene_lists.yaml` (flat `name -> [genes]`, unchanged shape), `config/pathway_sets_provenance.tsv`, `results/data_model/common_genes.tsv` (from Task 2).
 
-- [ ] **Step 1: Create the provenance table** (`config/pathway_sets_provenance.tsv`)
+- [x] **Step 1: Create the provenance table** (`config/pathway_sets_provenance.tsv`)
 
 ```tsv
 set	source
@@ -48,16 +52,16 @@ Fibrosis_remodeling	hand-curated (Hallmark/canonical)
 Stromal_stress_senescence	hand-curated (Hallmark/canonical)
 ```
 
-- [ ] **Step 2: Add config knob** — append under the existing `normalize:` block in `config/config.yaml`:
+- [x] **Step 2: Add config knob** — append under the existing `normalize:` block in `config/config.yaml`:
 
 ```yaml
 pathway:
   min_panel_genes: 5        # tier-2 (exploratory) set kept only if >= this many genes on panel; tier-1 always kept (flagged thin)
 ```
 
-- [ ] **Step 3: Pin msigdbr** — in `config/spatial-rads-conda-env.yaml`, change the `- r-msigdbr` line to pin the currently-installed version. First read it: `conda run -n spatial-rads Rscript -e 'cat(as.character(packageVersion("msigdbr")))'`, then set e.g. `- r-msigdbr=10.0.1` (use the printed value).
+- [x] **Step 3: Pin msigdbr** — in `config/spatial-rads-conda-env.yaml`, change the `- r-msigdbr` line to pin the currently-installed version. First read it: `conda run -n spatial-rads Rscript -e 'cat(as.character(packageVersion("msigdbr")))'`, then set e.g. `- r-msigdbr=10.0.1` (use the printed value).
 
-- [ ] **Step 4: Write the generator** (`scripts/build_gene_sets.R`)
+- [x] **Step 4: Write the generator** (`scripts/build_gene_sets.R`)
 
 ```r
 #!/usr/bin/env Rscript
@@ -117,7 +121,7 @@ cat(sprintf("pathway_sets: %d primary + %d hallmark; %d usable, %d excluded (log
             uniqueN(prim_dt$set), uniqueN(hm_dt$set), length(keep), cov[usable==FALSE, .N]))
 ```
 
-- [ ] **Step 5: Smoke-test the generator standalone** (panel not yet at the new path — point at the current one for now):
+- [x] **Step 5: Smoke-test the generator standalone** (panel not yet at the new path — point at the current one for now):
 
 Run:
 ```bash
@@ -128,7 +132,7 @@ conda run -n spatial-rads Rscript scripts/build_gene_sets.R \
 ```
 Expected: prints `# msigdbr_version:` header, tier values `{primary, exploratory}`, ~58 sets total, no error.
 
-- [ ] **Step 6: Verify the tier-1 freeze guard fires** — temporarily add a junk gene to a scratch yaml copy and confirm... actually the freeze guard lives in Task 2's panel rule? No — re-read: tier-1 freeze means generated primary == committed yaml. Since the generator READS the yaml, primary always matches its own input. The freeze guard belongs at the **commit boundary**: the yaml is git-tracked, so any membership change shows in `git diff`. Add an explicit check instead: assert generated primary genes `setequal` the committed `config/pathway_gene_lists.yaml` via git:
+- [x] **Step 6: Verify the tier-1 freeze guard fires** — temporarily add a junk gene to a scratch yaml copy and confirm... actually the freeze guard lives in Task 2's panel rule? No — re-read: tier-1 freeze means generated primary == committed yaml. Since the generator READS the yaml, primary always matches its own input. The freeze guard belongs at the **commit boundary**: the yaml is git-tracked, so any membership change shows in `git diff`. Add an explicit check instead: assert generated primary genes `setequal` the committed `config/pathway_gene_lists.yaml` via git:
 
 Append to `scripts/build_gene_sets.R` after the completeness guard:
 ```r
@@ -145,7 +149,7 @@ if (!is.null(committed)) {
 ```
 (Move the `%||%` definition to the top of the script.) Re-run Step 5; expect no error.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 repo-commit "feat(genesets): tier-structured gene-set generator + provenance + msigdbr pin" \
@@ -163,7 +167,7 @@ repo-commit "feat(genesets): tier-structured gene-set generator + provenance + m
 - Consumes: `results/data_model/samples.tsv` (cols `name, raw_input_path`).
 - Produces: `results/data_model/common_genes.tsv` (950 lines).
 
-- [ ] **Step 1: Rewrite `scripts/common_gene_panel.R`**
+- [x] **Step 1: Rewrite `scripts/common_gene_panel.R`**
 
 ```r
 #!/usr/bin/env Rscript
@@ -197,13 +201,13 @@ dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
 writeLines(common, OUT)
 ```
 
-- [ ] **Step 2: Move the committed snapshot to the new path (preserve git history)**
+- [x] **Step 2: Move the committed snapshot to the new path (preserve git history)**
 
 ```bash
 git mv results/processing/common_genes.tsv results/data_model/common_genes.tsv
 ```
 
-- [ ] **Step 3: Test the rewritten script reproduces the panel**
+- [x] **Step 3: Test the rewritten script reproduces the panel**
 
 Run:
 ```bash
@@ -212,7 +216,7 @@ TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n spatial-rads Rscript \
 ```
 Expected: `common: 950`, no invariance error, `git diff --stat results/data_model/common_genes.tsv` shows no content change.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 repo-commit "fix(panel): read M01/M02 genes from RDS + invariance guard; relocate to results/data_model" \
@@ -230,7 +234,7 @@ repo-commit "fix(panel): read M01/M02 genes from RDS + invariance guard; relocat
 **Interfaces:**
 - Produces (DAG): `results/data_model/{common_genes.tsv, pathway_sets.tsv, gene_set_panel_coverage.tsv}`.
 
-- [ ] **Step 1: Add rules + targets to `workflows/data_model.smk`** (after `make_data_model`):
+- [x] **Step 1: Add rules + targets to `workflows/data_model.smk`** (after `make_data_model`):
 
 ```python
 rule all:
@@ -268,9 +272,9 @@ rule build_gene_sets:
 ```
 Also add to `config/config.yaml` under `pathway:` a `gene_lists: config/pathway_gene_lists.yaml` key (so `config["pathway"]["gene_lists"]` resolves). The `rule all` `input:` replaces the existing single-line `all`.
 
-- [ ] **Step 2: Remove the panel rule from `processing.smk`** — delete the `rule common_gene_panel:` block (the `{RSCRIPT} scripts/common_gene_panel.R {input.ss} {output}` rule). Leave `GENES` for Task 4.
+- [x] **Step 2: Remove the panel rule from `processing.smk`** — delete the `rule common_gene_panel:` block (the `{RSCRIPT} scripts/common_gene_panel.R {input.ss} {output}` rule). Leave `GENES` for Task 4.
 
-- [ ] **Step 3: Dry-run data_model**
+- [x] **Step 3: Dry-run data_model**
 
 Run:
 ```bash
@@ -279,11 +283,11 @@ TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake \
 ```
 Expected: lists `common_gene_panel`, `build_gene_sets`; no cycle/`MissingInputException`.
 
-- [ ] **Step 4: Execute data_model (produces the artifacts)**
+- [x] **Step 4: Execute data_model (produces the artifacts)**
 
 Run the same command without `--dry-run --cores 1`. Expected: `common_genes.tsv` unchanged (invariance passes), `pathway_sets.tsv` + coverage written.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 repo-commit "feat(data_model): generate common panel + tiered gene sets as Stage-A artifacts" \
@@ -301,17 +305,17 @@ repo-commit "feat(data_model): generate common panel + tiered gene sets as Stage
 - `scripts/adapt_mutter01.R`, `scripts/adapt_mutter02.R`, `scripts/probe_qc.R`, `scripts/build_celltype_reference.R`, `scripts/aggregate/prepare_reference.R` (header arg comments only — the path is passed in; update any hardcoded default)
 - `config/lineage_markers.yaml` (the verification comment, L2)
 
-- [ ] **Step 1: Find every reference**
+- [x] **Step 1: Find every reference**
 
 Run: `grep -rn "results/processing/common_genes.tsv\|processing/common_genes" workflows/ scripts/ config/`
 
-- [ ] **Step 2: Replace each occurrence** with `results/data_model/common_genes.tsv` (the workflows pass `GENES`/`PANEL` as args, so this is the var definition + any comment/default).
+- [x] **Step 2: Replace each occurrence** with `results/data_model/common_genes.tsv` (the workflows pass `GENES`/`PANEL` as args, so this is the var definition + any comment/default).
 
-- [ ] **Step 3: Verify no stale refs**
+- [x] **Step 3: Verify no stale refs**
 
 Run: `grep -rn "processing/common_genes" workflows/ scripts/ config/` → expect no output.
 
-- [ ] **Step 4: Dry-run processing + aggregate to confirm the DAG still resolves**
+- [x] **Step 4: Dry-run processing + aggregate to confirm the DAG still resolves**
 
 Run:
 ```bash
@@ -320,7 +324,7 @@ TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s wo
 ```
 Expected: no `MissingInputException`. (If aggregate dry-run flags unrelated pre-existing gaps per `plan-aggregate-refactor.md`, note them but they are out of scope.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 repo-commit "refactor: point panel consumers at results/data_model/common_genes.tsv" \
@@ -341,7 +345,7 @@ repo-commit "refactor: point panel consumers at results/data_model/common_genes.
 - Consumes: `results/data_model/pathway_sets.tsv` (`set, tier, source, gene`).
 - A shared reconstruction replaces the `read_yaml + msigdbr` block: build `all_sets` (named list) and `set_meta` (`pathway/pathway_name, pathway_source, tier`) from the TSV.
 
-- [ ] **Step 1: Define the replacement block** (used in gsea.R and pathway_summary.R). For `gsea.R`, replace lines 28-37 (the `prim_lists`…`set_size_full` construction and the `library(msigdbr)`) with:
+- [x] **Step 1: Define the replacement block** (used in gsea.R and pathway_summary.R). For `gsea.R`, replace lines 28-37 (the `prim_lists`…`set_size_full` construction and the `library(msigdbr)`) with:
 
 ```r
 # --- gene sets: tier-structured artifact (single source of truth) ---
@@ -353,7 +357,7 @@ set_size_full <- vapply(all_sets, length, integer(1))
 ```
 Remove `library(msigdbr)` from the `suppressPackageStartupMessages` block. Rename `yaml_path <- args[2]` to `sets_path <- args[2]`.
 
-- [ ] **Step 2: Apply the analogous edit to `pathway_summary.R`** — replace lines 51-62 (the `prim_lists`…`set_meta[, n_set_genes := ...]` block) with:
+- [x] **Step 2: Apply the analogous edit to `pathway_summary.R`** — replace lines 51-62 (the `prim_lists`…`set_meta[, n_set_genes := ...]` block) with:
 
 ```r
 gs_long  <- fread(sets_path)                      # sets_path = args[3]
@@ -363,7 +367,7 @@ set_meta[, n_set_genes := vapply(all_sets[pathway], length, integer(1))]
 ```
 Remove `library(msigdbr)`; rename `yaml_path <- args[3]` → `sets_path <- args[3]`.
 
-- [ ] **Step 3: Edit `assemble_results.R`** — it reads `yaml_p` for H1/H2/H3 gene membership (line ~38 `gs <- lapply(read_yaml(yaml_p), as.character)`). Replace with a read of the artifact filtered to primary:
+- [x] **Step 3: Edit `assemble_results.R`** — it reads `yaml_p` for H1/H2/H3 gene membership (line ~38 `gs <- lapply(read_yaml(yaml_p), as.character)`). Replace with a read of the artifact filtered to primary:
 
 ```r
 gs_dt <- fread(yaml_p)                             # now pathway_sets.tsv (renamed arg)
@@ -371,13 +375,13 @@ gs    <- split(gs_dt[tier == "primary", gene], gs_dt[tier == "primary", set])
 ```
 Rename the CLI arg/comment from `<pathway_yaml>` to `<pathway_sets>`; update the `aggregate.smk` `assemble_results` rule input accordingly.
 
-- [ ] **Step 4: Edit `panel_coverage.R`** the same way (read `pathway_sets.tsv`, `split(gene, set)`); remove any `msigdbr`/`read_yaml`.
+- [x] **Step 4: Edit `panel_coverage.R`** the same way (read `pathway_sets.tsv`, `split(gene, set)`); remove any `msigdbr`/`read_yaml`.
 
-- [ ] **Step 5: Update `workflows/aggregate.smk`** — in rules `gsea`, `pathway_summary`, `panel_coverage`, `assemble_results`: change the `yaml = "config/pathway_gene_lists.yaml"` input to `sets = "results/data_model/pathway_sets.tsv"` and the positional arg in the `shell:` line. Delete the `rule build_gene_sets:` block (now produced by data_model); update any rule that listed `results/aggregate/gene_set_panel_coverage.tsv` to consume `results/data_model/gene_set_panel_coverage.tsv` instead.
+- [x] **Step 5: Update `workflows/aggregate.smk`** — in rules `gsea`, `pathway_summary`, `panel_coverage`, `assemble_results`: change the `yaml = "config/pathway_gene_lists.yaml"` input to `sets = "results/data_model/pathway_sets.tsv"` and the positional arg in the `shell:` line. Delete the `rule build_gene_sets:` block (now produced by data_model); update any rule that listed `results/aggregate/gene_set_panel_coverage.tsv` to consume `results/data_model/gene_set_panel_coverage.tsv` instead.
 
-- [ ] **Step 6: Check the three yaml-readers** — `grep -n "pathway_gene_lists\|read_yaml\|msigdbr" scripts/contamination_qc.R scripts/qc_plots.R scripts/aggregate/tier2_stroma_ucell.R`. If a script reads `pathway_gene_lists.yaml` for **pathway** sets, repoint to `pathway_sets.tsv` + `split`. If it reads `config/lineage_markers.yaml` (typing markers), leave it — out of scope.
+- [x] **Step 6: Check the three yaml-readers** — `grep -n "pathway_gene_lists\|read_yaml\|msigdbr" scripts/contamination_qc.R scripts/qc_plots.R scripts/aggregate/tier2_stroma_ucell.R`. If a script reads `pathway_gene_lists.yaml` for **pathway** sets, repoint to `pathway_sets.tsv` + `split`. If it reads `config/lineage_markers.yaml` (typing markers), leave it — out of scope.
 
-- [ ] **Step 7: Equivalence test (the real "did it change behavior" check)** — reconstruct the set list both ways and assert identical:
+- [x] **Step 7: Equivalence test (the real "did it change behavior" check)** — reconstruct the set list both ways and assert identical:
 
 ```bash
 conda run -n spatial-rads Rscript -e '
@@ -394,15 +398,15 @@ cat(if (length(bad)==0) "EQUIVALENT\n" else paste("DIFFER:", paste(bad, collapse
 ```
 Expected: `EQUIVALENT` (the only legitimate differences are tier-2 sets excluded by the `min_panel_genes` gate, which are absent from `new` by design — they won't be in `common`).
 
-- [ ] **Step 8: Dry-run aggregate**
+- [x] **Step 8: Dry-run aggregate**
 
 Run: `TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk --dry-run`. Expected: no `msigdbr`/yaml-related MissingInput; `build_gene_sets` rule gone.
 
-- [ ] **Step 9: Confirm msigdbr fully removed from consumers**
+- [x] **Step 9: Confirm msigdbr fully removed from consumers**
 
 Run: `grep -rn "msigdbr" scripts/` → only `scripts/build_gene_sets.R`.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 repo-commit "refactor(pathway): all gene-set readers consume results/data_model/pathway_sets.tsv (no live msigdbr)" \
