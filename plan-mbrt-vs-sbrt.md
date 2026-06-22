@@ -15,8 +15,9 @@ Brainstormed and full-panel-reviewed 2026-06-02. Companion to
 `plan-processing-pipeline.md` (the per-sample pipeline beneath that).
 
 > **STATUS — EXECUTED (2026-06-03).** The full layer ran and is committed on
-> `main`; implementation tracked in `plan-mbrt-vs-sbrt-impl.md` (all 15 tasks
-> complete). Single canonical output `results/aggregate/results_master.tsv`
+> `main` (the 15-task build; commits `ce660ca`..`b8be903`. The spent
+> implementation checklist `plan-mbrt-vs-sbrt-impl.md` was removed once executed —
+> recoverable from git history). Single canonical output `results/aggregate/results_master.tsv`
 > (32,961 tier-tagged rows; 621 confirmatory / 32,340 exploratory), produced by
 > `workflows/aggregate.smk`. **Realized result:** the dominant day-2 signal was
 > SBRT-driven stromal fibrosis (collagens + Acta2; H3 = 20 of 27 SBRT_vs_Ctrl
