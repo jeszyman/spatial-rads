@@ -17,7 +17,7 @@ DATADIR = config["datadir"]
 MASTER  = config["samplesheet"]                  # results/data_model/samples.tsv
 AGG     = f"{DATADIR}/aggregate"                  # heavy intermediates
 SCORED  = f"{DATADIR}/processing/scored"          # per-sample inputs
-CPL     = f"{DATADIR}/refs/CellProfileLibrary/Mouse/Adult"   # external atlas profiles
+CPL     = f"{DATADIR}/ref/CellProfileLibrary/Mouse/Adult"    # external atlas profiles
 PANEL   = "results/processing/common_genes.tsv"   # 950 shared-panel gene list
 # Raw inputs for negprobe recovery (dropped during 950-gene harmonization):
 M01_META = f"{DATADIR}/inputs/mutter01/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"

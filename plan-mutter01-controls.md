@@ -1,7 +1,16 @@
 # Plan: Mutter_01 raw-RDS adoption — staged control sidecar (falsecode + negprobe)
 
-**Status:** implemented (control sidecar) 2026-06-15; full raw-RDS re-base deferred — see "Deferred re-base" checklist below.
+**Status:** control sidecar implemented 2026-06-15. **Adapter re-base + data-model `format=rds` flip DONE 2026-06-22** (see "Update 2026-06-22" below) — `adapt_mutter01.R` now ingests the 4 per-slide RDS, counts verified **byte-identical** to the parquet across all 11 M01 samples. Control-retirement (`recover_negprobes.R`) and the aggregate re-run remain deferred.
 **Supersedes nothing.** Additive to the locked `aggregate.smk` typing + MBRT-vs-SBRT layer (2026-06-02/03) and the completed `processing.smk` per-sample pipeline (2026-05-30).
+
+## Update 2026-06-22 — adapter re-base executed early, decoupled from the aggregate rebuild
+
+Driven by adding CosMx-good-practice **contamination QC** to `processing.smk` (SpatialQM MECR, report-only, sample + per-FOV; new `contamination_qc` rule + `scripts/contamination_qc.R`), the raw-RDS adapter re-base was pulled forward and **decoupled** from the control-retirement work it was bundled with here:
+
+- **Done:** `adapt_mutter01.R` rewritten onto the 4 per-slide RDS (RNA counts from the RDS; `Condition` + Yi labels + shared morphology joined from the metadata parquet by reconstructed `cell_id`; `setequal()` cohort guard). `format` flipped to `rds` + per-slide `raw_input_path` in `data/metadata.xlsx` + `scripts/build_metadata_xlsx.R`. **Invariance proven:** a scratch run reproduced all 11 M01 `raw.rds` byte-identical (cells, genes, counts).
+- **Deliberately NOT done (kept lean / invariance-preserving):** negprobes+falsecode are **still dropped** from per-sample objects (controls stay in the `control_qc` sidecar / `cell_controls.parquet`, avoiding the ~194-feature memory cost); `recover_negprobes.R` + the aggregate's `cell_neg.tsv` **untouched**; `scored.rds` **not** regenerated; falsecode QC **still flag-only**.
+- **Approach divergence:** no separate committed `config/mutter01_fov_sample_map.tsv` crosswalk was built — the metadata parquet is **retained as the M01 label/condition side-input** and joined directly (also keeps `probe_qc.R`'s parquet dependency satisfied). 100% `cell_id` reconstruction asserted, no NA-fill.
+- **Armed state:** regenerating the samplesheet bumped its mtime, so `processing.smk` now *wants* to reprocess the M01 cascade (invariant outputs) and `aggregate.smk` its rebuild — both intentionally left for the deliberate frozen-seed rebuild below.
 
 ## Motivation
 
@@ -70,10 +79,10 @@ A committed checklist for this deferred work lives in the "Deferred re-base" sec
 ## Documentation surfaces to sync at execution
 (per the pilot→full doc-sync rule) — `CLAUDE.md` datasets/inputs + Analysis Architecture note; `spatial-rads.org` notebook entry; this plan's status; `plan-aggregate.md` "deferred negprobe/falsecode work" note. The org `* Plans` heading indexes this file.
 
-## Deferred re-base — checklist (for the next aggregate rebuild)
-- [ ] Build + commit `config/mutter01_fov_sample_map.tsv` (`slide_id, fov, extract_key`) from the parquet `Condition`; assert 1 condition/FOV (verified: 987 FOVs, 0 multi) + every RDS FOV mapped; record source-parquet provenance.
-- [ ] Rewrite `adapt_mutter01.R` onto raw RDS via the crosswalk; left-join Yi labels + pathway scores on the reconstructed global `cell_id`.
-- [ ] Retain `negprobes`+`falsecode` in both adapters (size the memory cost first).
-- [ ] Flip M01 `format=rds` + per-slide `raw_input_path` in `data/metadata.xlsx` + `scripts/build_metadata_xlsx.R`.
-- [ ] Retire `recover_negprobes.R`; source `neg` from the retained assay.
-- [ ] Decide falsecode FOV exclusion; if adopted, re-run the aggregate with frozen scVI/Leiden seeds.
+## Deferred re-base — checklist (updated 2026-06-22)
+- [x] ~~Build + commit `config/mutter01_fov_sample_map.tsv` crosswalk~~ — **superseded by approach:** the metadata parquet is retained as the M01 label/condition side-input and joined directly (1 condition/FOV verified: 987 FOVs, 0 multi); no separate crosswalk file needed.
+- [x] Rewrite `adapt_mutter01.R` onto raw RDS — **done 2026-06-22**, Yi labels joined on reconstructed global `cell_id`, invariance proven byte-identical.
+- [ ] Retain `negprobes`+`falsecode` on per-sample objects — **declined for now:** controls stay in the `control_qc` sidecar (memory + invariance). Revisit only if a per-object control need arises.
+- [x] Flip M01 `format=rds` + per-slide `raw_input_path` — **done 2026-06-22**.
+- [ ] Retire `recover_negprobes.R`; source `neg` from a retained assay — **still deferred** (aggregate still consumes `cell_neg.tsv`).
+- [ ] Decide falsecode FOV exclusion; if adopted, re-run the aggregate with frozen scVI/Leiden seeds — **still deferred** (falsecode QC stays flag-only; aggregate not re-run).

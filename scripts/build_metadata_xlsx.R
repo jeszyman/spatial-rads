@@ -21,12 +21,12 @@ datasets <- tibble(
   panel_base    = "Mouse UCC",                                       # Mouse RNA Universal Cell Characterization
   panel_custom  = c("Alan Fields 21-gene", "1K_Mayo_Thomp-Fields1"), # same Fields add-on; M02 label is the in-object Panel build name
   assay_type    = "RNA",                                             # RNA-only; no protein-expression assay on either run
-  n_negprobe    = c(NA_integer_, 10L),   # M01 control probes stripped from delivered counts matrix (1000 gene cols only); M02 from RDS assays
-  n_falsecode   = c(NA_integer_, 184L),
+  n_negprobe    = c(10L, 10L),           # both datasets carry the 10 negprobe assays in the raw per-slide RDS
+  n_falsecode   = c(184L, 184L),         # both carry the 184 falsecode assays in the raw per-slide RDS
   provider      = c("Yi Liu / Mutter Lab", "Mutter Lab"),
-  format        = c("parquet", "rds"),
-  counts_path   = c(file.path(INPUT, "mutter01/projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet"), NA),
-  metadata_path = c(file.path(INPUT, "mutter01/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"), NA)
+  format        = c("rds", "rds"),       # M01 re-based onto per-slide raw RDS (Yi 2026-06-10); counts come from slides.input_path
+  counts_path   = c(NA, NA),             # counts now sourced from the per-slide RDS, not a monolithic counts parquet
+  metadata_path = c(file.path(INPUT, "mutter01/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"), NA)  # M01: sole source of Condition + Yi labels
 )
 
 ## slides (4 Mutter_01 physical slides + 4 Mutter_02)
@@ -35,8 +35,9 @@ slides_m01 <- tibble(
   slide_id         = sprintf("sld%04d", seq_along(m01_barcodes)),
   dataset_id       = "dat0001",
   physical_barcode = m01_barcodes,
-  input_path       = NA_character_  # monolithic parquet (see datasets.counts_path)
+  input_path       = file.path(INPUT, sprintf("mutter01/seuratObject_%02d_Mutter_01_CosMmR.RDS", seq_along(m01_barcodes)))  # per-slide raw RDS; sorted barcode _S<i> -> seuratObject_0<i>
 )
+stopifnot(grepl("_S\\d+$", m01_barcodes))  # positional barcode->RDS mapping holds only if barcodes carry the _S<i> suffix
 slides_m02 <- tibble(
   slide_id         = sprintf("sld%04d", 4 + 1:4),
   dataset_id       = "dat0002",

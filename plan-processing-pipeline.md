@@ -4,6 +4,15 @@ Session record for the consolidation of spatial-rads into reproducible Snakemake
 workflows. Captures architecture and the (heavily deliberated) decisions so they
 aren't lost. Companion to `plan-mbrt-signatures.md`.
 
+## Update 2026-06-22 — contamination QC + M01 raw-RDS ingestion
+
+Two additions to `processing.smk` (authored as org-babel blocks in `spatial-rads.org`, tangled):
+
+- **Contamination QC (new, report-only).** `contamination_qc` rule + `scripts/contamination_qc.R`: SpatialQM **MECR** (mutually-exclusive co-expression rate; Nat Biotechnol 2025, vendored in `scripts/aggregate/spatialqm_metrics.R`) over the `config/lineage_markers.yaml` lineages, computed per sample and per FOV from the post-QC objects → `results/processing/contamination_qc.tsv` + `contamination_fov_qc.tsv` (per-FOV 3-MAD flag + orthogonal triage columns: counts/features/propNeg/area, to separate segmentation contamination from necrosis/low-quality vs dense mixed biology). FastReseg/per-cell resegmentation is infeasible (no transcript coords/polygons delivered). Additive; never excludes; does not touch the typed/scored chain. Cohort is clean (MECR medians M01 0.030 / M02 0.021; 5/2469 FOVs flagged).
+- **M01 ingests from the per-slide RDS.** `adapt_mutter01.R` re-based onto the 4 raw per-slide RDS (was the MC-SOLVE counts parquet), harmonizing ingestion with M02; counts proven byte-identical to the parquet (invariance verified). Full record + remaining deferred items in `plan-mutter01-controls.md` (Update 2026-06-22).
+
+The v1/v2.0 typing notes below are unchanged: per-sample typing is still the superseded preliminary; canonical cross-dataset labels come from `aggregate.smk` (`full_labels.parquet`).
+
 ## v2.0 — De-anchored re-typing (2026-05-31)
 
 **The defect is M01-anchoring, not just the unassigned rate.** v1 types Mutter_01
@@ -392,7 +401,7 @@ Project genuinely-external profiles onto the 950 panel for *named, finer* types:
 - ImmGen panel-space CSV — **M01-derived/tainted, NOT clean external**:
   `analysis/objects/mbrt_vs_sbrt/ImmuneAtlas_ImmGen_derived_from_M01.csv`.
 - CosMx-Cell-Profiles repo — **NOT usable** (mouse = brain, 177/950 overlap):
-  `/mnt/data/projects/spatial-rads/CosMx-Cell-Profiles`.
+  `/mnt/data/projects/spatial-rads/ref/CosMx-Cell-Profiles`.
 - GeoMx MCA `MammaryGland` — **NOT downloaded** (tier 3 only):
   github.com/Nanostring-Biostats/CellProfileLibrary `Mouse/Adult`.
 - Marker sets — from literature/atlas knowledge → `config/lineage_markers.yaml` (to author).

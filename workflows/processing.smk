@@ -42,6 +42,8 @@ rule all:
         "results/processing/m01_rds_validation.tsv",
         "results/processing/control_characterization.tsv",
         "results/processing/fov_falsecode_qc.tsv",
+        "results/processing/contamination_qc.tsv",
+        "results/processing/contamination_fov_qc.tsv",
 
 # --- workflow-linked sample sheet (scoped view of the data model) ---
 rule processing_samplesheet:
@@ -102,6 +104,26 @@ rule control_qc:
         "{RSCRIPT} {input.validate} " + M01_RDS_DIR + " {input.m01_meta} {output.valid} > {log} 2>&1 && "
         "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.scatter} >> {log} 2>&1 && "
         "{RSCRIPT} {input.sidecar} " + M01_RDS_DIR + " {input.m01_meta} " + M02_RDS_DIR + " {output.cells} {output.fovqc} >> {log} 2>&1"
+
+# --- Contamination QC (report-only): SpatialQM MECR marker-bleed metric, sample + FOV grain ---
+# Additive: reads qc.rds, writes NEW TSVs -> cannot re-fire the raw->qc->norm->typed->scored chain.
+# Per-FOV table carries orthogonal triage cols (counts/propNeg/area) to separate segmentation
+# contamination from necrosis/low-quality tissue vs genuine mixed biology. NEVER excludes (report-only).
+rule contamination_qc:
+    input:
+        qc      = expand(f"{DATADIR}/processing/qc/{{s}}.qc.rds", s=ALL),
+        sqm     = "scripts/aggregate/spatialqm_metrics.R",
+        markers = "config/lineage_markers.yaml",
+        script  = "scripts/contamination_qc.R",
+    output:
+        sample = "results/processing/contamination_qc.tsv",
+        fov    = "results/processing/contamination_fov_qc.tsv",
+    threads: 1
+    log:
+        "logs/contamination_qc.log",
+    shell:
+        "{RSCRIPT} scripts/contamination_qc.R {DATADIR}/processing/qc {input.sqm} "
+        "{input.markers} {output.sample} {output.fov} > {log} 2>&1"
 
 # --- Stage B adapters: raw -> per-sample common-format Seurat ---
 rule adapt_mutter01:
