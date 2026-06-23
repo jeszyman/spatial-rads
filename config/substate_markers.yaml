@@ -1,0 +1,18 @@
+# Fibroblast resting/activated sub-state marker panels (plan-differential-robustness Fix 3a).
+# PRE-REGISTERED: committed before any sub-state DE/composition is inspected
+# (post-selection / double-dipping guard, Zhang et al. 2019 Cell Systems).
+#
+# All genes verified present on the 950-gene CosMx panel 2026-06-23
+# (Postn/Fap/Dpt/Thy1/Sparc are OFF-panel and therefore excluded).
+#
+# Specificity anchors (Col5a1/Col5a3, type V collagen) are fibroblast-specific and
+# ABSENT from the SmoothMuscle lineage panel (Acta2/Myh11/Tagln/Myl9/Actg2/Carmn/Tpm2),
+# so an Acta2/Tagln-driven smooth-muscle-bleed cell cannot be mislabelled "activated"
+# unless it also carries fibroblast-specific activated-matrix signal.
+fibroblast:
+  resting:    [Pdgfra, Dcn, Lum, Gsn, Col14a1, Cd34]
+  activated:  [Acta2, Tagln, Fn1, Col1a1, Col3a1]
+  specificity_anchor: [Col5a1, Col5a3]
+  gate:
+    min_signal_to_bg: 2.0          # activated-group enrichment (vs resting) required on activated markers AND >=1 anchor
+    min_activated_cells: 100       # below this the split is not attempted
