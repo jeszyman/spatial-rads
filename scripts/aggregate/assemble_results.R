@@ -25,7 +25,7 @@
 suppressPackageStartupMessages({ library(data.table) })
 a <- commandArgs(trailingOnly = TRUE)
 comp_p <- a[1]; de_p <- a[2]; gsea_p <- a[3]; pw_p <- a[4]; ni_p <- a[5]
-mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; out_p <- a[10]
+mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; det_p <- a[11]; out_p <- a[12]
 
 IMMUNE   <- c("T cells","NK cells","ILC","Plasma cells","Macrophages","DC",
               "Mast cells","Neutrophils")
@@ -37,6 +37,7 @@ H3_PROG  <- c("Fibrosis_remodeling","Stromal_stress_senescence")
 
 # Primary (curated) sets from the tier-structured artifact; H1/H2/H3 picked by name.
 gs_dt <- fread(sets_p)                                   # set, tier, source, gene
+cov_dt <- fread(cov_p)                                   # set, tier, source, n_total, n_panel, usable, thin
 gs    <- split(gs_dt[tier == "primary", gene], gs_dt[tier == "primary", set])
 H1_GENES <- unique(unlist(gs[H1_PROG]))
 H2_GENES <- unique(unlist(gs["Angiogenesis"]))           # H2 DE: Angiogenesis only
@@ -131,10 +132,49 @@ mm <- mde_prog[match(paste(master$unit, master$feature)[ip], mde_prog$key)]
 master[ip, `:=`(mde = mm$mde, mde_scale = mm$mde_scale)]
 master[, abs_effect_lt_mde := is.finite(mde) & abs(effect) < mde]
 
+# --- detection-vs-level decomposition (Fix 2): tag every DE row regulation/fraction_shift/ambiguous ---
+dtl <- fread(det_p)
+master[, `:=`(detection_padj = NA_real_, level_padj = NA_real_,
+              mean_among_expr_max = NA_real_, call_class = NA_character_)]
+ide <- master$readout_class == "DE"
+mm  <- dtl[match(paste(master$feature, master$unit, master$contrast)[ide],
+                 paste(dtl$gene, dtl$cell_type, dtl$contrast))]
+master[ide, `:=`(detection_padj = mm$detection_padj, level_padj = mm$level_padj,
+                 mean_among_expr_max = mm$mean_among_expr_max, call_class = mm$call_class)]
+
+# --- magnitude-floored trend call + clears-MDE (devils-advocate fix) -------------
+# A direction is only a "trend" when |effect| >= MDE_FLOOR * mde; below that it is
+# noise, not signal (sub-MDE direction coherence is noise coherence).
+MDE_FLOOR <- 0.5
+master[, clears_mde := is.finite(mde) & abs(effect) >= mde]
+master[, trend_call := fifelse(!is.finite(mde) | abs(effect) < MDE_FLOOR * mde, "below-floor",
+                        fifelse(effect > 0, "up", "down"))]
+master[is.na(effect), trend_call := "na"]
+
+# --- symmetric panel coverage on every program / gsea row (no set silently protected) ---
+master[, `:=`(n_panel = NA_integer_, n_set_total = NA_integer_, panel_cov_frac = NA_real_)]
+iset <- master$readout_class %in% c("pathway", "gsea")
+mm   <- cov_dt[match(master$feature[iset], cov_dt$set)]
+master[iset, `:=`(n_panel = mm$n_panel, n_set_total = mm$n_total,
+                  panel_cov_frac = round(mm$n_panel / mm$n_total, 3))]
+
+# --- interpretability + claim-scoping flags (Fix 1 unassigned, Fix 4 MBRT dose) ---
+master[, interpretable := !(readout_class == "DE" & unit == "unassigned")]   # unassigned DE rows are grab-bag
+master[, dose_confounded := contrast == "MBRT_vs_SBRT"]                       # MBRT mean dose unrecorded
+master[, independent := !(readout_class %in% c("pathway","gsea") & feature == "STING")]  # STING ~50% shares genes with IFN sets
+
 setcolorder(master, c(COLS, "padj_confirmatory", "padj_exploratory",
-                      "mde", "mde_scale", "abs_effect_lt_mde"))
+                      "mde", "mde_scale", "abs_effect_lt_mde", "clears_mde", "trend_call",
+                      "n_panel", "n_set_total", "panel_cov_frac"))
 setorder(master, tier, readout_class, unit, contrast, feature, na.last = TRUE)
 fwrite(master, out_p, sep = "\t")
+
+# --- detectability summary (the transparent decision-gate: what is/isn't detectable) ---
+det <- master[, .(n = .N, n_clears_mde = sum(clears_mde, na.rm = TRUE),
+                  n_trend_up = sum(trend_call == "up"), n_trend_down = sum(trend_call == "down")),
+              by = .(readout_class, contrast, hypothesis, tier)]
+setorder(det, tier, readout_class, contrast, hypothesis, na.last = TRUE)
+fwrite(det, sub("results_master", "detectability_summary", out_p), sep = "\t")
 
 # --- inspect --------------------------------------------------------------------
 cat(sprintf("results_master: %d rows | confirmatory %d / exploratory %d\n",

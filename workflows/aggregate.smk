@@ -58,6 +58,9 @@ rule all:
         "results/aggregate/readout_detection_m02.tsv",
         "results/aggregate/celltype_qc_markers.tsv",
         "results/aggregate/concordance_m01_m02.tsv",
+        "results/aggregate/geneset_overlap.tsv",            # Fix 5: set-overlap diagnostic
+        "results/aggregate/fibroblast_substate.parquet",    # Fix 3: fibroblast resting/activated split
+        "results/aggregate/composition_substate_test_m02day2.tsv",  # Fix 3: sub-state propeller
         "results/aggregate/results_master.tsv",   # terminal: tier-tagged master table
 
 # --- Stage 0a: memory pilot (characterize peak RSS, choose merge strategy) ---
@@ -387,13 +390,14 @@ rule composition:
         bars       = "results/aggregate/plots/composition_m02day2_bars.png",
         forest     = "results/aggregate/plots/composition_m02day2_forest.png",
         timecourse = "results/aggregate/plots/composition_m01_timecourse.png",
+        sensitivity = "results/aggregate/composition_unassigned_sensitivity.tsv",
     threads: 1
     log:
         "logs/aggregate/composition.log",
     shell:
         "{RSCRIPT} {input.script} {input.obs} {input.labels} {output.by_sample} "
         "{output.test} {output.dropped} {output.bars} {output.forest} "
-        "{output.timecourse} > {log} 2>&1"
+        "{output.timecourse} {output.sensitivity} > {log} 2>&1"
 
 # --- Track 2: pseudobulk construction (M02 day2, sample x cell_type count sums) ---
 rule pseudobulk_build:
@@ -622,6 +626,48 @@ rule concordance_m01_m02:
         "{output.tsv} {output.scatter} > {log} 2>&1"
 
 # --- T13: tier-tagged master results table with confirmatory-family FDR ---
+rule substate_split:
+    input:
+        script  = "scripts/aggregate/substate_split.R",
+        rds     = f"{AGG}/merged.rds",
+        labels  = "results/aggregate/full_labels.parquet",
+        markers = "config/substate_markers.yaml",
+    output:
+        parquet = "results/aggregate/fibroblast_substate.parquet",
+        gate    = "results/aggregate/substate_gate_report.tsv",
+    threads: 4
+    log:
+        "logs/aggregate/substate_split.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.markers} "
+        "{output.parquet} {output.gate} > {log} 2>&1"
+
+rule substate_composition:
+    input:
+        script   = "scripts/aggregate/substate_composition.R",
+        obs      = f"{AGG}/full/obs.parquet",
+        labels   = "results/aggregate/full_labels.parquet",
+        substate = "results/aggregate/fibroblast_substate.parquet",
+    output:
+        test = "results/aggregate/composition_substate_test_m02day2.tsv",
+    threads: 1
+    log:
+        "logs/aggregate/substate_composition.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.obs} {input.labels} {input.substate} {output.test} > {log} 2>&1"
+
+rule geneset_overlap:
+    input:
+        script = "scripts/aggregate/geneset_overlap.R",
+        sets   = "results/data_model/pathway_sets.tsv",
+    output:
+        overlap = "results/aggregate/geneset_overlap.tsv",
+    threads: 1
+    log:
+        "logs/aggregate/geneset_overlap.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.sets} {output.overlap} > {log} 2>&1"
+
 rule assemble_results:
     input:
         script  = "scripts/aggregate/assemble_results.R",
@@ -635,6 +681,7 @@ rule assemble_results:
         mde     = "results/aggregate/power_mde.tsv",
         sets    = "results/data_model/pathway_sets.tsv",
         cov     = "results/data_model/gene_set_panel_coverage.tsv",
+        det     = "results/aggregate/detection_test_m02day2.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -644,4 +691,4 @@ rule assemble_results:
     shell:
         "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.sets} {input.cov} {output.master} > {log} 2>&1"
+        "{input.mde} {input.sets} {input.cov} {input.det} {output.master} > {log} 2>&1"

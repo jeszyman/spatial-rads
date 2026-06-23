@@ -25,6 +25,7 @@ out_dropped      <- args[5]
 plot_bars        <- args[6]
 plot_forest      <- args[7]
 plot_timecourse  <- args[8]
+out_sens         <- args[9]
 
 dir.create(dirname(out_test), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(plot_bars), recursive = TRUE, showWarnings = FALSE)
@@ -102,6 +103,35 @@ setcolorder(test, c("cell_type", "contrast", "log2FC_logit", "ci_low_log2",
                     "ci_high_log2", "t_stat", "pvalue", "padj", "method",
                     "n_samples_per_group", "mean_n_cells", "dataset"))
 fwrite(test, out_test, sep = "\t")
+
+# --- unassigned sensitivity (Fix 1): rerun the propeller test with unassigned dropped ---
+# Composition is a closed system, so a treatment-shifted unassigned fraction distorts every
+# labelled type. Report each labelled type's effect with vs without unassigned; flag flips.
+m2x   <- m2[cell_type != "unassigned"]
+propx <- getTransformedProps(clusters = m2x$cell_type, sample = m2x$sample_id, transform = "logit")
+tpx   <- propx$TransformedProps
+tpx   <- tpx[apply(tpx, 1, function(r) all(is.finite(r))), , drop = FALSE]
+sx    <- unique(m2x[, .(sample_id, condition, slide_id)]); setkey(sx, sample_id); sx <- sx[colnames(tpx)]
+dx    <- model.matrix(~ 0 + condition + slide_id, data = sx); colnames(dx) <- make.names(colnames(dx))
+cmx   <- makeContrasts(
+  MBRT_vs_Ctrl = conditionMBRT_day2 - conditionControl,
+  SBRT_vs_Ctrl = conditionSBRT_day2 - conditionControl,
+  MBRT_vs_SBRT = conditionMBRT_day2 - conditionSBRT_day2, levels = dx)
+fx    <- eBayes(contrasts.fit(lmFit(tpx, dx), cmx), robust = TRUE)
+excl  <- rbindlist(lapply(colnames(cmx), function(cn) {
+  tt <- topTable(fx, coef = cn, number = Inf, sort.by = "none")
+  data.table(cell_type = rownames(tt), contrast = cn,
+             log2FC_excl = tt$logFC / log(2), p_excl = tt$P.Value)
+}))
+excl[, padj_excl := p.adjust(p_excl, "BH")]
+sens <- merge(test[, .(cell_type, contrast, log2FC_incl = log2FC_logit, padj_incl = padj)],
+              excl[, .(cell_type, contrast, log2FC_excl, padj_excl)],
+              by = c("cell_type", "contrast"))
+sens[, flip := (padj_incl < 0.05) != (padj_excl < 0.05) | sign(log2FC_incl) != sign(log2FC_excl)]
+setorder(sens, contrast, cell_type)
+fwrite(sens, out_sens, sep = "\t")
+cat(sprintf("unassigned sensitivity: %d labelled-type rows, %d flip inclusion regimes\n",
+            nrow(sens), sens[flip == TRUE, .N]))
 
 # --- plot 1: M02 stacked composition bars (top-15 types + Other) ----------
 m2_bys <- by_sample[dataset == "Mutter_02"]
