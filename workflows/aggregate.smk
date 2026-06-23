@@ -426,6 +426,19 @@ rule deg_pseudobulk:
         "{RSCRIPT} {input.script} {input.se} {output.degs} {output.summary} "
         "{output.skipped} > {log} 2>&1"
 
+# --- Track 2: detection-vs-level decomposition + sparsity-aware call_class (Fix 2) ---
+rule detection_test:
+    input:
+        script = "scripts/aggregate/detection_test.R",
+        se     = f"{AGG}/pseudobulk_se.rds",
+    output:
+        det = "results/aggregate/detection_test_m02day2.tsv",
+    threads: 1
+    log:
+        "logs/aggregate/detection_test.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.se} {output.det} > {log} 2>&1"
+
 # --- Track 2 pathway: GSEA on pseudobulk stat-ranked genes (primary + Hallmark) ---
 rule gsea:
     input:
@@ -621,12 +634,14 @@ rule assemble_results:
         myeloid = "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
         mde     = "results/aggregate/power_mde.tsv",
         sets    = "results/data_model/pathway_sets.tsv",
+        cov     = "results/data_model/gene_set_panel_coverage.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
+        detect = "results/aggregate/detectability_summary.tsv",
     threads: 1
     log:
         "logs/aggregate/assemble_results.log",
     shell:
         "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.sets} {output.master} > {log} 2>&1"
+        "{input.mde} {input.sets} {input.cov} {output.master} > {log} 2>&1"
