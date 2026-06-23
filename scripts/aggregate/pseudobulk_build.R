@@ -53,8 +53,16 @@ cd[, `:=`(n_cells = n_cells,
           total_counts = total_counts,
           mean_libsize = round(total_counts / n_cells, 1))]
 
+# --- detection metrics per (gene x group): fraction expressing + level among expressers ---
+pos <- as.matrix(as(cnt > 0, "dgCMatrix") %*% G)     # 950 x Ngroups: # expressing cells
+pct_expr <- sweep(pos, 2, n_cells, "/")              # fraction of group's cells expressing
+mean_among_expr <- pb / pmax(pos, 1)                 # mean raw count among expressers
+mean_among_expr[pos == 0] <- 0
+storage.mode(pct_expr) <- "double"; storage.mode(mean_among_expr) <- "double"
+stopifnot(all(pct_expr >= 0 & pct_expr <= 1))
+
 se <- SummarizedExperiment(
-  assays  = list(counts = pb),
+  assays  = list(counts = pb, pct_expr = pct_expr, mean_among_expr = mean_among_expr),
   colData = DataFrame(cd[, .(sample_id, cell_type, condition, slide_id,
                              timepoint_h, n_cells, total_counts, mean_libsize)],
                       row.names = cd$group),
