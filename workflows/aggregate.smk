@@ -460,26 +460,39 @@ rule gsea:
 # --- Track 2 pathway: per-cell UCell + AddModuleScore scoring + M02 limma test ---
 # threads: 4 -- UCell runs ncores=4 fork (BiocParallel) parallelism, not BLAS, so the
 # threads:1 BLAS-hygiene convention is unaffected (BLAS stays pinned to 1 thread).
-rule pathway_summary:
+rule pathway_scores:
     input:
-        script = "scripts/aggregate/pathway_summary.R",
-        rds    = f"{AGG}/merged.rds",   # re-pointed off the deleted merged_typed.rds (count-only consumer; labels from full_labels.parquet)
+        script = "scripts/aggregate/pathway_scores.R",
+        rds    = f"{AGG}/merged.rds",   # count-only consumer; labels from full_labels.parquet
         labels = "results/aggregate/full_labels.parquet",
         sets   = "results/data_model/pathway_sets.tsv",
     output:
-        summary    = "results/aggregate/pathway_scores_summary.tsv",
-        test       = "results/aggregate/pathway_test_m02day2.tsv",
-        conc       = "results/aggregate/pathway_ucell_ams_concordance.tsv",
+        summary = "results/aggregate/pathway_scores_summary.tsv",
+        test    = "results/aggregate/pathway_test_m02day2.tsv",
+        conc    = "results/aggregate/pathway_ucell_ams_concordance.tsv",
+    threads: 4
+    log:
+        "logs/aggregate/pathway_scores.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.sets} "
+        "{output.summary} {output.test} {output.conc} > {log} 2>&1"
+
+# Plot half: reads the cached score/test TSVs so a plot bug can't roll back the ~5h compute.
+rule pathway_plots:
+    input:
+        script  = "scripts/aggregate/pathway_plots.R",
+        summary = "results/aggregate/pathway_scores_summary.tsv",
+        test    = "results/aggregate/pathway_test_m02day2.tsv",
+    output:
         heatmap    = "results/aggregate/plots/pathway_heatmap_m02day2.png",
         timecourse = "results/aggregate/plots/pathway_timecourse_m01.png",
         scatter    = "results/aggregate/plots/pathway_ucell_vs_ams_scatter.png",
-    threads: 4
+    threads: 1
     log:
-        "logs/aggregate/pathway_summary.log",
+        "logs/aggregate/pathway_plots.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.sets} {output.summary} "
-        "{output.test} {output.conc} {output.heatmap} {output.timecourse} "
-        "{output.scatter} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.summary} {input.test} "
+        "{output.heatmap} {output.timecourse} {output.scatter} > {log} 2>&1"
 
 # ============================================================================
 # MBRT-vs-SBRT downstream differential layer (plan-mbrt-vs-sbrt-impl.md T4-T13).
