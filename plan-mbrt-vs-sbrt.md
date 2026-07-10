@@ -36,6 +36,12 @@ Brainstormed and full-panel-reviewed 2026-06-02. Companion to
 > n=4 MDE, so most MBRT non-results are underpowered, not established nulls.
 > See the Limitations section below for realized magnitudes and the
 > dose-mismatch + spatial-dilution caveats.
+>
+> **QC CONFOUND CHECK (2026-07-10, `plan-qc-metrics.md`).** The day-2 `fraction_shift`
+> reading (more cells expressing collagen/Acta2) was checked against SpatialQM per-sample
+> technical metrics compared across arms: 5/6 balanced (SBRT neither more sensitive nor more
+> contaminated than Control; the FDR flag immaterial), replicate concordance 0.94–0.97 with 0
+> outlier slides. The composition shift is **not** a sensitivity/contamination/outlier artifact.
 
 ## Governing principle: look first
 

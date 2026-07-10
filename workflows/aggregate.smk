@@ -58,6 +58,48 @@ rule all:
         "results/aggregate/fibroblast_substate.parquet",    # Fix 3: fibroblast resting/activated split
         "results/aggregate/composition_substate_test_m02day2.tsv",  # Fix 3: sub-state propeller
         "results/aggregate/results_master.tsv",   # terminal: tier-tagged master table
+        # --- tier-2 final labels + typing QC ---
+        f"{FULL}/immune_subtypes_rescued.parquet",
+        f"{FULL}/stroma_subtypes_rescued.parquet",
+        "results/aggregate/full_labels_summary.tsv",
+        "results/aggregate/full_gates.json",
+        # --- composition ---
+        "results/aggregate/composition_by_sample.tsv",
+        "results/aggregate/composition_unassigned_sensitivity.tsv",
+        "results/aggregate/plots/composition_m02day2_bars.png",
+        "results/aggregate/plots/composition_m01_timecourse.png",
+        # --- pseudobulk DE + detection + power ---
+        "results/aggregate/deg_summary_m02day2.tsv",
+        "results/aggregate/detection_test_m02day2.tsv",
+        "results/aggregate/power_mde.tsv",
+        "results/aggregate/detectability_summary.tsv",
+        # --- pathway ---
+        "results/aggregate/pathway_ucell_ams_concordance.tsv",
+        "results/aggregate/plots/pathway_timecourse_m01.png",
+        "results/aggregate/plots/pathway_ucell_vs_ams_scatter.png",
+        # --- sub-state + celltype QC ---
+        "results/aggregate/substate_gate_report.tsv",
+        "results/aggregate/plots/celltype_qc_dotplot.png",
+        # --- niches ---
+        "results/aggregate/niche_frequency.tsv",
+        "results/aggregate/niche_test_m02day2.tsv",
+        "results/aggregate/plots/niche_frequency_m02.png",
+        "results/aggregate/plots/niche_centroids_heatmap.png",
+        # --- spatial mixing ---
+        "results/aggregate/spatial_mixing_per_sample.tsv",
+        "results/aggregate/spatial_mixing_test_m02day2.tsv",
+        "results/aggregate/plots/mixing_m02.png",
+        # --- myeloid polarization ---
+        "results/aggregate/myeloid_m1m2_scores.tsv",
+        "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
+        "results/aggregate/plots/myeloid_m1m2_m02.png",
+        # --- concordance ---
+        "results/aggregate/plots/concordance_scatter.png",
+        # --- QC: cross-arm balance + replicate reproducibility (per-sample compute in preprocessing.smk) ---
+        "results/aggregate/qc_arm_balance.tsv",
+        "results/aggregate/plots/qc_arm_balance.png",
+        "results/aggregate/qc_reproducibility.tsv",
+        "results/aggregate/plots/qc_reproducibility.png",
 
 # --- Stage 0a: memory pilot (characterize peak RSS, choose merge strategy) ---
 rule merge_pilot:
@@ -700,3 +742,38 @@ rule assemble_results:
         "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
         "{input.mde} {input.sets} {input.cov} {input.det} {output.master} > {log} 2>&1"
+
+# --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
+# technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
+# fraction shift is not a sensitivity/contamination artifact. ---
+rule agg_qc_arm_balance:
+    input:
+        script  = "scripts/aggregate/qc_arm_balance.R",
+        tech    = "results/processing/sample_tech_metrics.tsv",
+        contam  = "results/processing/contamination_qc.tsv",
+        samples = MASTER,
+    output:
+        tsv = "results/aggregate/qc_arm_balance.tsv",
+        png = "results/aggregate/plots/qc_arm_balance.png",
+    threads: 1
+    log:
+        "logs/aggregate/qc_arm_balance.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.tech} {input.contam} {input.samples} "
+        "{output.tsv} {output.png} > {log} 2>&1"
+
+# --- QC: replicate reproducibility -- per-arm pseudobulk concordance (SpatialQM getCorrelation) +
+# technical-metric PCA over the n=4/arm M02 day-2 cohort; flags an outlier slide driving an arm. ---
+rule agg_qc_reproducibility:
+    input:
+        script = "scripts/aggregate/qc_reproducibility.R",
+        se     = f"{AGG}/pseudobulk_se.rds",
+        tech   = "results/processing/sample_tech_metrics.tsv",
+    output:
+        tsv = "results/aggregate/qc_reproducibility.tsv",
+        png = "results/aggregate/plots/qc_reproducibility.png",
+    threads: 1
+    log:
+        "logs/aggregate/qc_reproducibility.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.se} {input.tech} {output.tsv} {output.png} > {log} 2>&1"

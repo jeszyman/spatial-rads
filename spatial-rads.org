@@ -1,4 +1,8 @@
 * Spatial Radiomics                                           :sci_proj_repo:
+
+kill out - =analysis/= — legacy exploratory =dev/= outputs (objects, figures, tables) from the Layer 2-3 work, superseded by =processing/= and =aggregate/= for canonical results.
+
+
 ** Plans
 - [[file:plan-aggregate.md][aggregate.smk — design, decisions, status]] — cross-sample/cross-dataset workflow. /Cell typing executed and locked (2026-06-02): scVI integration + coarse cluster-then-annotate (res=3.0, all four Q4 gates passed; tumor 48.1% / stroma 40.6% / immune 11.2%), tier-2 immune SingleR/ImmGen with marker rescue (macrophage-dominated; B cells near-absent), and tier-2 stroma UCell with marker rescue (fibroblast-dominated; endothelium and adipocytes recovered). All three tiers joined into the unified per-cell table =results/aggregate/full_labels.parquet=. See v2.5 banner. Workflow-reproducibility refactor planned (v2.6 banner, 2026-06-22): the wired DAG does not reproduce this typing; A2 full re-wire regenerates the labels + refreshes =results_master.tsv= — see =plan-aggregate-refactor.md=./
 - [[file:plan-aggregate-refactor.md][aggregate refactor — reproducibility-wiring, best-practice review, literate transfer]] — decisions resolved 2026-06-22 (=A2 full re-wire= / decision-forcing best-practice review / =C1= orchestration-only literate transfer), harmonized into a seven-step sequence: audit → method shoot-out (scVI vs scANVI/scArches on the 2-slide pilot) → wire the real ~13-node multi-env DAG (authoring =full_scvi.py=, retiring =recover_negprobes= onto the re-based M01 RDS) → full rebuild → re-validate the 4 Q4 gates → refresh =results_master.tsv= → literate transfer. Acceptance = re-validation, not byte-identity. Ground-truthed against live =aggregate.smk=: =full_labels.parquet= + =obs.parquet= are orphan inputs and the full-run scVI step is untracked.
@@ -49,6 +53,7 @@ Convergence knot: refreshing =results_master.tsv= is the shared pending delivera
 :PROPERTIES:
 :ID:       2dc86037-02c7-4b51-b806-43dcc1bc1e9f
 :END:
+- [2026-07-10 Fri] Added published imaging-ST QC metrics (SpatialQM / Plummer et al. Nat Biotechnol 2025) as report-only pipeline steps ([[file:plan-qc-metrics.md][plan-qc-metrics.md]]) — a confound check on the day-2 =fraction_shift= result. Vendored the metric algorithms (NOT the GitHub-only package + its 6 heavy Bioconductor deps) into =scripts/aggregate/spatialqm_metrics.R= (=sqm_sparsity/sqm_snr/sqm_specificity_fdr=, transcribed verbatim from pinned commit 36e1a59d4ca3; the specificityFDR reproduces exactly from summary counts). New org-tangled =preproc_sample_metrics= rule → per-sample =sample_tech_metrics.tsv= (TPC/features/sparsity/SNR/specificityFDR; negprobe background recovered exactly from =propNegative= + =nCount_RNA=, no raw-RDS re-read); new hand-authored =agg_qc_arm_balance= + =agg_qc_reproducibility= rules → =qc_arm_balance.{tsv,png}= + =qc_reproducibility.{tsv,png}=. Result (M02 day-2): 5/6 metrics BALANCED across Control/MBRT/SBRT (SBRT neither more sensitive nor more contaminated; the lone FDR flag immaterial — SBRT cleanest), per-arm pseudobulk concordance 0.94–0.97 with 0 outlier slides and no arm-separating PCA axis — the composition shift is NOT a QC artifact. Dropped entropy/complexity/dynamic-range (Tier-C + BioQC/gene-order hazards); TPN/FTC not computable (no transcript coords). =CLAUDE.md=, =plan-preprocessing.md=, =plan-mbrt-vs-sbrt.md= cross-refs updated.
 - [2026-07-10 Fri] Split the per-sample pipeline into an invariant =preprocessing.smk= (adapter → QC filter → LogNormalize + report-only QC; style-guide compliant: =preproc_= rule prefix, D_/R_ path constants, message directives, scripts as =input:= deps, strict-mode + BLAS =shell.prefix=) and DELETED per-sample cell typing + pathway scoring (5 rules + scripts) — canonical typing is cohort-scale. Per-sample terminus is now =norm.rds=; re-pointed the aggregate merge =scored.rds=→=norm.rds= (=merge.R/merge_pilot.R/coords_necrosis.R/recover_negprobes.R= + =aggregate.smk= expands) and removed the vestigial per-sample =cell_type= requirement (=full_export.R= stopifnot + obs write nulled; =merge.R= meta_cols), nulling the integration-QC benchmark label (re-base on merged labels at the next aggregate rebuild). Fixed a latent =probe_qc.R= bug the fresh run exposed (M01 gene means now read from the per-slide RDS, not the =counts_path= parquet the 2026-06-22 rds re-base set to NA). Full run verified end-to-end (51/51 steps, 23 =norm.rds=, all report-only QC); both dry-runs clean. Consolidated docs: wrote [[file:plan-preprocessing.md][plan-preprocessing.md]] absorbing + deleting =plan-processing-pipeline.md= and =plan-mutter01-controls.md=; marked =plan-pathway-genesets= Phase 2 absorbed; refreshed the Plan status ledger + Plans index; redirected broken =CLAUDE.md= links. Branch =preprocessing-split=.
 - [2026-06-22 Mon] Made =aggregate.smk= typing reproducible (=plan-aggregate-refactor.md= Steps 1–5): wired the real scVI cluster-then-annotate chain replacing the dead InSituType rules, authored the missing =full_scvi.py=; the full 3.27M-cell rebuild reproduced the locked labels BIT-IDENTICALLY (all four Q4 gates pass; every coarse + tier-2 subtype count matches). Built the M01/M02 integration-QC figures (paired unintegrated-vs-scVI UMAP + per-cluster M01/M02 composition bar + atlas). Reframed the MBRT-vs-SBRT analysis after a 4/4 devils-advocate panel: the arm-level MBRT "null" is spatial DILUTION (the real M01 4h peak signature — 37 genes, MHC-I/IFN/damage — averaged out across the valley volume), not biological absence; wrote [[file:plan-mbrt-vs-sbrt-reanalysis.md][plan-mbrt-vs-sbrt-reanalysis.md]] + impl checklist, keeping all 3 contrasts effect-size-forward, symmetric panel coverage, a detectability table, no "sparing" language; resolving spatial gated on M02 peak/valley staining + the MBRT dose physics. Harmonized the plan docs (=plan-mbrt-vs-sbrt.md= run-record banner, the two spatial seeds, =plan-pathway-genesets-impl.md= status), =CLAUDE.md=, and the =project_mbrt_mechanism_status= memory.
 - [2026-06-22 Mon] Added report-only contamination QC to =processing.smk= (=contamination_qc= rule + =scripts/contamination_qc.R=, tangled from org): SpatialQM MECR marker-bleed metric over =config/lineage_markers.yaml=, per-sample + per-FOV with necrosis/mixed-biology triage columns; FastReseg infeasible (no transcript coordinates delivered); cohort clean (MECR medians M01 0.030 / M02 0.021; 5/2469 FOVs flagged). Re-based =adapt_mutter01.R= onto the 4 per-slide RDS (M01 now ingests RDS like M02; counts verified byte-identical across all 11 samples, invariance PASS) and flipped the data model to =format=rds=; =recover_negprobes= retirement + the frozen-seed aggregate rebuild remain deferred. Swapped the panel source doc to =data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx= (Bruker LBL-11176-04; adds a Ligand-Receptor Pairs sheet; gene/annotation content identical). Wrote [[file:plan-aggregate-refactor.md][plan-aggregate-refactor.md]] (devils-advocate-restructured: quarantine the dead aggregate InSituType rules + lock =full_labels.parquet=, bounded best-practice investigation, descoped literate transfer); deleted the spent =plan-mbrt-vs-sbrt-impl.md=. Decisions later resolved same day to =A2 full re-wire= / decision-forcing best-practice review / =C1= literate, harmonized into a seven-step plan (audit → method shoot-out → wire DAG → full rebuild → re-validate → refresh =results_master.tsv= → literate); synced the gap memory note, =CLAUDE.md=, and =plan-aggregate.md= (new v2.6 banner). Ground-truthing added two findings: =obs.parquet= is a second orphan input and the full-run scVI step is untracked (no =full_scvi.py=).
@@ -275,7 +280,7 @@ sourced-conda-envs:
 
 Spatial transcriptomics originates from two [[id:ae921bef-9995-4e74-9a09-36dcbb2d5fe3][CosMx]] single-cell datasets of irradiated mouse tissue generated by the Mutter Lab (Mayo Clinic).
 
-=Mutter_01= (=dat0001=) is 4 slides of MBRT, SBRT, and control samples in flank (a 0h–6d kinetic series) and tongue (8d, 10d) models across seven timepoints, n=1 per condition, on the 1000-gene Mouse UCC (Universal Cell Characterization) panel — the base plus the Alan Fields 21-gene add-on. =Mutter_02= (=dat0002=) is 4 slides of 3 samples each (control, MBRT, and SBRT) at the 2-day timepoint, on a 972-gene Mouse UCC panel — the base plus the Mayo/Thompson-Fields custom add-on. The ~950-gene panel used for cross-dataset analysis is the intersection of the two.
+=Mutter_01= (=dat0001=) is 4 slides of MBRT, SBRT, and control samples in flank (a 0h–6d kinetic series) and tongue (8d, 10d) models across seven timepoints, n=1 per condition, on the full 1000-gene stock CosMx Mouse UCC panel. =Mutter_02= (=dat0002=) is 4 slides of 3 samples each (control, MBRT, and SBRT) at the 2-day timepoint, on a reconfigured panel of 950 stock Mouse UCC genes + 21 custom add-ons (971 total genes). The 950 stock genes common to both datasets are the cross-dataset analysis panel.
 
 #+name: tab:mutter01-samples
 #+caption: Mutter_01 flank kinetic series: one 4T1 flank tumor block per treatment by timepoint (n=1, descriptive effect sizes only). Block_21 (MBRT 4h) is the only block with gamma-H2AX IHC peak/valley ground truth. Three tongue-model samples (MBRT day8 TNG-6082, MBRT day10 TNG-1271, SBRT day10 NTB5696) are not shown.
@@ -296,111 +301,97 @@ Spatial transcriptomics originates from two [[id:ae921bef-9995-4e74-9a09-36dcbb2
 |     3 | region19 (sam0019) | region16 (sam0020) | region3 (sam0018) |
 |     4 | region20 (sam0022) | region18 (sam0023) | region1 (sam0021) |
 
+Hierarchical Data Structure
+In the spatial-rads repository
 
-The =data/= layout follows the sci_proj_repo [[id:08049f58-adcc-49b3-8e13-7697b58fe26a][Data layout]] standard: =data/= is git-tracked and holds light metadata only, while heavy data lives out-of-repo at =/mnt/data/projects/spatial-rads/=.
-
-In-repo =data/=:
-- =metadata.xlsx= — single source of truth; relational sheets =mice=, =datasets=, =slides=, =samples=, =if_channels=.
-- =metadata_schema.yaml= — Frictionless-style schema (PK, enum, FK), validated during =make_data_model.R=.
+The =data/= here contains:
+- =metadata_schema.yaml= — Frictionless-style schema of metadata
+- =metadata.xlsx= — single source of truth for external, manually entered metadata; relational sheets =mice=, =datasets=, =slides=, =samples=, =if_channels=.
 - =data_model.rda= — relational model (list of tibbles) built by the Snakemake =data_model= rule; the denormalized master sample sheet is derived to =results/data_model/samples.tsv=.
-- =sources/= — write-protected (=chmod 444=) vendor documents, named =YYYY-MM-DD-<vendor>-<kind>=.
+- =sources/= — write-protected documents used to build metadata.xlsx or otherwise referenced
 
-Out-of-repo =/mnt/data/projects/spatial-rads/=:
-- =inputs/= — raw vendor deliveries (=mutter01/=, =mutter02/=); experiment-specific and irreplaceable. Raw CosMx inputs are per-slide post-segmentation Seurat RDS files with cell x gene tables of integer counts, negative control and decoding-error probe counts, and per-cell spatial metadata.
+In gcloud bucket storage:
+- =inputs/= — raw per-slide post-segmentation Seurat RDS files with cell x gene tables of integer counts, negative control and decoding-error probe counts, and per-cell spatial metadata (=mutter01/=, =mutter02/=).
 - =ref/= — external, project-agnostic atlases (NanoString =CellProfileLibrary=, =CosMx-Cell-Profiles=); version-pinned and regenerable.
 - =processing/= and =aggregate/= — heavy derived intermediates (per-sample and merged RDS/h5ad) too large for the repo; small derived outputs go to repo =results/= instead.
-- =analysis/= — legacy exploratory =dev/= outputs (objects, figures, tables) from the Layer 2-3 work, superseded by =processing/= and =aggregate/= for canonical results.
 - =docs/= — heavy source documents (slide-layout and H2AX PPTX/PDF); =tmp/= holds session scratch (=TMPDIR=).
 
-*** Data model
+*** Data sources
+**** Metadata
+Experimental design metadata at [[file:data/metadata.xlsx][data/metadata.xlsx]]. Relational sheet capturing sample-level treatment, timepoint, and model assignments across both Mutter_01 and Mutter_02 runs.
+**** Source documents
+Write-protected vendor documents under [[file:data/sources/][data/sources/]], all received as attachments on Yi Liu's 2026-01-30 email ([[https://mail.google.com/mail/u/0/#all/19c0fac78dda6cca][Gmail thread: MutterRobert_02_CosMmR - Project Update and Timeline]]):
+
+- [[file:data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx][2026-06-22-bruker-mouse-ucc-gene-list.xlsx]] — NanoString/Bruker Mouse UCC panel documentation (doc LBL-11176-04; adds a Ligand Receptor Pairs sheet). All ~1000 genes with pathway/annotation columns (Annotations sheet drives IFN-I, IFN-II, DDR module gene lists). "Add-On" column here is NanoString's internal panel categorization — distinct from the 21 custom genes below.
+- [[file:data/sources/2026-01-30-nanostring-alan-fields-21-custom-panel-design.xlsx][2026-01-30-nanostring-alan-fields-21-custom-panel-design.xlsx]] — NanoString custom RNA probe design report (Oct 16 2024) for the 21 Alan Fields add-on genes, with per-probe sequences and isoform coverage. Canonical list of which 21 genes constitute the custom add-on: A2ml1, Adcy8, Akap5, Bcl6, Cd21, Cpne4, Dpyd, Eya4, Gstm1, Hopx, Mum1, Nrp1, Plau, Plaur, Porcn, Prkci (ex2), Scd1, Sdc1, Slc35f1, Xist, p16.
+- [[file:data/sources/2026-01-30-nanostring-alan-fields-21-custom-quote.pdf][2026-01-30-nanostring-alan-fields-21-custom-quote.pdf]] — NanoString quote for Mouse UCC + 21 custom (~$7,000). Reagents were purchased under Dr. Alan Fields' account for his mouse experiment and donated to the Mutter Lab. Included in Mutter_01; planned for Mutter_02.
+**** External reference documents
+Large reference PPTX files kept on GCS (not checked into repo due to size):
+
+- [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]] (11 MB) — Mutter_01 gamma-H2AX chromogenic IHC images on adjacent tissue sections, with FOV overlays. Ground truth for 4h peak/valley stripe geometry validation. Received from Evelyn Han (Han.Yiqun@mayo.edu) on 2025-12-08 ([[https://mail.google.com/mail/u/0/#all/19affb8105f16df7][Gmail thread: Spatial MBRT peak valley fov]]).
+- [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Mutter02_Slide Powerpoint .pptx][Mutter02_Slide Powerpoint.pptx]] (58 MB) — Mutter_02 slide layout and FOV reference images for the 4-slide × 3-sample run (0 Gy / MBRT 2d / SBRT 20 Gy 2d). Source: MutterRobert_02_CosMmR - QC results thread ([[https://mail.google.com/mail/u/0/#all/19d202d7827d05ad][Gmail thread]]).
+**** Gene panel
+CosMx Mouse Universal Cell Characterization (Mouse UCC) panel + 21 custom add-on genes originally designed by Dr. Alan Fields for his mouse experiment. See [[*Source documents][Source documents]] above for canonical panel files and the 21-gene list. Mouse UCC reference profiles for insitutype cell typing are publicly available from NanoString.
+**** IF channels
+CosMx IF channels capture protein markers on the same tissue section as RNA. Mutter_01 IF channels were used for cell segmentation and lineage, not H2AX:
+- PanCK (=Mean.PanCK=, =Max.PanCK=) — epithelial marker
+- "G" channel (=Mean.G=, =Max.G=) — unknown
+- CD298/B2M (=Mean.CD298.B2M=, =Max.CD298.B2M=) — cell segmentation marker
+- CD45 (=Mean.CD45=, =Max.CD45=) — immune cell marker
+- DAPI (=Mean.DAPI=, =Max.DAPI=) — nuclear stain
+
+Gamma-H2AX staining in PPTX ([[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]]) is separate chromogenic IHC on an adjacent section, not CosMx IF. No per-cell H2AX intensity data exists for Mutter_01. Asked Yi (2026-03-27) whether H2AX IF could be added as a channel for Mutter_02.
+
+**Morphology/segmentation images not in delivered data (2026-06-01)**: the delivered files carry only per-cell IF intensity *summaries* (=Mean.*=/=Max.*=), segmentation-derived shape morphometrics (=Area=, =Perimeter=, =Circularity=, =Eccentricity=, =Solidity=), and cell *centroids* (=x_slide_mm=/=y_slide_mm=). They do NOT contain the multichannel morphology rasters (DAPI/CD298/PanCK/CD45 TIFFs) or the Cellpose cell-boundary polygons (verified 2026-06-01: no TIFF/polygon/composite files anywhere under =inputs/=; Mutter_01 metadata parquet has no vertex columns; the Mutter_02 =FOV@boundaries= slot holds only =Centroids=, no =Segmentation= object, and =@molecules= is NULL). Consequence for the He-2022 CosMx SMI Fig 1c workflow row: the *Morphology* and *Segmentation* panels cannot be reproduced locally — they are CosMx-instrument / AtoMx-pipeline outputs. The *Cell assignment* panel reproduces fine as a centroid map colored by =cell_type= (existing example: [[file:dev/peak_valley_analysis/plots/spatial_celltype_flank.png][spatial_celltype_flank.png]]). Recreating morph/seg would require the CosMx morphology composite + polygon flat-file export (AtoMx) from Jenn — a *separate* asset from the outstanding =h2ax scanner tiff= item above, which is a chromogenic-IHC image for peak/valley registration, not the CosMx IF composite.
+**** Mutter_01 (current dataset)
+- CosMx spatial transcriptomics data from Mutter lab, generated by Yi Liu (Liu.Yi1@mayo.edu)
+- Yi performed secondary analysis: QC, sample condition labeling, cell type annotation (insitutype with ImmGen reference atlas), and signaling pathway scores
+- Delivered as processed parquet files (339.1 MB total):
+  - =projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet= — [[https://mayoclinic2.box.com/s/ywj75mz3bfhivo5bfvivoogqh5o2uu86][box]]
+  - =Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet= — [[https://mayoclinic2.box.com/s/y3dqguqwsjt15shh1opc2dw1kelc8q15][box]]
+  - Metadata columns 90-93 are signaling pathway scores (TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair). Type I IFN (19 genes), Type II IFN (17 genes), and DDR (18 genes) are NanoString standard Mouse UCC panel modules — gene lists in [[file:data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx][gene list XLSX]], Annotations sheet. STING is not a standard NanoString module; Yi may have defined it custom or from a subset of Pattern Recognition Receptors (30 genes).
+- Stored at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/=
+- Yi Liu confirmed [2026-06-10]: M01 was processed via the MC-SOLVE app, so no processed Seurat object exists — only the raw object is available (includes negprobes + falsecode). M01 carries no probes beyond the standard NanoString set; Mutter_02 adds 50 transcripts (the add-on, e.g. SCD1), so M01/M02 gene lists differ. [[https://mail.google.com/mail/u/0/#all/19ead47bf247d87c][gmail]]
+**** Mutter_02 (raw data received, 4 slides, 12 samples)
 :PROPERTIES:
-:ID:       5ece068f-b135-4897-9892-834aaa321d8b
+:ID:       908fd83a-16ee-4ca5-9e2f-074d015b652d
 :END:
-[[file:data/metadata.xlsx]]
-**** make_data_model.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/make_data_model.R
-:END:
+Confirmed sample layout per Jenn Fazzari's 2026-04-09 reply ([[https://mail.google.com/mail/u/0/#all/19d202d7827d05ad][Gmail thread: MutterRobert_02_CosMmR - QC results]]). Each slide contains three samples: 0 Gy control, MBRT 2 days, SBRT 20 Gy 2 days. **All Mutter_02 samples are at the 2-day timepoint — no 4h data in this run.** Earlier tentative designs from Rob (Jan 30) and Jenn (Mar 2) are superseded.
 
-#+begin_src R
-#!/usr/bin/env Rscript
-# Build the data model from the relational metadata.xlsx, validating against
-# metadata_schema.yaml. Emits data/data_model.rda (named list of tibbles) and the
-# master denormalized sample sheet results/data_model/samples.tsv.
-# Standalone:  conda run -n spatial-rads Rscript scripts/make_data_model.R
-# Snakemake:   via the data_model rule's script: directive
-suppressMessages({library(readxl); library(dplyr); library(readr); library(yaml)})
-`%||%` <- function(a, b) if (is.null(a)) b else a
+| Slide | Sample ID | Treatment         |
+|-------+-----------+-------------------|
+|     1 |         1 | 0 Gy              |
+|     1 |        34 | MBRT 2 days       |
+|     1 |        28 | SBRT 20 Gy 2 days |
+|     2 |         2 | 0 Gy              |
+|     2 |        35 | MBRT 2 days       |
+|     2 |        30 | SBRT 20 Gy 2 days |
+|     3 |         3 | 0 Gy              |
+|     3 |        19 | MBRT 2 days       |
+|     3 |        16 | SBRT 20 Gy 2 days |
+|     4 |         1 | 0 Gy              |
+|     4 |        20 | MBRT 2 days       |
+|     4 |        18 | SBRT 20 Gy 2 days |
 
-# positional args: xlsx schema rda samplesheet (fall back to standard paths for standalone runs)
-args   <- commandArgs(trailingOnly = TRUE)
-XLSX   <- if (length(args) >= 1) args[1] else "data/metadata.xlsx"
-SCHEMA <- if (length(args) >= 2) args[2] else "data/metadata_schema.yaml"
-RDA    <- if (length(args) >= 3) args[3] else "data/data_model.rda"
-TSV    <- if (length(args) >= 4) args[4] else "results/data_model/samples.tsv"
+**No FOV-level map**: Jenn confirmed she has no FOV maps for this run. Sample boundaries on each slide must be inferred from Seurat object metadata (sample ID or tissue region annotations) or from spatial coordinates.
 
-schema <- yaml::read_yaml(SCHEMA)
-dm <- lapply(schema$resources, function(r) readxl::read_excel(XLSX, sheet = r$control$sheet))
-names(dm) <- vapply(schema$resources, function(r) r$name, character(1))
+**H2AX IHC in process for Mutter_02**: no yH2AX included in this run, but adjacent tissue sections were cut during original sample prep. Jenn received them back from Florida on 2026-04-09 and is arranging staining at Mayo. Will enable stripe model validation on Mutter_02 once complete.
 
-## ---- schema-driven validation ----
-err <- character(0)
-norm_na <- function(x, mv) { x <- as.character(x); x[x %in% mv] <- NA; x }
-for (r in schema$resources) {
-  d <- dm[[r$name]]; mv <- r$schema$missingValues %||% character(0)
-  for (f in r$schema$fields) {
-    if (!f$name %in% names(d)) { err <- c(err, sprintf("%s: missing column '%s'", r$name, f$name)); next }
-    v <- norm_na(d[[f$name]], mv); cons <- f$constraints
-    if (isTRUE(cons$required) && anyNA(v))
-      err <- c(err, sprintf("%s.%s: %d missing required value(s)", r$name, f$name, sum(is.na(v))))
-    if (isTRUE(cons$unique) && any(duplicated(v[!is.na(v)])))
-      err <- c(err, sprintf("%s.%s: duplicate value(s)", r$name, f$name))
-    if (!is.null(cons$pattern)) {
-      bad <- v[!is.na(v) & !grepl(cons$pattern, v)]
-      if (length(bad)) err <- c(err, sprintf("%s.%s: %d value(s) fail pattern %s", r$name, f$name, length(bad), cons$pattern))
-    }
-    if (!is.null(cons$enum)) {
-      bad <- setdiff(na.omit(unique(v)), unlist(cons$enum))
-      if (length(bad)) err <- c(err, sprintf("%s.%s: value(s) outside enum: %s", r$name, f$name, paste(bad, collapse = ", ")))
-    }
-  }
-  for (fk in r$foreignKeys %||% list()) {
-    child  <- norm_na(dm[[r$name]][[fk$fields]], mv)
-    parent <- dm[[fk$reference$resource]][[fk$reference$fields]]
-    miss   <- setdiff(na.omit(unique(child)), parent)
-    if (length(miss)) err <- c(err, sprintf("%s.%s -> %s.%s unresolved: %s",
-      r$name, fk$fields, fk$reference$resource, fk$reference$fields, paste(miss, collapse = ", ")))
-  }
-}
-if (length(err)) stop("metadata_schema validation failed:\n  - ", paste(err, collapse = "\n  - "))
+**H2AX scans received [2026-06-11]**: high-res DAB OME-TIFF scans (the H2AX IHC requested) for slides 2/3/4 (samples per table above) from Jenn Fazzari, for placing peak/valley boundaries precisely on cells (the pptx export was too low-res). Images are whole-slide (uncropped — Fazzari found cropping lost resolution), with the MBRT/minibeam samples centered on each slide. Slide 1 failed to export; Fazzari to retry from her work desktop. Filed at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mutter02/h2ax/=. Jeff confirmed [2026-06-12] the whole-slide scans are high-res enough to place peak/valley boundaries on cells. [[https://mail.google.com/mail/u/0/#all/19ead47bf247d87c][gmail]]
 
-## ---- denormalized master sample sheet ----
-## sample-grain only: join the dims that resolve 1:1 to a sample (mouse, slide, dataset).
-## dataset-grain dims (e.g. if_channels, 5 rows/dataset) are deliberately NOT joined -- they
-## would row-multiply the sheet. They live in data_model.rda; query them there by dataset_id.
-master <- dm$samples %>%
-  left_join(dm$mice,     by = "mouse_id") %>%
-  left_join(dm$slides,   by = "slide_id") %>%
-  left_join(dm$datasets, by = "dataset_id") %>%
-  mutate(raw_input_path = if_else(format == "rds", input_path, counts_path)) %>%
-  relocate(sample_id, dataset_id, name, format, treatment, condition, timepoint_h, model)
+**Post-CosMx H&E received [2026-06-11]**: Jenny Kachergus (Mayo genomics core) shared high-resolution H&E images for the 4 slides stained after the CosMx run (Mutter_02_CosMmR), via Mayo Media Shuttle; Jeff confirmed receipt. Useful architectural reference given the CosMx delivery lacks morphology rasters (see the 2026-06-01 note above). [[https://mail.google.com/mail/u/0/#all/19ead47bf247d87c][gmail]]
 
-## ---- hard checks + summary ----
-stopifnot(!anyNA(master$raw_input_path[master$format == "rds"]))         # every rds sample has a slide path
-stopifnot(!anyNA(master$raw_input_path[master$format == "parquet"]))     # every parquet sample has counts path
-cat(sprintf("data model OK: %d samples, %d mice, %d slides, %d datasets\n",
-            nrow(dm$samples), nrow(dm$mice), nrow(dm$slides), nrow(dm$datasets)))
-print(as.data.frame(count(master, name, treatment)))
+**Alternative staining for later timepoints (2026-04-28)**: H2AX foci resolve by ~24-48h post-irradiation, so H2AX IHC on later timepoint blocks (day 2/6/8/10) would not show stripe geometry. If unstained adjacent sections exist for these blocks, alternative stains could provide ground truth: H&E (architectural damage), Ki67 (proliferation — expect higher in valleys per Hmgb2 finding), TUNEL or cleaved caspase-3 (cumulative apoptosis in peaks). Worth asking Jenn/Rob whether sections are available. For Mutter_02 at 48h, H2AX may still show residual signal — borderline timing.
 
-data_model <- dm
-dir.create(dirname(RDA), recursive = TRUE, showWarnings = FALSE)
-dir.create(dirname(TSV), recursive = TRUE, showWarnings = FALSE)
-save(data_model, file = RDA)
-write_tsv(master, TSV)
-cat(sprintf("wrote %s and %s\n", RDA, TSV))
-#+end_src
+Raw Seurat objects staged at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mutter02/= (copied from Box 2026-04-10): =seuratObject_01..04_Mutter_02_CosMmR.RDS= (1.0 GB total, ~2.8M cells across 1586 FOVs).
+**** Data transfer
+- Transfer mechanism: Yi uploaded via Mayo Media Shuttle (mc-ondemand-securefiletransfer.mediashuttle.com), which emails download links to recipients. GCS bucket access (=chaudhuri-lab-share-bucket1/po1-spatial=) was attempted but Yi got permission denied — never resolved. Faridi Qaium (Qaium.Faridi@mayo.edu) manages GCS bucket IAM.
+- Email threads:
+  - [[mu:msgid:BN7PR01MB371506589DEF9A3B39E2DA7896F1A@BN7PR01MB3715.prod.exchangelabs.com][mu:CosMx data transfer thread (Oct-Nov 2025)]]
+  - [[mu:msgid:BN7PR01MB37151F29CE6E18153C94469596D2A@BN7PR01MB3715.prod.exchangelabs.com][mu:Media Shuttle upload confirmation (Nov 21 2025)]]
+  - [[mu:msgid:BN7PR01MB371539912324DC0BD309549D967EA@BN7PR01MB3715.prod.exchangelabs.com][mu:MutterRobert_02 project update thread]]
 
-**** build_metadata_xlsx.R
+*** build_metadata_xlsx.R
 :PROPERTIES:
 :header-args:R: :tangle scripts/build_metadata_xlsx.R
 :END:
@@ -549,11 +540,12 @@ if (WRITE) {
 }
 #+end_src
 
-**** data_model.smk
+*** Data model
 :PROPERTIES:
 :header-args:snakemake: :tangle workflows/data_model.smk
 :END:
 
+**** Preamble
 #+begin_src snakemake
 # spatial-rads -- data model workflow (Stage A)
 # Builds the relational metadata.xlsx into data_model.rda + the master sample sheet.
@@ -562,14 +554,25 @@ if (WRITE) {
 configfile: "config/config.yaml"
 
 RSCRIPT = "conda run -n spatial-rads Rscript"
-
+#+end_src
+**** All rule
+#+begin_src snakemake
 rule all:
     input:
         config["samplesheet"],
+        "data/data_model.rda",
+        "results/data_model/panel_provenance_summary.tsv",
         "results/data_model/common_genes.tsv",
         "results/data_model/pathway_sets.tsv",
         "results/data_model/gene_set_panel_coverage.tsv",
-
+        "results/data_model/panel_provenance.tsv",
+        "results/data_model/plots/design_grid.png",
+        "results/data_model/plots/panel_provenance.png",
+        "results/data_model/plots/geneset_coverage.png",
+#+end_src
+**** Make data model                                               :smk_rule:
+- Snakemake
+#+begin_src snakemake
 rule make_data_model:
     input:
         xlsx   = config["metadata"]["xlsx"],
@@ -582,7 +585,88 @@ rule make_data_model:
     shell:
         "{RSCRIPT} scripts/make_data_model.R {input.xlsx} {input.schema} "
         "{output.rda} {output.samplesheet} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/make_data_model.R
+#!/usr/bin/env Rscript
+# Build the data model from the relational metadata.xlsx, validating against
+# metadata_schema.yaml. Emits data/data_model.rda (named list of tibbles) and the
+# master denormalized sample sheet results/data_model/samples.tsv.
+# Standalone:  conda run -n spatial-rads Rscript scripts/make_data_model.R
+# Snakemake:   via the data_model rule's script: directive
+suppressMessages({library(readxl); library(dplyr); library(readr); library(yaml)})
+`%||%` <- function(a, b) if (is.null(a)) b else a
 
+# positional args: xlsx schema rda samplesheet (fall back to standard paths for standalone runs)
+args   <- commandArgs(trailingOnly = TRUE)
+XLSX   <- if (length(args) >= 1) args[1] else "data/metadata.xlsx"
+SCHEMA <- if (length(args) >= 2) args[2] else "data/metadata_schema.yaml"
+RDA    <- if (length(args) >= 3) args[3] else "data/data_model.rda"
+TSV    <- if (length(args) >= 4) args[4] else "results/data_model/samples.tsv"
+
+schema <- yaml::read_yaml(SCHEMA)
+dm <- lapply(schema$resources, function(r) readxl::read_excel(XLSX, sheet = r$control$sheet))
+names(dm) <- vapply(schema$resources, function(r) r$name, character(1))
+
+## ---- schema-driven validation ----
+err <- character(0)
+norm_na <- function(x, mv) { x <- as.character(x); x[x %in% mv] <- NA; x }
+for (r in schema$resources) {
+  d <- dm[[r$name]]; mv <- r$schema$missingValues %||% character(0)
+  for (f in r$schema$fields) {
+    if (!f$name %in% names(d)) { err <- c(err, sprintf("%s: missing column '%s'", r$name, f$name)); next }
+    v <- norm_na(d[[f$name]], mv); cons <- f$constraints
+    if (isTRUE(cons$required) && anyNA(v))
+      err <- c(err, sprintf("%s.%s: %d missing required value(s)", r$name, f$name, sum(is.na(v))))
+    if (isTRUE(cons$unique) && any(duplicated(v[!is.na(v)])))
+      err <- c(err, sprintf("%s.%s: duplicate value(s)", r$name, f$name))
+    if (!is.null(cons$pattern)) {
+      bad <- v[!is.na(v) & !grepl(cons$pattern, v)]
+      if (length(bad)) err <- c(err, sprintf("%s.%s: %d value(s) fail pattern %s", r$name, f$name, length(bad), cons$pattern))
+    }
+    if (!is.null(cons$enum)) {
+      bad <- setdiff(na.omit(unique(v)), unlist(cons$enum))
+      if (length(bad)) err <- c(err, sprintf("%s.%s: value(s) outside enum: %s", r$name, f$name, paste(bad, collapse = ", ")))
+    }
+  }
+  for (fk in r$foreignKeys %||% list()) {
+    child  <- norm_na(dm[[r$name]][[fk$fields]], mv)
+    parent <- dm[[fk$reference$resource]][[fk$reference$fields]]
+    miss   <- setdiff(na.omit(unique(child)), parent)
+    if (length(miss)) err <- c(err, sprintf("%s.%s -> %s.%s unresolved: %s",
+      r$name, fk$fields, fk$reference$resource, fk$reference$fields, paste(miss, collapse = ", ")))
+  }
+}
+if (length(err)) stop("metadata_schema validation failed:\n  - ", paste(err, collapse = "\n  - "))
+
+## ---- denormalized master sample sheet ----
+## sample-grain only: join the dims that resolve 1:1 to a sample (mouse, slide, dataset).
+## dataset-grain dims (e.g. if_channels, 5 rows/dataset) are deliberately NOT joined -- they
+## would row-multiply the sheet. They live in data_model.rda; query them there by dataset_id.
+master <- dm$samples %>%
+  left_join(dm$mice,     by = "mouse_id") %>%
+  left_join(dm$slides,   by = "slide_id") %>%
+  left_join(dm$datasets, by = "dataset_id") %>%
+  mutate(raw_input_path = if_else(format == "rds", input_path, counts_path)) %>%
+  relocate(sample_id, dataset_id, name, format, treatment, condition, timepoint_h, model)
+
+## ---- hard checks + summary ----
+stopifnot(!anyNA(master$raw_input_path[master$format == "rds"]))         # every rds sample has a slide path
+stopifnot(!anyNA(master$raw_input_path[master$format == "parquet"]))     # every parquet sample has counts path
+cat(sprintf("data model OK: %d samples, %d mice, %d slides, %d datasets\n",
+            nrow(dm$samples), nrow(dm$mice), nrow(dm$slides), nrow(dm$datasets)))
+print(as.data.frame(count(master, name, treatment)))
+
+data_model <- dm
+dir.create(dirname(RDA), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(TSV), recursive = TRUE, showWarnings = FALSE)
+save(data_model, file = RDA)
+write_tsv(master, TSV)
+cat(sprintf("wrote %s and %s\n", RDA, TSV))
+#+end_src
+**** Common gene panel                                             :smk_rule:
+- Snakemake
+#+begin_src snakemake
 # --- common gene panel (Mutter_01 panel INT Mutter_02 panel; read from per-slide RDS) ---
 rule common_gene_panel:
     input:
@@ -594,109 +678,9 @@ rule common_gene_panel:
     log: "logs/common_gene_panel.log",
     shell:
         "{RSCRIPT} {input.script} {input.ss} {output} > {log} 2>&1"
-
-# --- tiered pathway gene-set artifact + panel coverage (single source of truth) ---
-rule build_gene_sets:
-    input:
-        script = "scripts/build_gene_sets.R",
-        yaml   = config["pathway"]["gene_lists"],
-        prov   = "config/pathway_sets_provenance.tsv",
-        panel  = "results/data_model/common_genes.tsv",
-    output:
-        sets     = "results/data_model/pathway_sets.tsv",
-        coverage = "results/data_model/gene_set_panel_coverage.tsv",
-    params:
-        minpg = config["pathway"]["min_panel_genes"],
-    threads: 1
-    log: "logs/build_gene_sets.log",
-    shell:
-        "{RSCRIPT} {input.script} {input.yaml} {input.prov} {input.panel} {params.minpg} "
-        "{output.sets} {output.coverage} > {log} 2>&1"
 #+end_src
-
-
-
-*** Data sources
-**** Metadata
-Experimental design metadata at [[file:data/metadata.xlsx][data/metadata.xlsx]]. Relational sheet capturing sample-level treatment, timepoint, and model assignments across both Mutter_01 and Mutter_02 runs.
-**** Source documents
-Write-protected vendor documents under [[file:data/sources/][data/sources/]], all received as attachments on Yi Liu's 2026-01-30 email ([[https://mail.google.com/mail/u/0/#all/19c0fac78dda6cca][Gmail thread: MutterRobert_02_CosMmR - Project Update and Timeline]]):
-
-- [[file:data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx][2026-06-22-bruker-mouse-ucc-gene-list.xlsx]] — NanoString/Bruker Mouse UCC panel documentation (doc LBL-11176-04; adds a Ligand Receptor Pairs sheet). All ~1000 genes with pathway/annotation columns (Annotations sheet drives IFN-I, IFN-II, DDR module gene lists). "Add-On" column here is NanoString's internal panel categorization — distinct from the 21 custom genes below.
-- [[file:data/sources/2026-01-30-nanostring-alan-fields-21-custom-panel-design.xlsx][2026-01-30-nanostring-alan-fields-21-custom-panel-design.xlsx]] — NanoString custom RNA probe design report (Oct 16 2024) for the 21 Alan Fields add-on genes, with per-probe sequences and isoform coverage. Canonical list of which 21 genes constitute the custom add-on: A2ml1, Adcy8, Akap5, Bcl6, Cd21, Cpne4, Dpyd, Eya4, Gstm1, Hopx, Mum1, Nrp1, Plau, Plaur, Porcn, Prkci (ex2), Scd1, Sdc1, Slc35f1, Xist, p16.
-- [[file:data/sources/2026-01-30-nanostring-alan-fields-21-custom-quote.pdf][2026-01-30-nanostring-alan-fields-21-custom-quote.pdf]] — NanoString quote for Mouse UCC + 21 custom (~$7,000). Reagents were purchased under Dr. Alan Fields' account for his mouse experiment and donated to the Mutter Lab. Included in Mutter_01; planned for Mutter_02.
-**** External reference documents
-Large reference PPTX files kept on GCS (not checked into repo due to size):
-
-- [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]] (11 MB) — Mutter_01 gamma-H2AX chromogenic IHC images on adjacent tissue sections, with FOV overlays. Ground truth for 4h peak/valley stripe geometry validation. Received from Evelyn Han (Han.Yiqun@mayo.edu) on 2025-12-08 ([[https://mail.google.com/mail/u/0/#all/19affb8105f16df7][Gmail thread: Spatial MBRT peak valley fov]]).
-- [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Mutter02_Slide Powerpoint .pptx][Mutter02_Slide Powerpoint.pptx]] (58 MB) — Mutter_02 slide layout and FOV reference images for the 4-slide × 3-sample run (0 Gy / MBRT 2d / SBRT 20 Gy 2d). Source: MutterRobert_02_CosMmR - QC results thread ([[https://mail.google.com/mail/u/0/#all/19d202d7827d05ad][Gmail thread]]).
-**** Gene panel
-CosMx Mouse Universal Cell Characterization (Mouse UCC) panel + 21 custom add-on genes originally designed by Dr. Alan Fields for his mouse experiment. See [[*Source documents][Source documents]] above for canonical panel files and the 21-gene list. Mouse UCC reference profiles for insitutype cell typing are publicly available from NanoString.
-**** IF channels
-CosMx IF channels capture protein markers on the same tissue section as RNA. Mutter_01 IF channels were used for cell segmentation and lineage, not H2AX:
-- PanCK (=Mean.PanCK=, =Max.PanCK=) — epithelial marker
-- "G" channel (=Mean.G=, =Max.G=) — unknown
-- CD298/B2M (=Mean.CD298.B2M=, =Max.CD298.B2M=) — cell segmentation marker
-- CD45 (=Mean.CD45=, =Max.CD45=) — immune cell marker
-- DAPI (=Mean.DAPI=, =Max.DAPI=) — nuclear stain
-
-Gamma-H2AX staining in PPTX ([[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]]) is separate chromogenic IHC on an adjacent section, not CosMx IF. No per-cell H2AX intensity data exists for Mutter_01. Asked Yi (2026-03-27) whether H2AX IF could be added as a channel for Mutter_02.
-
-**Morphology/segmentation images not in delivered data (2026-06-01)**: the delivered files carry only per-cell IF intensity *summaries* (=Mean.*=/=Max.*=), segmentation-derived shape morphometrics (=Area=, =Perimeter=, =Circularity=, =Eccentricity=, =Solidity=), and cell *centroids* (=x_slide_mm=/=y_slide_mm=). They do NOT contain the multichannel morphology rasters (DAPI/CD298/PanCK/CD45 TIFFs) or the Cellpose cell-boundary polygons (verified 2026-06-01: no TIFF/polygon/composite files anywhere under =inputs/=; Mutter_01 metadata parquet has no vertex columns; the Mutter_02 =FOV@boundaries= slot holds only =Centroids=, no =Segmentation= object, and =@molecules= is NULL). Consequence for the He-2022 CosMx SMI Fig 1c workflow row: the *Morphology* and *Segmentation* panels cannot be reproduced locally — they are CosMx-instrument / AtoMx-pipeline outputs. The *Cell assignment* panel reproduces fine as a centroid map colored by =cell_type= (existing example: [[file:dev/peak_valley_analysis/plots/spatial_celltype_flank.png][spatial_celltype_flank.png]]). Recreating morph/seg would require the CosMx morphology composite + polygon flat-file export (AtoMx) from Jenn — a *separate* asset from the outstanding =h2ax scanner tiff= item above, which is a chromogenic-IHC image for peak/valley registration, not the CosMx IF composite.
-**** Mutter_01 (current dataset)
-- CosMx spatial transcriptomics data from Mutter lab, generated by Yi Liu (Liu.Yi1@mayo.edu)
-- Yi performed secondary analysis: QC, sample condition labeling, cell type annotation (insitutype with ImmGen reference atlas), and signaling pathway scores
-- Delivered as processed parquet files (339.1 MB total):
-  - =projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet= — [[https://mayoclinic2.box.com/s/ywj75mz3bfhivo5bfvivoogqh5o2uu86][box]]
-  - =Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet= — [[https://mayoclinic2.box.com/s/y3dqguqwsjt15shh1opc2dw1kelc8q15][box]]
-  - Metadata columns 90-93 are signaling pathway scores (TypeI_interferon, TypeII_interferon, STING, DNA_Damage_Repair). Type I IFN (19 genes), Type II IFN (17 genes), and DDR (18 genes) are NanoString standard Mouse UCC panel modules — gene lists in [[file:data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx][gene list XLSX]], Annotations sheet. STING is not a standard NanoString module; Yi may have defined it custom or from a subset of Pattern Recognition Receptors (30 genes).
-- Stored at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/=
-- Yi Liu confirmed [2026-06-10]: M01 was processed via the MC-SOLVE app, so no processed Seurat object exists — only the raw object is available (includes negprobes + falsecode). M01 carries no probes beyond the standard NanoString set; Mutter_02 adds 50 transcripts (the add-on, e.g. SCD1), so M01/M02 gene lists differ. [[https://mail.google.com/mail/u/0/#all/19ead47bf247d87c][gmail]]
-**** Mutter_02 (raw data received, 4 slides, 12 samples)
-:PROPERTIES:
-:ID:       908fd83a-16ee-4ca5-9e2f-074d015b652d
-:END:
-Confirmed sample layout per Jenn Fazzari's 2026-04-09 reply ([[https://mail.google.com/mail/u/0/#all/19d202d7827d05ad][Gmail thread: MutterRobert_02_CosMmR - QC results]]). Each slide contains three samples: 0 Gy control, MBRT 2 days, SBRT 20 Gy 2 days. **All Mutter_02 samples are at the 2-day timepoint — no 4h data in this run.** Earlier tentative designs from Rob (Jan 30) and Jenn (Mar 2) are superseded.
-
-| Slide | Sample ID | Treatment         |
-|-------+-----------+-------------------|
-|     1 |         1 | 0 Gy              |
-|     1 |        34 | MBRT 2 days       |
-|     1 |        28 | SBRT 20 Gy 2 days |
-|     2 |         2 | 0 Gy              |
-|     2 |        35 | MBRT 2 days       |
-|     2 |        30 | SBRT 20 Gy 2 days |
-|     3 |         3 | 0 Gy              |
-|     3 |        19 | MBRT 2 days       |
-|     3 |        16 | SBRT 20 Gy 2 days |
-|     4 |         1 | 0 Gy              |
-|     4 |        20 | MBRT 2 days       |
-|     4 |        18 | SBRT 20 Gy 2 days |
-
-**No FOV-level map**: Jenn confirmed she has no FOV maps for this run. Sample boundaries on each slide must be inferred from Seurat object metadata (sample ID or tissue region annotations) or from spatial coordinates.
-
-**H2AX IHC in process for Mutter_02**: no yH2AX included in this run, but adjacent tissue sections were cut during original sample prep. Jenn received them back from Florida on 2026-04-09 and is arranging staining at Mayo. Will enable stripe model validation on Mutter_02 once complete.
-
-**H2AX scans received [2026-06-11]**: high-res DAB OME-TIFF scans (the H2AX IHC requested) for slides 2/3/4 (samples per table above) from Jenn Fazzari, for placing peak/valley boundaries precisely on cells (the pptx export was too low-res). Images are whole-slide (uncropped — Fazzari found cropping lost resolution), with the MBRT/minibeam samples centered on each slide. Slide 1 failed to export; Fazzari to retry from her work desktop. Filed at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mutter02/h2ax/=. Jeff confirmed [2026-06-12] the whole-slide scans are high-res enough to place peak/valley boundaries on cells. [[https://mail.google.com/mail/u/0/#all/19ead47bf247d87c][gmail]]
-
-**Post-CosMx H&E received [2026-06-11]**: Jenny Kachergus (Mayo genomics core) shared high-resolution H&E images for the 4 slides stained after the CosMx run (Mutter_02_CosMmR), via Mayo Media Shuttle; Jeff confirmed receipt. Useful architectural reference given the CosMx delivery lacks morphology rasters (see the 2026-06-01 note above). [[https://mail.google.com/mail/u/0/#all/19ead47bf247d87c][gmail]]
-
-**Alternative staining for later timepoints (2026-04-28)**: H2AX foci resolve by ~24-48h post-irradiation, so H2AX IHC on later timepoint blocks (day 2/6/8/10) would not show stripe geometry. If unstained adjacent sections exist for these blocks, alternative stains could provide ground truth: H&E (architectural damage), Ki67 (proliferation — expect higher in valleys per Hmgb2 finding), TUNEL or cleaved caspase-3 (cumulative apoptosis in peaks). Worth asking Jenn/Rob whether sections are available. For Mutter_02 at 48h, H2AX may still show residual signal — borderline timing.
-
-Raw Seurat objects staged at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mutter02/= (copied from Box 2026-04-10): =seuratObject_01..04_Mutter_02_CosMmR.RDS= (1.0 GB total, ~2.8M cells across 1586 FOVs).
-**** Data transfer
-- Transfer mechanism: Yi uploaded via Mayo Media Shuttle (mc-ondemand-securefiletransfer.mediashuttle.com), which emails download links to recipients. GCS bucket access (=chaudhuri-lab-share-bucket1/po1-spatial=) was attempted but Yi got permission denied — never resolved. Faridi Qaium (Qaium.Faridi@mayo.edu) manages GCS bucket IAM.
-- Email threads:
-  - [[mu:msgid:BN7PR01MB371506589DEF9A3B39E2DA7896F1A@BN7PR01MB3715.prod.exchangelabs.com][mu:CosMx data transfer thread (Oct-Nov 2025)]]
-  - [[mu:msgid:BN7PR01MB37151F29CE6E18153C94469596D2A@BN7PR01MB3715.prod.exchangelabs.com][mu:Media Shuttle upload confirmation (Nov 21 2025)]]
-  - [[mu:msgid:BN7PR01MB371539912324DC0BD309549D967EA@BN7PR01MB3715.prod.exchangelabs.com][mu:MutterRobert_02 project update thread]]
-
-**** common_gene_panel.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/common_gene_panel.R
-:END:
-
-#+begin_src R
+- R
+#+begin_src R :tangle scripts/common_gene_panel.R
 #!/usr/bin/env Rscript
 # Common gene panel = Mutter_01 panel INT Mutter_02 panel, both read from the RNA-assay
 # rownames of one per-slide raw RDS (both datasets are format=rds; the counts parquet is
@@ -730,14 +714,322 @@ if (file.exists(OUT)) {
 dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
 writeLines(common, OUT)
 #+end_src
+**** Gene sets                                                     :smk_rule:
+#+begin_src snakemake
+# --- tiered pathway gene-set artifact + panel coverage (single source of truth) ---
+rule build_gene_sets:
+    input:
+        script = "scripts/build_gene_sets.R",
+        yaml   = config["pathway"]["gene_lists"],
+        prov   = "config/pathway_sets_provenance.tsv",
+        panel  = "results/data_model/common_genes.tsv",
+    output:
+        sets     = "results/data_model/pathway_sets.tsv",
+        coverage = "results/data_model/gene_set_panel_coverage.tsv",
+    params:
+        minpg = config["pathway"]["min_panel_genes"],
+    threads: 1
+    log: "logs/build_gene_sets.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.yaml} {input.prov} {input.panel} {params.minpg} "
+        "{output.sets} {output.coverage} > {log} 2>&1"
+#+end_src
+**** Panel provenance                                              :smk_rule:
+- Snakemake
+#+begin_src snakemake
+# --- panel provenance: UCC-standard vs per-experiment custom (from the delivered objects) ---
+rule panel_provenance:
+    input:
+        script = "scripts/panel_provenance.R",
+        vendor = "data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx",
+    output:
+        membership = "results/data_model/panel_provenance.tsv",
+        summary    = "results/data_model/panel_provenance_summary.tsv",
+    params:
+        m01 = config["datadir"] + "/inputs/mutter01",
+        m02 = config["datadir"] + "/inputs/mutter02",
+    threads: 1
+    log: "logs/panel_provenance.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.vendor} {params.m01} {params.m02} "
+        "{output.membership} {output.summary} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/panel_provenance.R
+#!/usr/bin/env Rscript
 
+# -----------------------------------------------------------------------------
+# panel_provenance.R
+# Partition each dataset's delivered CosMx gene panel into UCC-standard vs custom
+# by diffing the actual object gene lists against the Bruker Mouse UCC vendor gene
+# list, and mark the cross-dataset common set. Ground truth = the data objects +
+# the vendor panel doc, NOT the hand-entered metadata panel fields.
+# Args: <vendor_ucc.xlsx> <m01_rds_dir> <m02_rds_dir> <out_membership.tsv> <out_summary.tsv>
+# -----------------------------------------------------------------------------
+
+packages <- c("Seurat", "readxl", "data.table")
+suppressPackageStartupMessages(invisible(lapply(packages, require, character.only = TRUE)))
+
+args    <- commandArgs(trailingOnly = TRUE)
+vendor  <- args[1]
+m01_dir <- args[2]
+m02_dir <- args[3]
+out_mem <- args[4]
+out_sum <- args[5]
+
+#' Genes present in a dataset's delivered per-slide object (RNA assay rownames).
+dataset_genes <- function(dir, pat) {
+  f <- list.files(dir, pattern = pat, full.names = TRUE)[1]
+  rownames(UpdateSeuratObject(readRDS(f))[["RNA"]])
+}
+
+g01 <- dataset_genes(m01_dir, "Mutter_01.*RDS$")
+g02 <- dataset_genes(m02_dir, "Mutter_02.*RDS$")
+obj_genes <- union(g01, g02)
+
+# --- vendor UCC standard set: auto-detect the gene-symbol column (max overlap) ---
+gp   <- suppressMessages(read_excel(vendor, sheet = "Gene and Probe Details", skip = 1))
+ov   <- vapply(gp, function(col) sum(as.character(col) %in% obj_genes), integer(1))
+ucc  <- unique(na.omit(as.character(gp[[which.max(ov)]])))
+ucc  <- ucc[ucc %in% obj_genes | grepl("^[A-Za-z0-9.-]+$", ucc)]  # gene-like tokens
+stopifnot(max(ov) > 500)  # sanity: the detected column really is genes
+
+# Drop platform control probes (negprobes / system controls) -- these are not genes and
+# otherwise inflate the standard count (the Mouse UCC is a 1000-plex + 10 negprobes) and
+# leak into the "custom" set (e.g. NegativeAdd).
+is_control <- function(x) {
+  grepl("^Negative[0-9]+$|^NegativeAdd$|^SystemControl|^NegPrb|^FalseCode", x, ignore.case = TRUE)
+}
+g01 <- g01[!is_control(g01)]
+g02 <- g02[!is_control(g02)]
+ucc <- ucc[!is_control(ucc)]
+
+# --- per-gene membership across UCC standard + both datasets ---
+all_g <- sort(unique(c(ucc, g01, g02)))
+mem <- data.table(
+  gene         = all_g,
+  ucc_standard = all_g %in% ucc,
+  mutter_01    = all_g %in% g01,
+  mutter_02    = all_g %in% g02)
+mem[, class := fifelse(mutter_01 & mutter_02, "common",
+                fifelse(mutter_01 | mutter_02, "dataset_specific", "ucc_only"))]
+mem[, custom := (mutter_01 | mutter_02) & !ucc_standard]   # in a dataset but not UCC standard
+fwrite(mem, out_mem, sep = "\t")
+
+# --- summary counts ---
+sm <- data.table(
+  metric = c("ucc_standard", "mutter_01_total", "mutter_02_total", "common",
+             "mutter_01_custom", "mutter_02_custom",
+             "mutter_01_missing_from_ucc", "mutter_02_missing_from_ucc"),
+  n = c(length(ucc), length(g01), length(g02), length(intersect(g01, g02)),
+        sum(mem$mutter_01 & mem$custom), sum(mem$mutter_02 & mem$custom),
+        length(setdiff(g01, ucc)), length(setdiff(g02, ucc))))
+fwrite(sm, out_sum, sep = "\t")
+print(sm)
+cat(sprintf("panel_provenance: UCC standard %d | M01 %d (custom %d) | M02 %d (custom %d) | common %d\n",
+            length(ucc), length(g01), sum(mem$mutter_01 & mem$custom),
+            length(g02), sum(mem$mutter_02 & mem$custom), length(intersect(g01, g02))))
+#+end_src
+
+**** Design grid                                                   :smk_rule:
+- Snakemake
+#+begin_src snakemake
+rule fig_design_grid:
+    input:
+        script = "scripts/fig_design_grid.R",
+        ss = config["samplesheet"],
+    output:
+        "results/data_model/plots/design_grid.png",
+    threads: 1
+    log: "logs/fig_design_grid.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.ss} {output} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/fig_design_grid.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_design_grid.R
+# Study-design grid: samples per treatment arm x timepoint, faceted by dataset x
+# model. Empty cells (grey) expose the design gaps; the fill/label is n. Reads the
+# master sample sheet only.
+# Args: <samples.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+
+args <- commandArgs(trailingOnly = TRUE)
+ss  <- args[1]
+out <- args[2]
+
+tp_lab <- c("0" = "0h", "1" = "1h", "4" = "4h", "48" = "2d",
+            "144" = "6d", "192" = "8d", "240" = "10d")
+tp_lvl <- c("0h", "1h", "4h", "2d", "6d", "8d", "10d")
+
+d <- read_tsv(ss, show_col_types = FALSE) %>%
+  mutate(
+    treatment = recode(treatment, NT = "Control"),
+    treatment = factor(treatment, levels = c("Control", "MBRT", "SBRT")),
+    tp        = factor(tp_lab[as.character(timepoint_h)], levels = tp_lvl),
+    panel     = paste0(name, " (", model, ")"))
+
+grid <- d %>%
+  count(panel, tp, treatment, name = "n") %>%
+  group_by(panel) %>%
+  complete(tp, treatment) %>%    # keep observed timepoints x all arms -> gaps show as NA
+  ungroup() %>%
+  mutate(nlab = ifelse(is.na(n), "", as.character(n)))
+
+p <- ggplot(grid, aes(treatment, fct_rev(tp), fill = n)) +
+  geom_tile(color = "white", linewidth = 0.7) +
+  geom_text(aes(label = nlab), color = "white", fontface = "bold", size = 4.2) +
+  facet_wrap(~ panel, scales = "free_y") +
+  scale_fill_viridis_c(option = "D", begin = 0.25, end = 0.9,
+                       na.value = "grey92", breaks = 1:4) +
+  labs(x = "Treatment arm", y = "Timepoint", fill = "n samples",
+       title = "Experimental design: samples per arm x timepoint",
+       subtitle = "Mutter_01 flank kinetic series (n=1) + tongue; Mutter_02 day-2 cohort (n=4/arm). Grey = no sample.") +
+  theme_bw(base_size = 12) +
+  theme(panel.grid = element_blank(), strip.text = element_text(face = "bold"))
+
+ggsave(out, p, width = 9, height = 4.5, dpi = 300)
+cat("wrote", out, "\n")
+#+end_src
+**** Panel provenance figure                                       :smk_rule:
+- Snakemake
+#+begin_src snakemake
+rule fig_panel_provenance:
+    input:
+        script = "scripts/fig_panel_provenance.R",
+        pv = "results/data_model/panel_provenance.tsv",
+    output:
+        "results/data_model/plots/panel_provenance.png",
+    threads: 1
+    log: "logs/fig_panel_provenance.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.pv} {output} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/fig_panel_provenance.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_panel_provenance.R
+# Panel provenance: per-dataset decomposition of the delivered gene panel into
+# shared-stock / dataset-only-stock / custom, against the UCC stock reference.
+# Reads the data-derived panel_provenance membership table.
+# Args: <panel_provenance.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+
+args <- commandArgs(trailingOnly = TRUE)
+pv  <- args[1]
+out <- args[2]
+
+d <- read_tsv(pv, show_col_types = FALSE)
+
+shared     <- sum(d$mutter_01 & d$mutter_02)          # 950 shared stock
+m01_only   <- sum(d$mutter_01 & !d$mutter_02)          # stock genes only in M01
+m02_custom <- sum(d$mutter_02 & d$custom)              # M02 non-stock custom
+ucc        <- sum(d$ucc_standard)                      # UCC stock size
+
+df <- tribble(
+  ~dataset,    ~category,          ~n,
+  "Mutter_01", "Shared stock",     shared,
+  "Mutter_01", "M01-only stock",   m01_only,
+  "Mutter_02", "Shared stock",     shared,
+  "Mutter_02", "M02 custom",       m02_custom) %>%
+  mutate(category = factor(category,
+                           levels = c("Shared stock", "M01-only stock", "M02 custom")))
+
+p <- ggplot(df, aes(n, fct_rev(dataset), fill = category)) +
+  geom_col(width = 0.6, color = "white") +
+  geom_vline(xintercept = ucc, linetype = "dashed", color = "grey30") +
+  annotate("text", x = ucc, y = 1.5, label = paste0("UCC stock = ", ucc),
+           hjust = 1.1, size = 3.4, color = "grey30") +
+  geom_text(aes(label = n), position = position_stack(vjust = 0.5),
+            color = "white", fontface = "bold", size = 4) +
+  scale_fill_manual(values = c("Shared stock" = "#3c78d8",
+                               "M01-only stock" = "#8e8e8e",
+                               "M02 custom" = "#e06666")) +
+  labs(x = "Genes", y = NULL, fill = NULL,
+       title = "Panel provenance: stock vs custom composition",
+       subtitle = "M01 = full 1000-gene UCC stock; M02 = 950 shared stock + 21 custom (~50 stock dropped)") +
+  theme_bw(base_size = 12) +
+  theme(panel.grid.major.y = element_blank(), legend.position = "bottom")
+
+ggsave(out, p, width = 8, height = 3.3, dpi = 300)
+cat("wrote", out, "\n")
+#+end_src
+**** Gene-set coverage                                             :smk_rule:
+- Snakemake
+#+begin_src snakemake
+rule fig_geneset_coverage:
+    input:
+        script = "scripts/fig_geneset_coverage.R",
+        cov = "results/data_model/gene_set_panel_coverage.tsv",
+    output:
+        "results/data_model/plots/geneset_coverage.png",
+    threads: 1
+    log: "logs/fig_geneset_coverage.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.cov} {output} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/fig_geneset_coverage.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_geneset_coverage.R
+# Pathway-set panel coverage: fraction of each curated confirmatory set's genes
+# present on the common panel, flagged when below the usability floor. Reads the
+# gene-set panel-coverage table. Interpretation aid: low coverage means a null in
+# that set is a panel blind spot, not necessarily biology.
+# Args: <gene_set_panel_coverage.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+
+args <- commandArgs(trailingOnly = TRUE)
+cov <- args[1]
+out <- args[2]
+
+d <- read_tsv(cov, show_col_types = FALSE, comment = "#") %>%   # drop msigdbr_version line
+  filter(tier == "primary") %>%
+  mutate(coverage = n_panel / n_total) %>%
+  arrange(coverage)
+d$set <- factor(d$set, levels = d$set)
+
+p <- ggplot(d, aes(coverage, set)) +
+  geom_segment(aes(x = 0, xend = coverage, y = set, yend = set), color = "grey70") +
+  geom_point(aes(color = thin), size = 4.5) +
+  geom_text(aes(label = sprintf("%d/%d", n_panel, n_total)), hjust = -0.35, size = 3.4) +
+  scale_x_continuous(labels = scales::percent, limits = c(0, 1.12),
+                     breaks = seq(0, 1, 0.25)) +
+  scale_color_manual(values = c("FALSE" = "#2a9d8f", "TRUE" = "#e76f51"),
+                     labels = c("FALSE" = "usable", "TRUE" = "thin (below floor)"),
+                     name = NULL) +
+  labs(x = "Fraction of set genes on the common 950-gene panel", y = NULL,
+       title = "Pathway-set panel coverage (curated confirmatory sets)",
+       subtitle = "Low coverage = a null there is a panel blind spot, not necessarily biology") +
+  theme_bw(base_size = 12) +
+  theme(panel.grid.minor = element_blank(), legend.position = "bottom")
+
+ggsave(out, p, width = 8, height = 4, dpi = 300)
+cat("wrote", out, "\n")
+#+end_src
 ** Methods
+
 - when analyzing, where is the tumor per section? should we subset?
 - each fov is 510 x 510 um, about 6k cells- confirm and add to qc
 - beam angle per slide?
 
 *** Animal model and radiation
+
 **** Mutter_01 flank series
+Balb/c
 Balb/c mice received subcutaneous flank implants of 4T1 mouse mammary carcinoma. 4T1 is a triple-negative / claudin-low breast cancer line that co-expresses epithelial markers (Krt8, Krt18, Epcam, Cdh1) and mesenchymal markers (Vim, S100a4, S100a6) natively, so the baseline expression of mesenchymal genes in tumor cells is real 4T1 biology rather than contamination. Eight blocks, one tumor per treatment × timepoint cell (n=1). Treatments: Control 0 Gy (Block_3, S2); MBRT at 1h, 4h, 2d, 6d post-treatment (Blocks 12, 21, 36, 54 on S4 and S1); SBRT at 4h, 2d, 6d (Blocks 17, 29, 48 on S4 and S2). MBRT delivers dose as approximately 1 mm-spaced parallel minibeams, producing alternating high-dose peak stripes and low-dose valley gaps across the tumor. SBRT delivers uniform high-dose coverage. Block_21 (MBRT 4h) is the only block with ground-truth peak/valley annotation because it is the only flank block with gamma-H2AX chromogenic IHC on an adjacent serial section. The Block_21 stripe geometry is −25° from horizontal, 1.04 mm spacing, 0.27 mm beam half-width, fit empirically from manual peak-FOV centroids.
 
 **** Mutter_01 tongue series (secondary study)
@@ -921,6 +1213,10 @@ rule all:
         f"{D_RES}/fov_falsecode_qc.tsv",
         f"{D_RES}/contamination_qc.tsv",
         f"{D_RES}/contamination_fov_qc.tsv",
+        f"{D_RES}/sample_tech_metrics.tsv",
+        f"{D_PROC}/cell_controls.parquet",
+        f"{D_RES}/plots/fov_falsecode_density.png",
+        f"{D_RES}/plots/qc_removal_attribution.tsv",
         f"{D_RES}/plots/qc_removal_attribution.png",
         f"{D_RES}/plots/qc_metric_distributions.png",
 #+end_src
@@ -1142,6 +1438,85 @@ dir.create(dirname(OUT_SAMPLE), recursive = TRUE, showWarnings = FALSE)
 fwrite(sample_tab, OUT_SAMPLE, sep = "\t"); fwrite(fov_tab, OUT_FOV, sep = "\t")
 cat(sprintf("contamination QC: %d samples; %d FOVs (%d valid MECR), %d flagged (report-only)\n",
             nrow(sample_tab), nrow(fov_tab), sum(!is.na(fov_tab$mecr)), sum(fov_tab$mecr_flag)))
+#+end_src
+***** Sample technical metrics                                     :smk_rule:
+- Snakemake
+#+begin_src snakemake
+# Per-sample technical-QC metrics (report-only): SpatialQM sensitivity / SNR / specificityFDR,
+# one row per sample; compared across arms downstream (aggregate qc_arm_balance).
+rule preproc_sample_metrics:
+    message: "[sample_metrics] per-sample SpatialQM technical QC"
+    input:
+        script  = f"{R_SCRIPTS}/sample_metrics.R",
+        qc      = expand(f"{D_PROC}/qc/{{s}}.qc.rds", s=ALL),
+        sqm     = f"{R_SCRIPTS}/aggregate/spatialqm_metrics.R",
+        samples = MASTER,
+    log:
+        f"{D_LOGS}/preproc_sample_metrics.log",
+    threads: 1
+    output:
+        tsv = f"{D_RES}/sample_tech_metrics.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {D_PROC}/qc {input.sqm} "
+        "{input.samples} {output.tsv} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/sample_metrics.R
+#!/usr/bin/env Rscript
+# Per-sample technical-QC metrics (report-only): published SpatialQM/Spatial Touchstone metrics
+# (Plummer/Segato-Dezem et al., Nat Biotechnol 2025; vendored in scripts/aggregate/spatialqm_metrics.R)
+# computed once per sample. One row per sample; the cross-arm driver (qc_arm_balance.R) later compares
+# these across Control/MBRT/SBRT -- the confound check on the day-2 composition (fraction-shift) result.
+#   tpc            transcripts per cell (mean), on the analyzed common panel  -- SENSITIVITY
+#   med_nFeature   genes detected per cell (median), on the analyzed panel    -- SENSITIVITY
+#   sparsity       fraction of zero entries in the gene x cell matrix         -- SENSITIVITY (twin)
+#   snr            log10 signal-to-noise vs the negprobe background           -- SpatialQM SigNoiseRatio
+#   specificity_fdr global false-discovery rate from the negprobe background  -- SpatialQM specificityFDR
+# Signal quantities come from the in-memory common-panel counts (self-consistent, = what we analyze);
+# the negprobe background is recovered EXACTLY from the per-cell control fraction:
+# propNegative = nCount_negprobes/(nCount_RNA+nCount_negprobes) => nCount_RNA*p/(1-p) = vendor negprobe
+# total per cell (no raw-RDS re-read). NEG_N (number of negprobes) from the sample sheet. Report-only.
+# Args: <qc_dir> <spatialqm_metrics.R> <samples.tsv> <out.tsv>
+suppressMessages({library(Seurat); library(data.table); library(Matrix)})
+a <- commandArgs(trailingOnly = TRUE)
+QC_DIR <- a[1]; SQM <- a[2]; SAMPLES <- a[3]; OUT <- a[4]
+source(SQM)                                            # sqm_sparsity, sqm_snr, sqm_specificity_fdr
+
+ss     <- fread(SAMPLES)
+neg_n  <- setNames(as.integer(ss$n_negprobe), as.character(ss$sample_id))   # sample_id -> NEG_N
+
+files <- sort(list.files(QC_DIR, pattern = "\\.qc\\.rds$", full.names = TRUE)); stopifnot(length(files) > 0)
+rows <- list()
+for (f in files) {
+  o  <- readRDS(f); md <- o@meta.data
+  cm <- LayerData(o, assay = "RNA", layer = "counts")
+  sid <- as.character(md$sample_id[1]); ds <- as.character(md$dataset[1])
+  NEG_N <- neg_n[[sid]]; stopifnot(is.finite(NEG_N), NEG_N > 0)
+
+  ## negprobe totals recovered exactly from the control fraction (guard p->1, absent post-QC)
+  p <- pmin(md$propNegative, 0.999)
+  neg_cell   <- md$nCount_RNA * p / (1 - p)             # = vendor nCount_negprobes per cell
+  gene_means <- Matrix::rowMeans(cm)
+  gene_total <- sum(cm)
+
+  rows[[f]] <- data.table(
+    sample_id       = sid,
+    dataset         = ds,
+    n_cells         = ncol(cm),
+    tpc             = mean(Matrix::colSums(cm)),
+    med_nFeature    = as.numeric(median(Matrix::colSums(cm > 0))),
+    sparsity        = sqm_sparsity(cm),
+    snr             = sqm_snr(gene_means, neg_bg = mean(neg_cell) / NEG_N),
+    specificity_fdr = sqm_specificity_fdr(gene_total, exp_neg = sum(neg_cell),
+                                          n_genes = nrow(cm), n_neg = NEG_N))
+  cat(sprintf("%-28s %-10s n=%7d  tpc=%6.1f  sparsity=%.3f  snr=%.3f  fdr=%.4f\n",
+              sid, ds, ncol(cm), rows[[f]]$tpc, rows[[f]]$sparsity, rows[[f]]$snr, rows[[f]]$specificity_fdr))
+  rm(o, cm); invisible(gc())
+}
+tab <- rbindlist(rows)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+fwrite(tab, OUT, sep = "\t")
+cat(sprintf("sample technical metrics: %d samples -> %s\n", nrow(tab), OUT))
 #+end_src
 ***** Mutter_01 adapter                                            :smk_rule:
 - Snakemake
@@ -4083,6 +4458,7 @@ Upon report update, the entire repo is pushed to the shared Wustl Box folder.
 - MBRT :: minibeam radiation therapy
 - SBRT ::
 * Glossary
+- Balb/c :: Albino laboratory mouse ([[https://en.wikipedia.org/wiki/BALB/c][wikipedia]], [[https://www.jax.org/strain/000651][Jackson Labs]])
 - Minibeam radiation therapy :: Spatially fractionated radiotherapy that delivers dose through an array of parallel, planar beams spaced ~0.5–1 mm apart, creating alternating high-dose "peak" stripes and low-dose "valley" gaps across the tissue.
 - Universal Cell Characterization :: NanoString CosMx RNA probe panel
 - CosMX ::

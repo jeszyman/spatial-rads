@@ -14,7 +14,7 @@ The per-sample output is a pure function of raw input + pinned config — no coh
 
 - **Adapters (dataset-specific):** `adapt_mutter01` (M01 per-slide raw RDS + Yi/Condition parquet join, split by `Condition`), `adapt_mutter02` (M02 per-slide raw RDS, negprobe/falsecode dropped, deterministic k-means y-band region assignment).
 - **Shared:** `qc_filter` (4-criteria: min_counts/min_features/max_prop_negative/area_nmads), `normalize` (LogNormalize).
-- **Report-only QC (never drops cells/genes):** `samplesheet`, `probe_qc`, `control_qc` (negprobe+falsecode characterization + per-cell `cell_controls.parquet` sidecar + flag-only per-FOV falsecode QC), `contamination_qc` (SpatialQM MECR, sample + FOV grain), `qc_report`, `qc_plots`.
+- **Report-only QC (never drops cells/genes):** `samplesheet`, `probe_qc`, `control_qc` (negprobe+falsecode characterization + per-cell `cell_controls.parquet` sidecar + flag-only per-FOV falsecode QC), `contamination_qc` (SpatialQM MECR, sample + FOV grain), `sample_metrics` (SpatialQM per-sample technical QC → `sample_tech_metrics.tsv`: TPC/features/sparsity/SNR/specificityFDR; see `plan-qc-metrics.md`), `qc_report`, `qc_plots`.
 
 ## Key decisions (folded from plan-processing-pipeline.md)
 

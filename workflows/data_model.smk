@@ -5,14 +5,18 @@
 configfile: "config/config.yaml"
 
 RSCRIPT = "conda run -n spatial-rads Rscript"
-
 rule all:
     input:
         config["samplesheet"],
+        "data/data_model.rda",
+        "results/data_model/panel_provenance_summary.tsv",
         "results/data_model/common_genes.tsv",
         "results/data_model/pathway_sets.tsv",
         "results/data_model/gene_set_panel_coverage.tsv",
-
+        "results/data_model/panel_provenance.tsv",
+        "results/data_model/plots/design_grid.png",
+        "results/data_model/plots/panel_provenance.png",
+        "results/data_model/plots/geneset_coverage.png",
 rule make_data_model:
     input:
         xlsx   = config["metadata"]["xlsx"],
@@ -25,7 +29,6 @@ rule make_data_model:
     shell:
         "{RSCRIPT} scripts/make_data_model.R {input.xlsx} {input.schema} "
         "{output.rda} {output.samplesheet} > {log} 2>&1"
-
 # --- common gene panel (Mutter_01 panel INT Mutter_02 panel; read from per-slide RDS) ---
 rule common_gene_panel:
     input:
@@ -37,7 +40,6 @@ rule common_gene_panel:
     log: "logs/common_gene_panel.log",
     shell:
         "{RSCRIPT} {input.script} {input.ss} {output} > {log} 2>&1"
-
 # --- tiered pathway gene-set artifact + panel coverage (single source of truth) ---
 rule build_gene_sets:
     input:
@@ -55,3 +57,49 @@ rule build_gene_sets:
     shell:
         "{RSCRIPT} {input.script} {input.yaml} {input.prov} {input.panel} {params.minpg} "
         "{output.sets} {output.coverage} > {log} 2>&1"
+# --- panel provenance: UCC-standard vs per-experiment custom (from the delivered objects) ---
+rule panel_provenance:
+    input:
+        script = "scripts/panel_provenance.R",
+        vendor = "data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx",
+    output:
+        membership = "results/data_model/panel_provenance.tsv",
+        summary    = "results/data_model/panel_provenance_summary.tsv",
+    params:
+        m01 = config["datadir"] + "/inputs/mutter01",
+        m02 = config["datadir"] + "/inputs/mutter02",
+    threads: 1
+    log: "logs/panel_provenance.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.vendor} {params.m01} {params.m02} "
+        "{output.membership} {output.summary} > {log} 2>&1"
+rule fig_design_grid:
+    input:
+        script = "scripts/fig_design_grid.R",
+        ss = config["samplesheet"],
+    output:
+        "results/data_model/plots/design_grid.png",
+    threads: 1
+    log: "logs/fig_design_grid.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.ss} {output} > {log} 2>&1"
+rule fig_panel_provenance:
+    input:
+        script = "scripts/fig_panel_provenance.R",
+        pv = "results/data_model/panel_provenance.tsv",
+    output:
+        "results/data_model/plots/panel_provenance.png",
+    threads: 1
+    log: "logs/fig_panel_provenance.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.pv} {output} > {log} 2>&1"
+rule fig_geneset_coverage:
+    input:
+        script = "scripts/fig_geneset_coverage.R",
+        cov = "results/data_model/gene_set_panel_coverage.tsv",
+    output:
+        "results/data_model/plots/geneset_coverage.png",
+    threads: 1
+    log: "logs/fig_geneset_coverage.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.cov} {output} > {log} 2>&1"

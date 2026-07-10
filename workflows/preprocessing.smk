@@ -46,6 +46,10 @@ rule all:
         f"{D_RES}/fov_falsecode_qc.tsv",
         f"{D_RES}/contamination_qc.tsv",
         f"{D_RES}/contamination_fov_qc.tsv",
+        f"{D_RES}/sample_tech_metrics.tsv",
+        f"{D_PROC}/cell_controls.parquet",
+        f"{D_RES}/plots/fov_falsecode_density.png",
+        f"{D_RES}/plots/qc_removal_attribution.tsv",
         f"{D_RES}/plots/qc_removal_attribution.png",
         f"{D_RES}/plots/qc_metric_distributions.png",
 # Workflow-linked sample sheet (scoped view of the data model).
@@ -114,6 +118,23 @@ rule preproc_contamination_qc:
     shell:
         "{RSCRIPT} {input.script} {D_PROC}/qc {input.sqm} "
         "{input.markers} {output.sample} {output.fov} > {log} 2>&1"
+# Per-sample technical-QC metrics (report-only): SpatialQM sensitivity / SNR / specificityFDR,
+# one row per sample; compared across arms downstream (aggregate qc_arm_balance).
+rule preproc_sample_metrics:
+    message: "[sample_metrics] per-sample SpatialQM technical QC"
+    input:
+        script  = f"{R_SCRIPTS}/sample_metrics.R",
+        qc      = expand(f"{D_PROC}/qc/{{s}}.qc.rds", s=ALL),
+        sqm     = f"{R_SCRIPTS}/aggregate/spatialqm_metrics.R",
+        samples = MASTER,
+    log:
+        f"{D_LOGS}/preproc_sample_metrics.log",
+    threads: 1
+    output:
+        tsv = f"{D_RES}/sample_tech_metrics.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {D_PROC}/qc {input.sqm} "
+        "{input.samples} {output.tsv} > {log} 2>&1"
 rule preproc_adapt_mutter01:
     message: "[adapt_mutter01] raw per-slide RDS -> common Seurat"
     input:
