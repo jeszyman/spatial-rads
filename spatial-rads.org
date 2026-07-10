@@ -11,19 +11,19 @@
 *** Plan status ledger
 Ground-truthed 2026-07-10 against the Change log + committed code + on-disk artifacts, NOT the =Status:= banner in each plan file (those drift). The authoritative record of what actually ran is the Change log timeline, committed code, and produced artifacts.
 
-| # | Plan | State | Remaining |
-|---+------+-------+-----------|
-| 1 | [[file:plan-preprocessing.md][per-sample preprocessing]] | split executed 2026-07-10 (per-sample typing/pathway deleted; terminus norm.rds); folds the former processing-pipeline + mutter01-controls plans | full-run verify + commit |
-| 2 | [[file:docs/superpowers/plans/2026-03-30-peak-valley-workbook-plan.md][peak/valley 4h workbook]] | done (exploratory Layers 1-3) | — |
-| 3 | [[file:plan-pathway-genesets.md][pathway gene-sets]] | Phase 1 done + pushed | Phase 2 absorbed by the split (per-sample pathway deleted; merge terminus norm.rds) |
-| 4 | [[file:plan-aggregate.md][cross-dataset typing]] | executed + locked 2026-06-02; reproducible (bit-identical rebuild 2026-06-22); merge now reads norm.rds | — |
-| 5 | [[file:plan-aggregate-refactor.md][aggregate reproducibility refactor]] | Steps 1-5 done + committed 2026-06-22 | Step 6 refresh results_master.tsv; Step 7 literate; negprobe retirement; re-base integration-QC benchmark label off merged labels |
-| 6 | [[file:plan-mbrt-vs-sbrt.md][MBRT/SBRT/Control differential]] | executed 2026-06-03 | framing superseded by #7; kept as run record |
-| 7 | [[file:plan-mbrt-vs-sbrt-reanalysis.md][arm-level reanalysis]] | spec + impl written 2026-06-22 | NOT executed (detectability_summary.tsv missing; master not refreshed) |
-| 8 | [[file:plan-differential-robustness.md][differential robustness]] | code Tasks 1-9 committed; sidecars on disk 2026-06-23 | consolidation rerun (Task 11); master lacks the new columns |
-| 9 | [[file:plan-outcomes-de.md][outcomes / clinical-relevance DE]] | seed (uncommitted plan-of-plan) | brainstorm -> committed plan |
-| 10 | [[file:plan-mbrt-signatures.md][MBRT signature projection]] | gated | blocked on M02 peak/valley staining |
-| 11 | [[file:plan-svg-v2.md][spatially-variable-gene v2]] | seed + gated | M01-ready; M02 blocked on staining |
+|  # | Plan                               | State                                                                                                                                            | Remaining                                                                                                                         |
+|----+------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------|
+|  1 | [[file:plan-preprocessing.md][per-sample preprocessing]]           | split executed 2026-07-10 (per-sample typing/pathway deleted; terminus norm.rds); folds the former processing-pipeline + mutter01-controls plans | full-run verify + commit                                                                                                          |
+|  2 | [[file:docs/superpowers/plans/2026-03-30-peak-valley-workbook-plan.md][peak/valley 4h workbook]]            | done (exploratory Layers 1-3)                                                                                                                    | —                                                                                                                                 |
+|  3 | [[file:plan-pathway-genesets.md][pathway gene-sets]]                  | Phase 1 done + pushed                                                                                                                            | Phase 2 absorbed by the split (per-sample pathway deleted; merge terminus norm.rds)                                               |
+|  4 | [[file:plan-aggregate.md][cross-dataset typing]]               | executed + locked 2026-06-02; reproducible (bit-identical rebuild 2026-06-22); merge now reads norm.rds                                          | —                                                                                                                                 |
+|  5 | [[file:plan-aggregate-refactor.md][aggregate reproducibility refactor]] | Steps 1-5 done + committed 2026-06-22                                                                                                            | Step 6 refresh results_master.tsv; Step 7 literate; negprobe retirement; re-base integration-QC benchmark label off merged labels |
+|  6 | [[file:plan-mbrt-vs-sbrt.md][MBRT/SBRT/Control differential]]     | executed 2026-06-03                                                                                                                              | framing superseded by #7; kept as run record                                                                                      |
+|  7 | [[file:plan-mbrt-vs-sbrt-reanalysis.md][arm-level reanalysis]]               | spec + impl written 2026-06-22                                                                                                                   | NOT executed (detectability_summary.tsv missing; master not refreshed)                                                            |
+|  8 | [[file:plan-differential-robustness.md][differential robustness]]            | code Tasks 1-9 committed; sidecars on disk 2026-06-23                                                                                            | consolidation rerun (Task 11); master lacks the new columns                                                                       |
+|  9 | [[file:plan-outcomes-de.md][outcomes / clinical-relevance DE]]   | seed (uncommitted plan-of-plan)                                                                                                                  | brainstorm -> committed plan                                                                                                      |
+| 10 | [[file:plan-mbrt-signatures.md][MBRT signature projection]]          | gated                                                                                                                                            | blocked on M02 peak/valley staining                                                                                               |
+| 11 | [[file:plan-svg-v2.md][spatially-variable-gene v2]]         | seed + gated                                                                                                                                     | M01-ready; M02 blocked on staining                                                                                                |
 
 Convergence knot: refreshing =results_master.tsv= is the shared pending deliverable of #5 (Step 6), #7 (impl), and #8 (Task 11) — one ~5h rerun, three owners.
 
@@ -612,6 +612,7 @@ rule build_gene_sets:
 #+end_src
 
 
+
 *** Data sources
 **** Metadata
 Experimental design metadata at [[file:data/metadata.xlsx][data/metadata.xlsx]]. Relational sheet capturing sample-level treatment, timepoint, and model assignments across both Mutter_01 and Mutter_02 runs.
@@ -686,6 +687,46 @@ Raw Seurat objects staged at =/mnt/gcs/jeszyman/projects/spatial-rads/inputs/mut
   - [[mu:msgid:BN7PR01MB371506589DEF9A3B39E2DA7896F1A@BN7PR01MB3715.prod.exchangelabs.com][mu:CosMx data transfer thread (Oct-Nov 2025)]]
   - [[mu:msgid:BN7PR01MB37151F29CE6E18153C94469596D2A@BN7PR01MB3715.prod.exchangelabs.com][mu:Media Shuttle upload confirmation (Nov 21 2025)]]
   - [[mu:msgid:BN7PR01MB371539912324DC0BD309549D967EA@BN7PR01MB3715.prod.exchangelabs.com][mu:MutterRobert_02 project update thread]]
+
+**** common_gene_panel.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/common_gene_panel.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Common gene panel = Mutter_01 panel INT Mutter_02 panel, both read from the RNA-assay
+# rownames of one per-slide raw RDS (both datasets are format=rds; the counts parquet is
+# retired). Invariance guard: the freshly-built list must setequal the currently-committed
+# common_genes.tsv before overwrite -- this panel is frozen because the locked aggregate
+# was typed on it, so identity (not just cardinality) must hold.
+# Args: <samplesheet.tsv> <out.tsv>
+suppressMessages({library(readr); library(dplyr); library(Seurat)})
+args <- commandArgs(trailingOnly = TRUE); SS <- args[1]; OUT <- args[2]
+ss <- read_tsv(SS, show_col_types = FALSE)
+
+# One per-slide RDS per dataset suffices for a panel (rownames) lookup; the RNA assay is
+# the gene panel (negprobes/falsecode are separate assays in the same object).
+rds_genes <- function(ds) {
+  p <- ss %>% filter(name == ds) %>% pull(raw_input_path) %>% unique()
+  stopifnot(length(p) >= 1, file.exists(p[1]))
+  o <- readRDS(p[1]); g <- rownames(o[["RNA"]]); rm(o); gc(); g
+}
+m01 <- rds_genes("Mutter_01"); m02 <- rds_genes("Mutter_02")
+common <- sort(intersect(m01, m02))
+cat(sprintf("Mutter_01: %d | Mutter_02: %d | common: %d\n", length(m01), length(m02), length(common)))
+stopifnot(length(common) > 500)  # sanity: panels should overlap heavily
+
+## ---- invariance guard vs committed snapshot (identity, not count) ----
+if (file.exists(OUT)) {
+  old <- readLines(OUT)
+  if (!setequal(common, old))
+    stop(sprintf("panel invariance FAILED: %d added, %d removed vs committed %s",
+                 length(setdiff(common, old)), length(setdiff(old, common)), OUT))
+}
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+writeLines(common, OUT)
+#+end_src
 
 ** Methods
 - when analyzing, where is the tumor per section? should we subset?
@@ -886,6 +927,7 @@ rule all:
         f"{D_RES}/plots/qc_metric_distributions.png",
 #+end_src
 ***** Sample sheet                                                 :smk_rule:
+- Snakemake
 #+begin_src snakemake
 # Workflow-linked sample sheet (scoped view of the data model).
 rule preproc_samplesheet:
@@ -901,180 +943,8 @@ rule preproc_samplesheet:
     shell:
         "{RSCRIPT} {input.script} {input.rda} {output.ss} > {log} 2>&1"
 #+end_src
-***** Probe-QC diagnostic                                          :smk_rule:
-#+begin_src snakemake
-# Probe-vs-negative-control QC DIAGNOSTIC (report-only; does NOT drop genes).
-rule preproc_probe_qc:
-    message: "[probe_qc] background-level probe flags"
-    input:
-        script = f"{R_SCRIPTS}/probe_qc.R",
-        ss     = SCOPED,
-        panel  = GENES,
-    log:
-        f"{D_LOGS}/preproc_probe_qc.log",
-    threads: 1
-    output:
-        report = f"{D_RES}/probe_qc_report.tsv",
-    shell:
-        "{RSCRIPT} {input.script} {input.ss} {input.panel} {output.report} > {log} 2>&1"
-#+end_src
-***** Control QC                                                   :smk_rule:
-#+begin_src snakemake
-# Control QC (report-only): negprobe + falsecode characterization & per-cell sidecar.
-# Additive; depends on raw RDS + M01 parquet, never scored objects.
-rule preproc_control_qc:
-    message: "[control_qc] negprobe/falsecode characterization + sidecar"
-    input:
-        validate     = f"{R_SCRIPTS}/validate_m01_rds.R",
-        characterize = f"{R_SCRIPTS}/characterize_controls.R",
-        sidecar      = f"{R_SCRIPTS}/control_sidecar.R",
-        m01_meta     = M01_META_PQ,
-    log:
-        f"{D_LOGS}/preproc_control_qc.log",
-    threads: 1
-    output:
-        valid   = f"{D_RES}/m01_rds_validation.tsv",
-        charac  = f"{D_RES}/control_characterization.tsv",
-        density = f"{D_RES}/plots/fov_falsecode_density.png",
-        cells   = f"{D_PROC}/cell_controls.parquet",
-        fovqc   = f"{D_RES}/fov_falsecode_qc.tsv",
-    shell:
-        "{RSCRIPT} {input.validate} " + M01_RDS_DIR + " {input.m01_meta} {output.valid} > {log} 2>&1 && "
-        "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.density} >> {log} 2>&1 && "
-        "{RSCRIPT} {input.sidecar} " + M01_RDS_DIR + " {input.m01_meta} " + M02_RDS_DIR + " {output.cells} {output.fovqc} >> {log} 2>&1"
-#+end_src
-***** Contamination QC                                             :smk_rule:
-#+begin_src snakemake
-# Contamination QC (report-only): SpatialQM MECR marker-bleed, sample + FOV grain.
-rule preproc_contamination_qc:
-    message: "[contamination_qc] SpatialQM MECR marker-bleed"
-    input:
-        script  = f"{R_SCRIPTS}/contamination_qc.R",
-        qc      = expand(f"{D_PROC}/qc/{{s}}.qc.rds", s=ALL),
-        sqm     = f"{R_SCRIPTS}/aggregate/spatialqm_metrics.R",
-        markers = "config/lineage_markers.yaml",
-    log:
-        f"{D_LOGS}/preproc_contamination_qc.log",
-    threads: 1
-    output:
-        sample = f"{D_RES}/contamination_qc.tsv",
-        fov    = f"{D_RES}/contamination_fov_qc.tsv",
-    shell:
-        "{RSCRIPT} {input.script} {D_PROC}/qc {input.sqm} "
-        "{input.markers} {output.sample} {output.fov} > {log} 2>&1"
-#+end_src
-***** Mutter_01 adapter                                            :smk_rule:
-#+begin_src snakemake
-rule preproc_adapt_mutter01:
-    message: "[adapt_mutter01] raw per-slide RDS -> common Seurat"
-    input:
-        script = f"{R_SCRIPTS}/adapt_mutter01.R",
-        ss     = SCOPED,
-        genes  = GENES,
-    log:
-        f"{D_LOGS}/preproc_adapt_mutter01.log",
-    threads: 1
-    output:
-        rds = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=M01),
-        yi  = YIREF,
-    shell:
-        "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} {output.yi} > {log} 2>&1"
-#+end_src
-***** Mutter_02 adapter                                            :smk_rule:
-#+begin_src snakemake
-rule preproc_adapt_mutter02:
-    message: "[adapt_mutter02] raw per-slide RDS -> common Seurat"
-    input:
-        script = f"{R_SCRIPTS}/adapt_mutter02.R",
-        ss     = SCOPED,
-        genes  = GENES,
-    log:
-        f"{D_LOGS}/preproc_adapt_mutter02.log",
-    threads: 1
-    output:
-        rds = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=M02),
-    shell:
-        "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} > {log} 2>&1"
-#+end_src
-***** QC filter                                                    :smk_rule:
-#+begin_src snakemake
-rule preproc_qc_filter:
-    message: "[qc_filter] {wildcards.s}"
-    input:
-        script = f"{R_SCRIPTS}/qc_filter.R",
-        rds    = f"{D_PROC}/raw/{{s}}.raw.rds",
-    log:
-        f"{D_LOGS}/preproc_qc_filter/{{s}}.log",
-    params:
-        min_counts   = QC["min_counts"],
-        min_features = QC["min_features"],
-        max_propneg  = QC["max_prop_negative"],
-        area_nmads   = QC["area_nmads"],
-    threads: 1
-    output:
-        rds     = f"{D_PROC}/qc/{{s}}.qc.rds",
-        summary = f"{D_RES}/qc/{{s}}.qcsummary.tsv",
-    shell:
-        "{RSCRIPT} {input.script} {input.rds} {output.rds} {output.summary} "
-        "{params.min_counts} {params.min_features} {params.max_propneg} {params.area_nmads} > {log} 2>&1"
-#+end_src
-***** Normalize                                                    :smk_rule:
-#+begin_src snakemake
-rule preproc_normalize:
-    message: "[normalize] {wildcards.s}"
-    input:
-        script = f"{R_SCRIPTS}/normalize.R",
-        rds    = f"{D_PROC}/qc/{{s}}.qc.rds",
-    log:
-        f"{D_LOGS}/preproc_normalize/{{s}}.log",
-    params:
-        scale_factor = NRM["scale_factor"],
-        nfeatures    = NRM["n_variable_features"],
-    threads: 1
-    output:
-        rds = f"{D_PROC}/norm/{{s}}.norm.rds",
-    shell:
-        "{RSCRIPT} {input.script} {input.rds} {output.rds} {params.scale_factor} {params.nfeatures} > {log} 2>&1"
-#+end_src
-***** QC report                                                    :smk_rule:
-#+begin_src snakemake
-rule preproc_qc_report:
-    message: "[qc_report] pooled per-sample QC summaries"
-    input:
-        script = f"{R_SCRIPTS}/qc_report.R",
-        sums   = expand(f"{D_RES}/qc/{{s}}.qcsummary.tsv", s=ALL),
-    log:
-        f"{D_LOGS}/preproc_qc_report.log",
-    threads: 1
-    output:
-        report = f"{D_RES}/qc_summary.tsv",
-    shell:
-        "{RSCRIPT} {input.script} {D_RES}/qc {output.report} > {log} 2>&1"
-#+end_src
-***** QC plots                                                     :smk_rule:
-#+begin_src snakemake
-rule preproc_qc_plots:
-    message: "[qc_plots] QC removal attribution + metric distributions"
-    input:
-        script = f"{R_SCRIPTS}/qc_plots.R",
-        raw    = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=ALL),
-        cfg    = "config/config.yaml",
-    log:
-        f"{D_LOGS}/preproc_qc_plots.log",
-    threads: 1
-    output:
-        attribution   = f"{D_RES}/plots/qc_removal_attribution.png",
-        distributions = f"{D_RES}/plots/qc_metric_distributions.png",
-        attr_tsv      = f"{D_RES}/plots/qc_removal_attribution.tsv",
-    shell:
-        "{RSCRIPT} {input.script} {input.cfg} {D_RES}/plots > {log} 2>&1"
-#+end_src
-**** processing_samplesheet.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/processing_samplesheet.R
-:END:
-
-#+begin_src R
+- R
+#+begin_src R :tangle scripts/processing_samplesheet.R
 #!/usr/bin/env Rscript
 # Workflow-linked sample sheet: scoped view of data_model.rda for the processing workflow.
 # Args: <data_model.rda> <out.tsv>
@@ -1095,53 +965,26 @@ write_tsv(scoped, OUT)
 cat(sprintf("wrote %s (%d samples: %d Mutter_01, %d Mutter_02)\n",
             OUT, nrow(scoped), sum(scoped$dataset=="Mutter_01"), sum(scoped$dataset=="Mutter_02")))
 #+end_src
-
-**** common_gene_panel.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/common_gene_panel.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Common gene panel = Mutter_01 panel INT Mutter_02 panel, both read from the RNA-assay
-# rownames of one per-slide raw RDS (both datasets are format=rds; the counts parquet is
-# retired). Invariance guard: the freshly-built list must setequal the currently-committed
-# common_genes.tsv before overwrite -- this panel is frozen because the locked aggregate
-# was typed on it, so identity (not just cardinality) must hold.
-# Args: <samplesheet.tsv> <out.tsv>
-suppressMessages({library(readr); library(dplyr); library(Seurat)})
-args <- commandArgs(trailingOnly = TRUE); SS <- args[1]; OUT <- args[2]
-ss <- read_tsv(SS, show_col_types = FALSE)
-
-# One per-slide RDS per dataset suffices for a panel (rownames) lookup; the RNA assay is
-# the gene panel (negprobes/falsecode are separate assays in the same object).
-rds_genes <- function(ds) {
-  p <- ss %>% filter(name == ds) %>% pull(raw_input_path) %>% unique()
-  stopifnot(length(p) >= 1, file.exists(p[1]))
-  o <- readRDS(p[1]); g <- rownames(o[["RNA"]]); rm(o); gc(); g
-}
-m01 <- rds_genes("Mutter_01"); m02 <- rds_genes("Mutter_02")
-common <- sort(intersect(m01, m02))
-cat(sprintf("Mutter_01: %d | Mutter_02: %d | common: %d\n", length(m01), length(m02), length(common)))
-stopifnot(length(common) > 500)  # sanity: panels should overlap heavily
-
-## ---- invariance guard vs committed snapshot (identity, not count) ----
-if (file.exists(OUT)) {
-  old <- readLines(OUT)
-  if (!setequal(common, old))
-    stop(sprintf("panel invariance FAILED: %d added, %d removed vs committed %s",
-                 length(setdiff(common, old)), length(setdiff(old, common)), OUT))
-}
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-writeLines(common, OUT)
+***** Probe-QC diagnostic                                          :smk_rule:
+- Snakemake
+#+begin_src snakemake
+# Probe-vs-negative-control QC DIAGNOSTIC (report-only; does NOT drop genes).
+rule preproc_probe_qc:
+    message: "[probe_qc] background-level probe flags"
+    input:
+        script = f"{R_SCRIPTS}/probe_qc.R",
+        ss     = SCOPED,
+        panel  = GENES,
+    log:
+        f"{D_LOGS}/preproc_probe_qc.log",
+    threads: 1
+    output:
+        report = f"{D_RES}/probe_qc_report.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {input.ss} {input.panel} {output.report} > {log} 2>&1"
 #+end_src
-
-**** probe_qc.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/probe_qc.R
-:END:
-
-#+begin_src R
+- R
+#+begin_src R :tangle scripts/probe_qc.R
 #!/usr/bin/env Rscript
 # Probe-vs-negative-control DIAGNOSTIC -- report-only, does NOT drop genes.
 #
@@ -1199,13 +1042,129 @@ if (sum(rep$flagged_failed)) cat("flagged failed-probe candidates:", paste(rep$g
 dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
 write_tsv(rep, OUT)
 #+end_src
+***** Control QC                                                   :smk_rule:
+#+begin_src snakemake
+# Control QC (report-only): negprobe + falsecode characterization & per-cell sidecar.
+# Additive; depends on raw RDS + M01 parquet, never scored objects.
+rule preproc_control_qc:
+    message: "[control_qc] negprobe/falsecode characterization + sidecar"
+    input:
+        validate     = f"{R_SCRIPTS}/validate_m01_rds.R",
+        characterize = f"{R_SCRIPTS}/characterize_controls.R",
+        sidecar      = f"{R_SCRIPTS}/control_sidecar.R",
+        m01_meta     = M01_META_PQ,
+    log:
+        f"{D_LOGS}/preproc_control_qc.log",
+    threads: 1
+    output:
+        valid   = f"{D_RES}/m01_rds_validation.tsv",
+        charac  = f"{D_RES}/control_characterization.tsv",
+        density = f"{D_RES}/plots/fov_falsecode_density.png",
+        cells   = f"{D_PROC}/cell_controls.parquet",
+        fovqc   = f"{D_RES}/fov_falsecode_qc.tsv",
+    shell:
+        "{RSCRIPT} {input.validate} " + M01_RDS_DIR + " {input.m01_meta} {output.valid} > {log} 2>&1 && "
+        "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.density} >> {log} 2>&1 && "
+        "{RSCRIPT} {input.sidecar} " + M01_RDS_DIR + " {input.m01_meta} " + M02_RDS_DIR + " {output.cells} {output.fovqc} >> {log} 2>&1"
+#+end_src
+***** Contamination QC                                             :smk_rule:
+- Snakemake
+#+begin_src snakemake
+# Contamination QC (report-only): SpatialQM MECR marker-bleed, sample + FOV grain.
+rule preproc_contamination_qc:
+    message: "[contamination_qc] SpatialQM MECR marker-bleed"
+    input:
+        script  = f"{R_SCRIPTS}/contamination_qc.R",
+        qc      = expand(f"{D_PROC}/qc/{{s}}.qc.rds", s=ALL),
+        sqm     = f"{R_SCRIPTS}/aggregate/spatialqm_metrics.R",
+        markers = "config/lineage_markers.yaml",
+    log:
+        f"{D_LOGS}/preproc_contamination_qc.log",
+    threads: 1
+    output:
+        sample = f"{D_RES}/contamination_qc.tsv",
+        fov    = f"{D_RES}/contamination_fov_qc.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {D_PROC}/qc {input.sqm} "
+        "{input.markers} {output.sample} {output.fov} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/contamination_qc.R
+#!/usr/bin/env Rscript
+# Contamination QC (report-only): SpatialQM MECR marker-bleed metric at sample + FOV grain.
+# MECR = mean Jaccard co-expression of cross-lineage marker pairs (LOW = clean, HIGH = bleed /
+# segmentation contamination). FastReseg / per-cell resegmentation is infeasible here (no transcript
+# coords or cell polygons delivered), so MECR -- the feasible peer-reviewed metric (SpatialQM,
+# Plummer/Segato-Dezem et al., Nat Biotechnol 2025; vendored in scripts/aggregate/spatialqm_metrics.R)
+# -- is computed per sample and per FOV. The per-FOV table carries orthogonal triage columns so a
+# high-MECR flag separates segmentation contamination (high MECR, normal counts/background) from
+# necrosis / low-quality tissue (high MECR + LOW counts + HIGH propNeg) from genuine mixed biology
+# (high MECR, normal QC). REPORT-ONLY -- never excludes cells/FOVs (necrosis is itself radiation signal).
+# Args: <qc_dir> <spatialqm_metrics.R> <lineage_markers.yaml> <out_sample.tsv> <out_fov.tsv>
+suppressMessages({library(Seurat); library(data.table); library(yaml); library(Matrix)})
+a <- commandArgs(trailingOnly = TRUE)
+QC_DIR <- a[1]; SQM <- a[2]; MARKERS <- a[3]; OUT_SAMPLE <- a[4]; OUT_FOV <- a[5]
+MIN_FOV_CELLS <- 50L                                   # skip tiny FOVs -- the Jaccard rate is unstable
+source(SQM)                                            # provides sqm_mecr(counts, marker_df, max_markers, seed)
 
-**** adapt_mutter01.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/adapt_mutter01.R
-:END:
+## marker_df: flatten lineage_markers.yaml (Lineage: [genes]) to a long (gene, cell_type) data.frame
+ly <- yaml::read_yaml(MARKERS)
+marker_df <- rbindlist(lapply(names(ly), function(ct) data.table(gene = as.character(ly[[ct]]), cell_type = ct)))
+marker_df <- as.data.frame(unique(marker_df[!is.na(gene) & nzchar(gene)][!duplicated(gene)]))
 
-#+begin_src R
+files <- sort(list.files(QC_DIR, pattern = "\\.qc\\.rds$", full.names = TRUE)); stopifnot(length(files) > 0)
+samp <- list(); fov <- list()
+for (f in files) {
+  o  <- readRDS(f); md <- o@meta.data
+  cm <- LayerData(o, assay = "RNA", layer = "counts")
+  sid <- as.character(md$sample_id[1]); ds <- as.character(md$dataset[1])
+  samp[[f]] <- data.table(sample_id = sid, dataset = ds, n_cells = ncol(cm), mecr = sqm_mecr(cm, marker_df))
+  idx_by_fov <- split(seq_len(ncol(cm)), md$fov)
+  rows <- lapply(names(idx_by_fov), function(fv) {
+    idx <- idx_by_fov[[fv]]
+    if (length(idx) < MIN_FOV_CELLS) return(NULL)
+    data.table(sample_id = sid, dataset = ds, fov = as.integer(fv), n_cells = length(idx),
+               mecr         = sqm_mecr(cm[, idx, drop = FALSE], marker_df),   # off-label per-FOV: may be NaN if a sampled pair has zero union
+               med_nCount   = as.numeric(median(md$nCount_RNA[idx])),
+               med_nFeature = as.numeric(median(md$nFeature_RNA[idx])),
+               mean_propNeg = mean(md$propNegative[idx]),
+               med_area     = as.numeric(median(md$Area[idx])))
+  })
+  fov[[f]] <- rbindlist(rows)
+  cat(sprintf("%-28s %-10s n=%7d  mecr=%.3f  fovs=%d\n", sid, ds, ncol(cm), samp[[f]]$mecr, length(rows)))
+  rm(o, cm); invisible(gc())
+}
+sample_tab <- rbindlist(samp); fov_tab <- rbindlist(fov)
+
+## per-FOV 3-MAD outlier flag on MECR, within dataset (mirrors the falsecode FOV flag in control_sidecar.R)
+fov_tab[, `:=`(med = median(mecr, na.rm = TRUE), mad = mad(mecr, na.rm = TRUE)), by = dataset]
+fov_tab[, mecr_flag := !is.na(mecr) & mecr > med + 3 * mad][, c("med", "mad") := NULL]
+
+dir.create(dirname(OUT_SAMPLE), recursive = TRUE, showWarnings = FALSE)
+fwrite(sample_tab, OUT_SAMPLE, sep = "\t"); fwrite(fov_tab, OUT_FOV, sep = "\t")
+cat(sprintf("contamination QC: %d samples; %d FOVs (%d valid MECR), %d flagged (report-only)\n",
+            nrow(sample_tab), nrow(fov_tab), sum(!is.na(fov_tab$mecr)), sum(fov_tab$mecr_flag)))
+#+end_src
+***** Mutter_01 adapter                                            :smk_rule:
+- Snakemake
+#+begin_src snakemake
+rule preproc_adapt_mutter01:
+    message: "[adapt_mutter01] raw per-slide RDS -> common Seurat"
+    input:
+        script = f"{R_SCRIPTS}/adapt_mutter01.R",
+        ss     = SCOPED,
+        genes  = GENES,
+    log:
+        f"{D_LOGS}/preproc_adapt_mutter01.log",
+    threads: 1
+    output:
+        rds = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=M01),
+        yi  = YIREF,
+    shell:
+        "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} {output.yi} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/adapt_mutter01.R
 #!/usr/bin/env Rscript
 # Stage B adapter -- Mutter_01: per-slide raw Seurat RDS -> per-sample common-format Seurat.
 # Harmonized with adapt_mutter02 on the per-slide-RDS data structure (M01 re-delivered as raw RDS
@@ -1279,13 +1238,25 @@ for (i in seq_len(nrow(ss))) {
 }
 cat("adapt_mutter01 done\n")
 #+end_src
-
-**** adapt_mutter02.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/adapt_mutter02.R
-:END:
-
-#+begin_src R
+***** Mutter_02 adapter                                            :smk_rule:
+- Snakemake
+#+begin_src snakemake
+rule preproc_adapt_mutter02:
+    message: "[adapt_mutter02] raw per-slide RDS -> common Seurat"
+    input:
+        script = f"{R_SCRIPTS}/adapt_mutter02.R",
+        ss     = SCOPED,
+        genes  = GENES,
+    log:
+        f"{D_LOGS}/preproc_adapt_mutter02.log",
+    threads: 1
+    output:
+        rds = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=M02),
+    shell:
+        "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/adapt_mutter02.R
 #!/usr/bin/env Rscript
 # Stage B adapter -- Mutter_02: per-slide Seurat RDS -> per-sample common-format Seurat.
 # Subset to common panel + shared meta; assign 3 y-bands by deterministic k-means; map
@@ -1334,13 +1305,31 @@ for (j in seq_len(nrow(slides))) {
 }
 cat("adapt_mutter02 done\n")
 #+end_src
-
-**** qc_filter.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/qc_filter.R
-:END:
-
-#+begin_src R
+***** QC filter                                                    :smk_rule:
+- Snakemake
+#+begin_src snakemake
+rule preproc_qc_filter:
+    message: "[qc_filter] {wildcards.s}"
+    input:
+        script = f"{R_SCRIPTS}/qc_filter.R",
+        rds    = f"{D_PROC}/raw/{{s}}.raw.rds",
+    log:
+        f"{D_LOGS}/preproc_qc_filter/{{s}}.log",
+    params:
+        min_counts   = QC["min_counts"],
+        min_features = QC["min_features"],
+        max_propneg  = QC["max_prop_negative"],
+        area_nmads   = QC["area_nmads"],
+    threads: 1
+    output:
+        rds     = f"{D_PROC}/qc/{{s}}.qc.rds",
+        summary = f"{D_RES}/qc/{{s}}.qcsummary.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {output.rds} {output.summary} "
+        "{params.min_counts} {params.min_features} {params.max_propneg} {params.area_nmads} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/qc_filter.R
 #!/usr/bin/env Rscript
 # Shared per-sample QC -- identical four-criteria gate on both datasets, all from data in hand:
 #   counts (nCount_RNA), complexity (nFeature_RNA), negative-probe proportion (propNegative),
@@ -1378,13 +1367,27 @@ saveRDS(obj, OUT_RDS)
 write_tsv(summ, OUT_SUM)
 cat(sprintf("%s QC: %d -> %d (%.1f%%; %d area-flagged)\n", sid, pre, post, 100 * post / pre, sum(!area_ok)))
 #+end_src
-
-**** normalize.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/normalize.R
-:END:
-
-#+begin_src R
+***** Normalize                                                    :smk_rule:
+- Snakemake
+#+begin_src snakemake
+rule preproc_normalize:
+    message: "[normalize] {wildcards.s}"
+    input:
+        script = f"{R_SCRIPTS}/normalize.R",
+        rds    = f"{D_PROC}/qc/{{s}}.qc.rds",
+    log:
+        f"{D_LOGS}/preproc_normalize/{{s}}.log",
+    params:
+        scale_factor = NRM["scale_factor"],
+        nfeatures    = NRM["n_variable_features"],
+    threads: 1
+    output:
+        rds = f"{D_PROC}/norm/{{s}}.norm.rds",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {output.rds} {params.scale_factor} {params.nfeatures} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/normalize.R
 #!/usr/bin/env Rscript
 # Shared per-sample normalization: LogNormalize + variable features (full common panel
 # is effectively all-variable on a ~1000-gene targeted panel). Args: <in.qc.rds> <out.norm.rds> <scale_factor> <nfeatures>
@@ -1402,13 +1405,24 @@ saveRDS(obj, OUT)
 cat(sprintf("normalized %s: %d cells, %d/%d variable features\n",
             sub("\\.qc\\.rds$", "", basename(IN)), ncol(obj), length(VariableFeatures(obj)), nrow(obj)))
 #+end_src
-
-**** qc_report.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/qc_report.R
-:END:
-
-#+begin_src R
+***** QC report                                                    :smk_rule:
+- Snakemake
+#+begin_src snakemake
+rule preproc_qc_report:
+    message: "[qc_report] pooled per-sample QC summaries"
+    input:
+        script = f"{R_SCRIPTS}/qc_report.R",
+        sums   = expand(f"{D_RES}/qc/{{s}}.qcsummary.tsv", s=ALL),
+    log:
+        f"{D_LOGS}/preproc_qc_report.log",
+    threads: 1
+    output:
+        report = f"{D_RES}/qc_summary.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {D_RES}/qc {output.report} > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/qc_report.R
 #!/usr/bin/env Rscript
 # Aggregate per-sample QC summaries into one table. Args: <qc_summary_dir> <out.tsv>
 suppressMessages({library(readr); library(dplyr); library(purrr)})
@@ -1422,13 +1436,27 @@ write_tsv(df, OUT)
 cat(sprintf("aggregated %d sample QC rows -> %s\n", nrow(df), OUT))
 print(as.data.frame(df))
 #+end_src
-
-**** qc_plots.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/qc_plots.R
-:END:
-
-#+begin_src R
+***** QC plots                                                     :smk_rule:
+- Snakemake
+#+begin_src snakemake
+rule preproc_qc_plots:
+    message: "[qc_plots] QC removal attribution + metric distributions"
+    input:
+        script = f"{R_SCRIPTS}/qc_plots.R",
+        raw    = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=ALL),
+        cfg    = "config/config.yaml",
+    log:
+        f"{D_LOGS}/preproc_qc_plots.log",
+    threads: 1
+    output:
+        attribution   = f"{D_RES}/plots/qc_removal_attribution.png",
+        distributions = f"{D_RES}/plots/qc_metric_distributions.png",
+        attr_tsv      = f"{D_RES}/plots/qc_removal_attribution.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {input.cfg} {D_RES}/plots > {log} 2>&1"
+#+end_src
+- R
+#+begin_src R :tangle scripts/qc_plots.R
 #!/usr/bin/env Rscript
 # QC visualizations as pipeline outputs: (1) per-criterion removal attribution (cells failing
 # counts / complexity / propNegative / area -- shows which criteria drive the cuts), and
@@ -1493,71 +1521,6 @@ ggsave(file.path(OUT, "qc_removal_attribution.png"), pA, width = 11, height = 5,
 ggsave(file.path(OUT, "qc_metric_distributions.png"), pB, width = 10, height = 7, dpi = 150)
 cat(sprintf("wrote QC plots + attribution to %s\n", OUT)); print(attr_df)
 #+end_src
-
-**** contamination_qc.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/contamination_qc.R
-:END:
-
-Report-only segmentation/neighbour-contamination QC. CosMx good practice flags poorly-segmented cells whose profiles are contaminated by neighbouring transcripts; the field's per-cell tool (FastReseg) needs per-molecule transcript coordinates / cell polygons, which were NOT delivered (=** Data=, 2026-06-01). The feasible peer-reviewed metric is SpatialQM's MECR (mutually-exclusive co-expression rate), vendored in [[file:scripts/aggregate/spatialqm_metrics.R]]; computed here per sample and per FOV from the post-QC objects against the [[file:config/lineage_markers.yaml]] coarse lineages. The per-FOV table adds orthogonal triage columns (counts, features, propNegative, area) so a high-MECR flag separates true segmentation contamination from necrosis/low-quality tissue and from genuinely dense tumour-immune regions. Additive and report-only -- it never drops cells or FOVs (necrosis is itself a radiation signal), and does not touch the raw->qc->norm->typed->scored chain.
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Contamination QC (report-only): SpatialQM MECR marker-bleed metric at sample + FOV grain.
-# MECR = mean Jaccard co-expression of cross-lineage marker pairs (LOW = clean, HIGH = bleed /
-# segmentation contamination). FastReseg / per-cell resegmentation is infeasible here (no transcript
-# coords or cell polygons delivered), so MECR -- the feasible peer-reviewed metric (SpatialQM,
-# Plummer/Segato-Dezem et al., Nat Biotechnol 2025; vendored in scripts/aggregate/spatialqm_metrics.R)
-# -- is computed per sample and per FOV. The per-FOV table carries orthogonal triage columns so a
-# high-MECR flag separates segmentation contamination (high MECR, normal counts/background) from
-# necrosis / low-quality tissue (high MECR + LOW counts + HIGH propNeg) from genuine mixed biology
-# (high MECR, normal QC). REPORT-ONLY -- never excludes cells/FOVs (necrosis is itself radiation signal).
-# Args: <qc_dir> <spatialqm_metrics.R> <lineage_markers.yaml> <out_sample.tsv> <out_fov.tsv>
-suppressMessages({library(Seurat); library(data.table); library(yaml); library(Matrix)})
-a <- commandArgs(trailingOnly = TRUE)
-QC_DIR <- a[1]; SQM <- a[2]; MARKERS <- a[3]; OUT_SAMPLE <- a[4]; OUT_FOV <- a[5]
-MIN_FOV_CELLS <- 50L                                   # skip tiny FOVs -- the Jaccard rate is unstable
-source(SQM)                                            # provides sqm_mecr(counts, marker_df, max_markers, seed)
-
-## marker_df: flatten lineage_markers.yaml (Lineage: [genes]) to a long (gene, cell_type) data.frame
-ly <- yaml::read_yaml(MARKERS)
-marker_df <- rbindlist(lapply(names(ly), function(ct) data.table(gene = as.character(ly[[ct]]), cell_type = ct)))
-marker_df <- as.data.frame(unique(marker_df[!is.na(gene) & nzchar(gene)][!duplicated(gene)]))
-
-files <- sort(list.files(QC_DIR, pattern = "\\.qc\\.rds$", full.names = TRUE)); stopifnot(length(files) > 0)
-samp <- list(); fov <- list()
-for (f in files) {
-  o  <- readRDS(f); md <- o@meta.data
-  cm <- LayerData(o, assay = "RNA", layer = "counts")
-  sid <- as.character(md$sample_id[1]); ds <- as.character(md$dataset[1])
-  samp[[f]] <- data.table(sample_id = sid, dataset = ds, n_cells = ncol(cm), mecr = sqm_mecr(cm, marker_df))
-  idx_by_fov <- split(seq_len(ncol(cm)), md$fov)
-  rows <- lapply(names(idx_by_fov), function(fv) {
-    idx <- idx_by_fov[[fv]]
-    if (length(idx) < MIN_FOV_CELLS) return(NULL)
-    data.table(sample_id = sid, dataset = ds, fov = as.integer(fv), n_cells = length(idx),
-               mecr         = sqm_mecr(cm[, idx, drop = FALSE], marker_df),   # off-label per-FOV: may be NaN if a sampled pair has zero union
-               med_nCount   = as.numeric(median(md$nCount_RNA[idx])),
-               med_nFeature = as.numeric(median(md$nFeature_RNA[idx])),
-               mean_propNeg = mean(md$propNegative[idx]),
-               med_area     = as.numeric(median(md$Area[idx])))
-  })
-  fov[[f]] <- rbindlist(rows)
-  cat(sprintf("%-28s %-10s n=%7d  mecr=%.3f  fovs=%d\n", sid, ds, ncol(cm), samp[[f]]$mecr, length(rows)))
-  rm(o, cm); invisible(gc())
-}
-sample_tab <- rbindlist(samp); fov_tab <- rbindlist(fov)
-
-## per-FOV 3-MAD outlier flag on MECR, within dataset (mirrors the falsecode FOV flag in control_sidecar.R)
-fov_tab[, `:=`(med = median(mecr, na.rm = TRUE), mad = mad(mecr, na.rm = TRUE)), by = dataset]
-fov_tab[, mecr_flag := !is.na(mecr) & mecr > med + 3 * mad][, c("med", "mad") := NULL]
-
-dir.create(dirname(OUT_SAMPLE), recursive = TRUE, showWarnings = FALSE)
-fwrite(sample_tab, OUT_SAMPLE, sep = "\t"); fwrite(fov_tab, OUT_FOV, sep = "\t")
-cat(sprintf("contamination QC: %d samples; %d FOVs (%d valid MECR), %d flagged (report-only)\n",
-            nrow(sample_tab), nrow(fov_tab), sum(!is.na(fov_tab$mecr)), sum(fov_tab$mecr_flag)))
-#+end_src
-
 *** Yi Mutter_01
 
 Yi Liu's secondary analysis of Mutter_01 comprised:
