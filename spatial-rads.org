@@ -1,12 +1,31 @@
-* Spatial Radiomics
+* Spatial Radiomics :sci_proj_repo:
 ** Plans
 - [[file:plan-aggregate.md][aggregate.smk — design, decisions, status]] — cross-sample/cross-dataset workflow. /Cell typing executed and locked (2026-06-02): scVI integration + coarse cluster-then-annotate (res=3.0, all four Q4 gates passed; tumor 48.1% / stroma 40.6% / immune 11.2%), tier-2 immune SingleR/ImmGen with marker rescue (macrophage-dominated; B cells near-absent), and tier-2 stroma UCell with marker rescue (fibroblast-dominated; endothelium and adipocytes recovered). All three tiers joined into the unified per-cell table =results/aggregate/full_labels.parquet=. See v2.5 banner. Workflow-reproducibility refactor planned (v2.6 banner, 2026-06-22): the wired DAG does not reproduce this typing; A2 full re-wire regenerates the labels + refreshes =results_master.tsv= — see =plan-aggregate-refactor.md=./
 - [[file:plan-aggregate-refactor.md][aggregate refactor — reproducibility-wiring, best-practice review, literate transfer]] — decisions resolved 2026-06-22 (=A2 full re-wire= / decision-forcing best-practice review / =C1= orchestration-only literate transfer), harmonized into a seven-step sequence: audit → method shoot-out (scVI vs scANVI/scArches on the 2-slide pilot) → wire the real ~13-node multi-env DAG (authoring =full_scvi.py=, retiring =recover_negprobes= onto the re-based M01 RDS) → full rebuild → re-validate the 4 Q4 gates → refresh =results_master.tsv= → literate transfer. Acceptance = re-validation, not byte-identity. Ground-truthed against live =aggregate.smk=: =full_labels.parquet= + =obs.parquet= are orphan inputs and the full-run scVI step is untracked.
-- [[file:plan-processing-pipeline.md][processing.smk — design, decisions, status]] — per-sample upstream (adapter → QC → normalize → cell typing → pathway scoring), completed 2026-05-30.
+- [[file:plan-preprocessing.md][preprocessing.smk — invariant per-sample preprocessing]] — adapter → QC → normalize + report-only QC (per-sample typing/pathway deleted 2026-07-10; terminus norm.rds); folds the former processing-pipeline + mutter01-controls plans.
 - [[file:plan-mbrt-signatures.md][MBRT signatures plan]] — autonomous VM Layer-4 run.
 - [[file:plan-mbrt-vs-sbrt-reanalysis.md][MBRT vs SBRT vs Control — arm-level reanalysis]] — CURRENT canonical framing (2026-06-22, post 4/4 devils-advocate panel). Look at all 3 contrasts effect-size-forward on the reproducible labels; the MBRT arm-level "null" is reframed as spatial DILUTION (the real M01 4h peak signature averaged out), not biological absence; symmetric panel coverage + a detectability table (not a fuzzy decision-gate); never "sparing" (MBRT dose unrecorded); resolving spatial gated on M02 peak/valley staining + MBRT dose physics. Impl: =plan-mbrt-vs-sbrt-reanalysis-impl.md=.
 - [[file:plan-mbrt-vs-sbrt.md][MBRT vs SBRT downstream analysis — design/run record]] — the EXECUTED differential layer (=results_master.tsv=, 2026-06-03): three a priori hypotheses (H1 immune, H2 vascular, H3 stromal) × MBRT/SBRT/Control + exploratory + spatial-structure scans. /Framing superseded 2026-06-22 by the reanalysis above (null → spatial dilution); retained as the run record./
-- [[file:plan-pathway-genesets.md][Pathway gene-sets + panel generation — design/spec]] — single-source-of-truth refactor: generate the 950-gene common panel + a tier-structured pathway gene-set artifact (tier-1 curated frozen, tier-2 pinned MSigDB Hallmark) in =data_model.smk=, rewire all gene-set consumers off live =msigdbr=, and collapse the redundant double per-cell scoring (per-sample + merged-recompute → single merged path). Implementation steps in [[file:plan-pathway-genesets-impl.md][plan-pathway-genesets-impl.md]]. Brainstormed + devils-advocate-reviewed 2026-06-22; implement later.
+- [[file:plan-pathway-genesets.md][Pathway gene-sets + panel generation — design/spec]] — single-source-of-truth refactor: generate the 950-gene common panel + a tier-structured pathway gene-set artifact (tier-1 curated frozen, tier-2 pinned MSigDB Hallmark) in =data_model.smk=, rewire all gene-set consumers off live =msigdbr=, and collapse the redundant double per-cell scoring. Implementation steps in [[file:plan-pathway-genesets-impl.md][plan-pathway-genesets-impl.md]]. Brainstormed + devils-advocate-reviewed 2026-06-22.
+
+*** Plan status ledger
+Ground-truthed 2026-07-10 against the Change log + committed code + on-disk artifacts, NOT the =Status:= banner in each plan file (those drift). The authoritative record of what actually ran is the Change log timeline, committed code, and produced artifacts.
+
+| # | Plan | State | Remaining |
+|---+------+-------+-----------|
+| 1 | [[file:plan-preprocessing.md][per-sample preprocessing]] | split executed 2026-07-10 (per-sample typing/pathway deleted; terminus norm.rds); folds the former processing-pipeline + mutter01-controls plans | full-run verify + commit |
+| 2 | [[file:docs/superpowers/plans/2026-03-30-peak-valley-workbook-plan.md][peak/valley 4h workbook]] | done (exploratory Layers 1-3) | — |
+| 3 | [[file:plan-pathway-genesets.md][pathway gene-sets]] | Phase 1 done + pushed | Phase 2 absorbed by the split (per-sample pathway deleted; merge terminus norm.rds) |
+| 4 | [[file:plan-aggregate.md][cross-dataset typing]] | executed + locked 2026-06-02; reproducible (bit-identical rebuild 2026-06-22); merge now reads norm.rds | — |
+| 5 | [[file:plan-aggregate-refactor.md][aggregate reproducibility refactor]] | Steps 1-5 done + committed 2026-06-22 | Step 6 refresh results_master.tsv; Step 7 literate; negprobe retirement; re-base integration-QC benchmark label off merged labels |
+| 6 | [[file:plan-mbrt-vs-sbrt.md][MBRT/SBRT/Control differential]] | executed 2026-06-03 | framing superseded by #7; kept as run record |
+| 7 | [[file:plan-mbrt-vs-sbrt-reanalysis.md][arm-level reanalysis]] | spec + impl written 2026-06-22 | NOT executed (detectability_summary.tsv missing; master not refreshed) |
+| 8 | [[file:plan-differential-robustness.md][differential robustness]] | code Tasks 1-9 committed; sidecars on disk 2026-06-23 | consolidation rerun (Task 11); master lacks the new columns |
+| 9 | [[file:plan-outcomes-de.md][outcomes / clinical-relevance DE]] | seed (uncommitted plan-of-plan) | brainstorm -> committed plan |
+| 10 | [[file:plan-mbrt-signatures.md][MBRT signature projection]] | gated | blocked on M02 peak/valley staining |
+| 11 | [[file:plan-svg-v2.md][spatially-variable-gene v2]] | seed + gated | M01-ready; M02 blocked on staining |
+
+Convergence knot: refreshing =results_master.tsv= is the shared pending deliverable of #5 (Step 6), #7 (impl), and #8 (Task 11) — one ~5h rerun, three owners.
 
 ** Key results
 :PROPERTIES:
@@ -20,6 +39,7 @@
 - *Spatially-variable-gene reframing of the dilution problem (proposed).* The fix for whole-sample dilution is to treat dose position as a continuous spatial covariate rather than a binary peak/valley label. =07_peak_valley_classify.R= already computes a per-cell =dist_to_peak=, the phase within the ~1 mm beam period from the tilt-corrected stripe geometry, then discards it by thresholding to peak versus valley at one quarter of the beam spacing; the binary =FindMarkers= peak-vs-valley test in =08_pv_degs.R= recovered little. Posing the same data as a spatially-variable-gene problem regresses each gene on =dist_to_peak=, or tests spectral power at the known beam frequency by Lomb-Scargle or Fourier analysis along the beam-perpendicular axis, with SpatialDE, SPARK, or Moran's I as model-free checks. This formulation retains every cell's continuous position, so no signal is lost to boundary mis-assignment, it exploits the known ~1 mm period as a prior, and it admits a within-sample permutation null from shuffling cell coordinates, which sidesteps the n=1 biological-replication problem that a group-mean differential test cannot. A null periodicity result is then interpretable as the absence of transcriptional structure at the beam frequency, in contrast to the binary peak-vs-valley null, which conflates absent signal with threshold-induced dilution. See [[file:dev/peak_valley_analysis/07_peak_valley_classify.R][07_peak_valley_classify.R]] and [[file:dev/peak_valley_analysis/08_pv_degs.R][08_pv_degs.R]].
 - *MBRT immunostimulation and immature-vascular targeting remain unestablished by current data (mechanism status).* In Mutter_02 day2, whole-sample immune differential expression for MBRT versus Control was near zero across all immune cell types, a consequence of the same beam-geometry dilution, and the MBRT-specific contrast (MBRT versus SBRT) was dominated by Cdkn1a/p21, a cell-cycle-arrest and stress readout rather than immune activation. Canonical activation markers (Cxcl9, Cxcl10, H2-K1, H2-D1, B2m, Tap1, Cd74, Gzmb, Cd80, Cd86, Il12b) are present on the 950-gene panel but largely silent in the MBRT contrasts; an earlier reading that myeloid cells led the MBRT response reflected p21 arrest, not activation. Immature-vascular targeting registered as a weak, non-specific trend only: whole-sample endothelial MBRT versus Control was zero, and on the spatially-resolved Mutter_01 4h peak/valley run (effect size, n=1, not adjusted p) endothelial pan-markers (Pecam1 -0.30, Cdh5 -0.18) and proliferation genes (Ccnd1, Pcna) were modestly lower in peak, compatible with vessel damage at beam peaks but small (|log2FC| <= 0.3), confounded with generic irradiated-cell stress, and uninformative on the diagnostic immature-vessel markers (Dll4, Angpt2, Notch3, Kdr), which fell below detection in the 4h endothelial subset. Both hypotheses are spatial and dose-resolved, so whole-sample pseudobulk is structurally blind to them: averaging peak and valley cells collapses the MBRT versus Control signal toward zero. Panel coverage is adequate for both; the blocker is analysis design, namely per-cell-type un-diluted and peak/valley differential expression, together with improved cell typing, not gene-panel content. See [[file:results/aggregate/degs_pseudobulk_m02day2.tsv][degs_pseudobulk_m02day2.tsv]].
 - *ImmGen-only cell typing leaves half the flank cohort unclassified (reference mismatch).* Of the 3.27M-cell flank cohort, 48.5% (1.59M cells) fell into the InSituType de novo "a" bucket, with a further 1.4% in "b". ImmGen is an immune-only reference and cannot classify the roughly half-non-immune 4T1 tumor (epithelium, endothelium, fibroblast, pericyte), and the Mutter_02 tumor compartment in particular was almost entirely unassigned (1.28M of the 1.59M "a" cells). Well-matched single-cell reference mapping typically leaves single-digit to ~15% of cells unassigned, so a 48% rate reflects reference mismatch rather than noise tolerance. We committed to adding a broad off-the-shelf mouse atlas (Tabula Muris Senis, or Mouse Cell Atlas) for the non-immune lineages alongside ImmGen for the immune lineages, applied at the Mutter_01 typing step because Mutter_02 inherits labels by Seurat-anchor TransferData; the malignant identity has no turn-key reference and falls to marker-based assignment.
+- *Robustness reanalysis recasts the day-2 arm-level signal as cell-state composition, not per-cell regulation, and revises the MBRT/p21 arrest reading (2026-06-23).* A per-cell-type detection-versus-level decomposition (limma empirical-Bayes on the per-sample expressing-fraction and on the per-expresser level, n=4, Benjamini-Hochberg within cell type by contrast, with a two-count per-expresser floor below which the level is uninterpretable) now classifies every differential-expression result as regulation, fraction_shift, or ambiguous. The SBRT collagen and Acta2 fibrosis program classifies as fraction_shift — significantly more cells expressing with no significant change in per-expresser level — so the strong pseudobulk collagen signal is a shift in stromal cell state, not per-cell upregulation. A pre-registered fibroblast resting-versus-activated split (UCell on on-panel markers gated by a Col5a1/Col5a3 smooth-muscle-specificity anchor; gate passed, 313,088 activated of 732,099 fibroblasts, anchor enrichment 2.6 times) shows the activated-myofibroblast proportion trending up in SBRT versus Control (+0.51 logit) but not significant at n=4 (padj 0.59): the fibrosis signal is myofibroblast expansion, directionally coherent but underpowered to confirm in this cohort. SBRT tumor cells show Ccnd1, Hmgb2 and Mki67 up as fraction_shift with Cdkn1a/p21 down — a proliferative-regrowth skew of p53-mutant 4T1 survivors at 48h, not arrest; this revises the earlier "MBRT-versus-SBRT dominated by p21 equals arrest" reading, since in a p53-null tumor p21 is the proliferation correlate (high in quiescent cells), and at this panel's sparsity p21 is formally ambiguous (detection drops but the roughly 1.4-count per-expresser level is too sparse to separate fraction from regulation), correcting an earlier pooled-log-normalized "fraction shift" claim. The 33% unassigned stroma is shown non-confounding (arm-stable fraction, no labelled-type call flips with versus without it), and the STING gene set is demoted from independent immune evidence (two of its three on-panel genes are shared with the interferon sets). MBRT remains null at whole-compartment scale. Methods and decisions in plan-differential-robustness.md, informed by a four-lens devils-advocate panel and a deep-solo spec critique. See [[file:results/aggregate/results_master.tsv][results_master.tsv]].
 
 ** README
 
@@ -29,6 +49,7 @@
 :PROPERTIES:
 :ID:       2dc86037-02c7-4b51-b806-43dcc1bc1e9f
 :END:
+- [2026-07-10 Fri] Split the per-sample pipeline into an invariant =preprocessing.smk= (adapter → QC filter → LogNormalize + report-only QC; style-guide compliant: =preproc_= rule prefix, D_/R_ path constants, message directives, scripts as =input:= deps, strict-mode + BLAS =shell.prefix=) and DELETED per-sample cell typing + pathway scoring (5 rules + scripts) — canonical typing is cohort-scale. Per-sample terminus is now =norm.rds=; re-pointed the aggregate merge =scored.rds=→=norm.rds= (=merge.R/merge_pilot.R/coords_necrosis.R/recover_negprobes.R= + =aggregate.smk= expands) and removed the vestigial per-sample =cell_type= requirement (=full_export.R= stopifnot + obs write nulled; =merge.R= meta_cols), nulling the integration-QC benchmark label (re-base on merged labels at the next aggregate rebuild). Fixed a latent =probe_qc.R= bug the fresh run exposed (M01 gene means now read from the per-slide RDS, not the =counts_path= parquet the 2026-06-22 rds re-base set to NA). Full run verified end-to-end (51/51 steps, 23 =norm.rds=, all report-only QC); both dry-runs clean. Consolidated docs: wrote [[file:plan-preprocessing.md][plan-preprocessing.md]] absorbing + deleting =plan-processing-pipeline.md= and =plan-mutter01-controls.md=; marked =plan-pathway-genesets= Phase 2 absorbed; refreshed the Plan status ledger + Plans index; redirected broken =CLAUDE.md= links. Branch =preprocessing-split=.
 - [2026-06-22 Mon] Made =aggregate.smk= typing reproducible (=plan-aggregate-refactor.md= Steps 1–5): wired the real scVI cluster-then-annotate chain replacing the dead InSituType rules, authored the missing =full_scvi.py=; the full 3.27M-cell rebuild reproduced the locked labels BIT-IDENTICALLY (all four Q4 gates pass; every coarse + tier-2 subtype count matches). Built the M01/M02 integration-QC figures (paired unintegrated-vs-scVI UMAP + per-cluster M01/M02 composition bar + atlas). Reframed the MBRT-vs-SBRT analysis after a 4/4 devils-advocate panel: the arm-level MBRT "null" is spatial DILUTION (the real M01 4h peak signature — 37 genes, MHC-I/IFN/damage — averaged out across the valley volume), not biological absence; wrote [[file:plan-mbrt-vs-sbrt-reanalysis.md][plan-mbrt-vs-sbrt-reanalysis.md]] + impl checklist, keeping all 3 contrasts effect-size-forward, symmetric panel coverage, a detectability table, no "sparing" language; resolving spatial gated on M02 peak/valley staining + the MBRT dose physics. Harmonized the plan docs (=plan-mbrt-vs-sbrt.md= run-record banner, the two spatial seeds, =plan-pathway-genesets-impl.md= status), =CLAUDE.md=, and the =project_mbrt_mechanism_status= memory.
 - [2026-06-22 Mon] Added report-only contamination QC to =processing.smk= (=contamination_qc= rule + =scripts/contamination_qc.R=, tangled from org): SpatialQM MECR marker-bleed metric over =config/lineage_markers.yaml=, per-sample + per-FOV with necrosis/mixed-biology triage columns; FastReseg infeasible (no transcript coordinates delivered); cohort clean (MECR medians M01 0.030 / M02 0.021; 5/2469 FOVs flagged). Re-based =adapt_mutter01.R= onto the 4 per-slide RDS (M01 now ingests RDS like M02; counts verified byte-identical across all 11 samples, invariance PASS) and flipped the data model to =format=rds=; =recover_negprobes= retirement + the frozen-seed aggregate rebuild remain deferred. Swapped the panel source doc to =data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx= (Bruker LBL-11176-04; adds a Ligand-Receptor Pairs sheet; gene/annotation content identical). Wrote [[file:plan-aggregate-refactor.md][plan-aggregate-refactor.md]] (devils-advocate-restructured: quarantine the dead aggregate InSituType rules + lock =full_labels.parquet=, bounded best-practice investigation, descoped literate transfer); deleted the spent =plan-mbrt-vs-sbrt-impl.md=. Decisions later resolved same day to =A2 full re-wire= / decision-forcing best-practice review / =C1= literate, harmonized into a seven-step plan (audit → method shoot-out → wire DAG → full rebuild → re-validate → refresh =results_master.tsv= → literate); synced the gap memory note, =CLAUDE.md=, and =plan-aggregate.md= (new v2.6 banner). Ground-truthing added two findings: =obs.parquet= is a second orphan input and the full-run scVI step is untracked (no =full_scvi.py=).
 - [2026-06-15 Mon] Mutter_01 re-delivered as raw per-slide Seurat RDS (negprobes + falsecode assays; Yi confirmed M01 is MC-SOLVE-processed, so only the raw object exists). Validated bit-identical to the parquet — =nCount_negprobes= and =nCount_RNA= 0 disagreements across all 4 slides, 987-FOV crosswalk each → 1 sample — so the locked aggregate is invariant and was not re-run. Added report-only =control_qc= rule (=processing.smk=): negprobe+falsecode characterization across both cohorts, a per-cell control sidecar (=cell_controls.parquet=, 4.2M cells), and a flag-only per-FOV falsecode QC (3-MAD; 146/2572 FOVs; =fov_falsecode_qc.tsv=); =propNegative= kept negprobe-only. Full raw-RDS adapter re-base deferred to the next aggregate rebuild (staged-sidecar decision via devils-advocate panel). See [[file:plan-mutter01-controls.md][plan-mutter01-controls.md]].
@@ -716,7 +737,7 @@ Secondary analysis through cell typing was performed by Yi Liu at the Mayo Spati
 
 A cross-platform FFPE benchmark of CosMx, MERFISH, and Xenium documented that CosMx human panels can carry target gene probes that express at negative-control levels — including canonical immune markers like CD3D, FOXP3, MS4A1 (8-31.9% of panel depending on TMA). For the Mouse UCC panel used here, an analogous probe-vs-negative-control QC should be run before relying on InsituType cell typing, since failed probes for lineage markers will collapse cell types into "unknown" clusters [cite:@ozirmaklermi2025].
 
-*** Bioinformatics
+** Bioinformatics
 sparse CosMx cluster-then-annotate typing (not per-cell markers)
 MAD-based morphology gate
 
@@ -768,7 +789,770 @@ MAD-based morphology gate
     endorsed.
   Strength: 3-0
   Key source: NanoString "On the use of marker genes," 2024
-**** Yi Mutter_01
+*** Initial processing and QC
+
+This pipeline takes that raw output and turns it into labeled, comparable per-cell tables. Briefly, per-slide raw Seurat RDS objects are reshaped to a common format across experiments.
+
+Files are subset from the slide level to tissue experimental condition, experiment 1 by its labeled condition, experiment 2 by physical position on the slide.
+
+The two experiments measured slightly different gene sets, and we keep only the intersect ~950 genes both measured. Cells are quality-filtered by four criteria:
+
+- nCount_RNA > 20 — total counts floor
+- nFeature_RNA > 10 — complexity floor (unique genes)
+- propNegative < 0.5 — negative-probe background backstop
+- |log10(Area) − median| < 3·MAD — robust cell-area outlier gate (segmentation errors/doublets)
+
+Counts are normalized by total counts per cell.
+
+UCC labels from experiment 1 are applied for cell type labels used as a validator / check for full design labeling.
+
+UCell rank-based enrichment scoring is performed per cell.
+
+
+8. **Quality-control reports (these only flag things; they never change the data):**
+   - *Probe check* — are any of the ~1000 genes basically indistinguishable from noise?
+   - *Control check* — how much background and decoding-error each cell carries.
+   - *Contamination check* **(the new one)** — when the software drew each cell's boundary, did it accidentally scoop in a neighbor's genes? It scores how often genes that belong to *different* cell types show up together in one cell (which shouldn't happen if boundaries are clean), reported per sample and per small image-tile, with extra columns so a high score can be read as a real boundary problem vs. just a dense or damaged tissue patch.
+   - Plus plain summary tables and plots.
+
+**End product:** one standardized, quality-checked, labeled, program-scored table per sample — the input the comparison pipeline then uses.
+
+Want me to finish the doc refresh (changelog + CLAUDE.md note) now, or hold while you look this over?
+
+**** preprocessing.smk
+:PROPERTIES:
+:header-args:snakemake: :tangle workflows/preprocessing.smk
+:END:
+
+#+begin_src snakemake
+# spatial-rads -- invariant per-sample preprocessing workflow (pre-aggregate).
+# Deterministic function of (raw input, pinned config): dataset adapter (raw per-slide
+# RDS -> common 950-gene Seurat) -> 4-criteria QC filter -> LogNormalize, plus report-only
+# QC (probe QC, control characterization, SpatialQM contamination MECR, QC summaries/plots).
+# Per-sample terminus = norm.rds; canonical cell typing happens at merged scale in the
+# aggregate workflow. Run: conda run -n basecamp snakemake -s workflows/preprocessing.smk --cores 8
+# R steps run in the spatial-rads env via `conda run` (driver lives in basecamp).
+
+import os
+import pandas as pd
+
+configfile: "config/config.yaml"
+
+# Strict mode (Snakemake default, preserved) + BLAS pinned to 1 thread per R process:
+# snakemake schedules job-level parallelism, not R BLAS multi-threading. Without the pin,
+# --cores N x ~48 BLAS threads each swamps the box.
+shell.prefix("set -euo pipefail; export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1; ")
+
+# --- interpreter (driver runs in basecamp; R steps in spatial-rads) ---
+RSCRIPT = "conda run -n spatial-rads Rscript"
+
+# --- paths: D_ data dirs, R_ repo locations ---
+D_DATA    = config["datadir"]
+D_PROC    = os.path.join(D_DATA, "processing")    # heavy per-sample RDS
+D_RES     = "results/processing"                  # small TSV/PNG reports
+D_LOGS    = "logs"
+R_SCRIPTS = "scripts"
+
+MASTER  = config["samplesheet"]                   # master sheet from the data_model workflow
+SCOPED  = f"{D_RES}/samplesheet.tsv"
+GENES   = "results/data_model/common_genes.tsv"   # common panel (M01 n M02; built in data_model.smk)
+YIREF   = f"{D_RES}/yi_reference.tsv"             # M01 vendor-label side-output (retired with per-sample typing)
+QC      = config["qc"]
+NRM     = config["normalize"]
+M01_RDS_DIR = f"{D_DATA}/inputs/mutter01"
+M02_RDS_DIR = f"{D_DATA}/inputs/mutter02"
+M01_META_PQ = f"{D_DATA}/inputs/mutter01/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"
+
+# Parse-time sample lists from the master sheet.
+_s = pd.read_csv(MASTER, sep="\t")
+M01 = _s.loc[_s["name"] == "Mutter_01", "sample_id"].tolist()
+M02 = _s.loc[_s["name"] == "Mutter_02", "sample_id"].tolist()
+ALL = _s["sample_id"].tolist()
+
+# =============================================================================
+# SECTION: TARGETS
+# =============================================================================
+rule all:
+    input:
+        expand(f"{D_PROC}/norm/{{s}}.norm.rds", s=ALL),
+        f"{D_RES}/qc_summary.tsv",
+        f"{D_RES}/probe_qc_report.tsv",
+        f"{D_RES}/m01_rds_validation.tsv",
+        f"{D_RES}/control_characterization.tsv",
+        f"{D_RES}/fov_falsecode_qc.tsv",
+        f"{D_RES}/contamination_qc.tsv",
+        f"{D_RES}/contamination_fov_qc.tsv",
+        f"{D_RES}/plots/qc_removal_attribution.png",
+        f"{D_RES}/plots/qc_metric_distributions.png",
+
+# =============================================================================
+# SECTION: SAMPLE SHEET + PANEL / CONTROL QC (report-only)
+# =============================================================================
+
+# Workflow-linked sample sheet (scoped view of the data model).
+rule preproc_samplesheet:
+    message: "[samplesheet] scoped view of the data model"
+    input:
+        script = f"{R_SCRIPTS}/processing_samplesheet.R",
+        rda    = "data/data_model.rda",
+    log:
+        f"{D_LOGS}/preproc_samplesheet.log",
+    threads: 1
+    output:
+        ss = SCOPED,
+    shell:
+        "{RSCRIPT} {input.script} {input.rda} {output.ss} > {log} 2>&1"
+
+# Probe-vs-negative-control QC DIAGNOSTIC (report-only; does NOT drop genes).
+rule preproc_probe_qc:
+    message: "[probe_qc] background-level probe flags"
+    input:
+        script = f"{R_SCRIPTS}/probe_qc.R",
+        ss     = SCOPED,
+        panel  = GENES,
+    log:
+        f"{D_LOGS}/preproc_probe_qc.log",
+    threads: 1
+    output:
+        report = f"{D_RES}/probe_qc_report.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {input.ss} {input.panel} {output.report} > {log} 2>&1"
+
+# Control QC (report-only): negprobe + falsecode characterization & per-cell sidecar.
+# Additive; depends on raw RDS + M01 parquet, never scored objects.
+rule preproc_control_qc:
+    message: "[control_qc] negprobe/falsecode characterization + sidecar"
+    input:
+        validate     = f"{R_SCRIPTS}/validate_m01_rds.R",
+        characterize = f"{R_SCRIPTS}/characterize_controls.R",
+        sidecar      = f"{R_SCRIPTS}/control_sidecar.R",
+        m01_meta     = M01_META_PQ,
+    log:
+        f"{D_LOGS}/preproc_control_qc.log",
+    threads: 1
+    output:
+        valid   = f"{D_RES}/m01_rds_validation.tsv",
+        charac  = f"{D_RES}/control_characterization.tsv",
+        density = f"{D_RES}/plots/fov_falsecode_density.png",
+        cells   = f"{D_PROC}/cell_controls.parquet",
+        fovqc   = f"{D_RES}/fov_falsecode_qc.tsv",
+    shell:
+        "{RSCRIPT} {input.validate} " + M01_RDS_DIR + " {input.m01_meta} {output.valid} > {log} 2>&1 && "
+        "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.density} >> {log} 2>&1 && "
+        "{RSCRIPT} {input.sidecar} " + M01_RDS_DIR + " {input.m01_meta} " + M02_RDS_DIR + " {output.cells} {output.fovqc} >> {log} 2>&1"
+
+# Contamination QC (report-only): SpatialQM MECR marker-bleed, sample + FOV grain.
+rule preproc_contamination_qc:
+    message: "[contamination_qc] SpatialQM MECR marker-bleed"
+    input:
+        script  = f"{R_SCRIPTS}/contamination_qc.R",
+        qc      = expand(f"{D_PROC}/qc/{{s}}.qc.rds", s=ALL),
+        sqm     = f"{R_SCRIPTS}/aggregate/spatialqm_metrics.R",
+        markers = "config/lineage_markers.yaml",
+    log:
+        f"{D_LOGS}/preproc_contamination_qc.log",
+    threads: 1
+    output:
+        sample = f"{D_RES}/contamination_qc.tsv",
+        fov    = f"{D_RES}/contamination_fov_qc.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {D_PROC}/qc {input.sqm} "
+        "{input.markers} {output.sample} {output.fov} > {log} 2>&1"
+
+# =============================================================================
+# SECTION: ADAPTERS (dataset-specific: raw per-slide RDS -> common-format Seurat)
+# =============================================================================
+rule preproc_adapt_mutter01:
+    message: "[adapt_mutter01] raw per-slide RDS -> common Seurat"
+    input:
+        script = f"{R_SCRIPTS}/adapt_mutter01.R",
+        ss     = SCOPED,
+        genes  = GENES,
+    log:
+        f"{D_LOGS}/preproc_adapt_mutter01.log",
+    threads: 1
+    output:
+        rds = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=M01),
+        yi  = YIREF,
+    shell:
+        "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} {output.yi} > {log} 2>&1"
+
+rule preproc_adapt_mutter02:
+    message: "[adapt_mutter02] raw per-slide RDS -> common Seurat"
+    input:
+        script = f"{R_SCRIPTS}/adapt_mutter02.R",
+        ss     = SCOPED,
+        genes  = GENES,
+    log:
+        f"{D_LOGS}/preproc_adapt_mutter02.log",
+    threads: 1
+    output:
+        rds = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=M02),
+    shell:
+        "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} > {log} 2>&1"
+
+# =============================================================================
+# SECTION: QC FILTER -> NORMALIZE (shared; invariant terminus = norm.rds)
+# =============================================================================
+rule preproc_qc_filter:
+    message: "[qc_filter] {wildcards.s}"
+    input:
+        script = f"{R_SCRIPTS}/qc_filter.R",
+        rds    = f"{D_PROC}/raw/{{s}}.raw.rds",
+    log:
+        f"{D_LOGS}/preproc_qc_filter/{{s}}.log",
+    params:
+        min_counts   = QC["min_counts"],
+        min_features = QC["min_features"],
+        max_propneg  = QC["max_prop_negative"],
+        area_nmads   = QC["area_nmads"],
+    threads: 1
+    output:
+        rds     = f"{D_PROC}/qc/{{s}}.qc.rds",
+        summary = f"{D_RES}/qc/{{s}}.qcsummary.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {output.rds} {output.summary} "
+        "{params.min_counts} {params.min_features} {params.max_propneg} {params.area_nmads} > {log} 2>&1"
+
+rule preproc_normalize:
+    message: "[normalize] {wildcards.s}"
+    input:
+        script = f"{R_SCRIPTS}/normalize.R",
+        rds    = f"{D_PROC}/qc/{{s}}.qc.rds",
+    log:
+        f"{D_LOGS}/preproc_normalize/{{s}}.log",
+    params:
+        scale_factor = NRM["scale_factor"],
+        nfeatures    = NRM["n_variable_features"],
+    threads: 1
+    output:
+        rds = f"{D_PROC}/norm/{{s}}.norm.rds",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {output.rds} {params.scale_factor} {params.nfeatures} > {log} 2>&1"
+
+# =============================================================================
+# SECTION: REPORTS
+# =============================================================================
+rule preproc_qc_report:
+    message: "[qc_report] pooled per-sample QC summaries"
+    input:
+        script = f"{R_SCRIPTS}/qc_report.R",
+        sums   = expand(f"{D_RES}/qc/{{s}}.qcsummary.tsv", s=ALL),
+    log:
+        f"{D_LOGS}/preproc_qc_report.log",
+    threads: 1
+    output:
+        report = f"{D_RES}/qc_summary.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {D_RES}/qc {output.report} > {log} 2>&1"
+
+rule preproc_qc_plots:
+    message: "[qc_plots] QC removal attribution + metric distributions"
+    input:
+        script = f"{R_SCRIPTS}/qc_plots.R",
+        raw    = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=ALL),
+        cfg    = "config/config.yaml",
+    log:
+        f"{D_LOGS}/preproc_qc_plots.log",
+    threads: 1
+    output:
+        attribution   = f"{D_RES}/plots/qc_removal_attribution.png",
+        distributions = f"{D_RES}/plots/qc_metric_distributions.png",
+        attr_tsv      = f"{D_RES}/plots/qc_removal_attribution.tsv",
+    shell:
+        "{RSCRIPT} {input.script} {input.cfg} {D_RES}/plots > {log} 2>&1"
+#+end_src
+
+**** processing_samplesheet.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/processing_samplesheet.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Workflow-linked sample sheet: scoped view of data_model.rda for the processing workflow.
+# Args: <data_model.rda> <out.tsv>
+suppressMessages({library(dplyr); library(readr)})
+args <- commandArgs(trailingOnly = TRUE)
+RDA <- args[1]; OUT <- args[2]
+load(RDA)  # -> data_model (named list of tibbles)
+dm <- data_model
+scoped <- dm$samples %>%
+  left_join(dm$slides,   by = "slide_id") %>%
+  left_join(dm$datasets, by = "dataset_id") %>%
+  mutate(raw_input_path = if_else(format == "rds", input_path, counts_path)) %>%
+  transmute(sample_id, dataset = name, format, treatment, condition, timepoint_h, model,
+            slide_id, physical_barcode, block_label, extract_key,
+            counts_path, metadata_path, raw_input_path)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+write_tsv(scoped, OUT)
+cat(sprintf("wrote %s (%d samples: %d Mutter_01, %d Mutter_02)\n",
+            OUT, nrow(scoped), sum(scoped$dataset=="Mutter_01"), sum(scoped$dataset=="Mutter_02")))
+#+end_src
+
+**** common_gene_panel.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/common_gene_panel.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Common gene panel = Mutter_01 panel INT Mutter_02 panel, both read from the RNA-assay
+# rownames of one per-slide raw RDS (both datasets are format=rds; the counts parquet is
+# retired). Invariance guard: the freshly-built list must setequal the currently-committed
+# common_genes.tsv before overwrite -- this panel is frozen because the locked aggregate
+# was typed on it, so identity (not just cardinality) must hold.
+# Args: <samplesheet.tsv> <out.tsv>
+suppressMessages({library(readr); library(dplyr); library(Seurat)})
+args <- commandArgs(trailingOnly = TRUE); SS <- args[1]; OUT <- args[2]
+ss <- read_tsv(SS, show_col_types = FALSE)
+
+# One per-slide RDS per dataset suffices for a panel (rownames) lookup; the RNA assay is
+# the gene panel (negprobes/falsecode are separate assays in the same object).
+rds_genes <- function(ds) {
+  p <- ss %>% filter(name == ds) %>% pull(raw_input_path) %>% unique()
+  stopifnot(length(p) >= 1, file.exists(p[1]))
+  o <- readRDS(p[1]); g <- rownames(o[["RNA"]]); rm(o); gc(); g
+}
+m01 <- rds_genes("Mutter_01"); m02 <- rds_genes("Mutter_02")
+common <- sort(intersect(m01, m02))
+cat(sprintf("Mutter_01: %d | Mutter_02: %d | common: %d\n", length(m01), length(m02), length(common)))
+stopifnot(length(common) > 500)  # sanity: panels should overlap heavily
+
+## ---- invariance guard vs committed snapshot (identity, not count) ----
+if (file.exists(OUT)) {
+  old <- readLines(OUT)
+  if (!setequal(common, old))
+    stop(sprintf("panel invariance FAILED: %d added, %d removed vs committed %s",
+                 length(setdiff(common, old)), length(setdiff(old, common)), OUT))
+}
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+writeLines(common, OUT)
+#+end_src
+
+**** probe_qc.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/probe_qc.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Probe-vs-negative-control DIAGNOSTIC -- report-only, does NOT drop genes.
+#
+# NanoString good practice (Danaher, CosMx Analysis Scratch Space) advises AGAINST removing
+# low-expression genes -- that loses rare-cell-type markers -- and instead models background
+# per cell; InSituType accounts for background internally via its per-cell neg term. So we keep
+# the full panel and only FLAG candidate failed probes (Ozirmak Lermi 2025, Nat Commun
+# 10.1038/s41467-025-63414-1): genes sitting at/below the negative-control background in BOTH
+# datasets (signal-to-background <= 1), i.e. behaving like a negative probe. Review, do not auto-drop.
+# Args: <samplesheet.tsv> <common_genes.tsv> <out_report.tsv>
+suppressMessages({library(readr); library(dplyr); library(arrow); library(data.table); library(Seurat); library(Matrix)})
+args <- commandArgs(trailingOnly = TRUE)
+SS <- args[1]; PANEL <- args[2]; OUT <- args[3]
+ss <- read_tsv(SS, show_col_types = FALSE)
+panel <- readLines(PANEL)
+
+m02_paths <- unique(ss$raw_input_path[ss$dataset == "Mutter_02"])
+o1 <- UpdateSeuratObject(readRDS(m02_paths[1]))
+NEG_N <- nrow(GetAssayData(o1, assay = "negprobes", layer = "counts")); rm(o1); gc()
+
+## Mutter_01: per-gene mean (RNA assay from per-slide RDS -- counts_path retired by the 2026-06-22
+## rds re-base); per-negprobe background (metadata negprobe summary, byte-identical to the RDS negprobes).
+m01 <- ss %>% filter(dataset == "Mutter_01")
+gm1 <- list()
+for (p in unique(m01$raw_input_path)) {
+  o <- UpdateSeuratObject(readRDS(p))
+  rna <- GetAssayData(o, assay = "RNA", layer = "counts")
+  gm1[[p]] <- Matrix::rowMeans(rna[intersect(panel, rownames(rna)), , drop = FALSE]); rm(o); gc()
+}
+g01 <- Reduce(intersect, lapply(gm1, names))
+m01_mean <- rowMeans(vapply(gm1, function(x) x[g01], numeric(length(g01))))
+mdt <- as.data.table(read_parquet(unique(m01$metadata_path)))
+m01_bg <- mean(mdt$nCount_NegativeProbes, na.rm = TRUE) / NEG_N; rm(mdt); gc()
+
+## Mutter_02: per-gene mean (RNA assay); per-negprobe background (negprobes assay)
+gm <- list(); bgs <- numeric(0)
+for (p in m02_paths) {
+  o <- UpdateSeuratObject(readRDS(p))
+  rna <- GetAssayData(o, assay = "RNA", layer = "counts")
+  gm[[p]] <- Matrix::rowMeans(rna[intersect(panel, rownames(rna)), , drop = FALSE])
+  bgs <- c(bgs, mean(Matrix::rowMeans(GetAssayData(o, assay = "negprobes", layer = "counts")))); rm(o); gc()
+}
+g02 <- Reduce(intersect, lapply(gm, names))
+m02_mean <- rowMeans(vapply(gm, function(x) x[g02], numeric(length(g02)))); m02_bg <- mean(bgs)
+
+genes <- intersect(names(m01_mean), g02)
+rep <- data.frame(gene = genes,
+                  m01_mean = m01_mean[genes], m01_bg = m01_bg, m01_s2b = m01_mean[genes] / m01_bg,
+                  m02_mean = m02_mean[genes], m02_bg = m02_bg, m02_s2b = m02_mean[genes] / m02_bg)
+rep$flagged_failed <- rep$m01_s2b <= 1 & rep$m02_s2b <= 1   # at background in BOTH = candidate failed probe
+rep <- rep[order(-rep$flagged_failed, rep$m02_s2b), ]
+cat(sprintf("probe-QC diagnostic: %d genes | NEG_N=%d | M01 bg=%.4f M02 bg=%.4f | %d flagged at-background in BOTH (NOT dropped)\n",
+            nrow(rep), NEG_N, m01_bg, m02_bg, sum(rep$flagged_failed)))
+if (sum(rep$flagged_failed)) cat("flagged failed-probe candidates:", paste(rep$gene[rep$flagged_failed], collapse = ", "), "\n")
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+write_tsv(rep, OUT)
+#+end_src
+
+**** adapt_mutter01.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/adapt_mutter01.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Stage B adapter -- Mutter_01: per-slide raw Seurat RDS -> per-sample common-format Seurat.
+# Harmonized with adapt_mutter02 on the per-slide-RDS data structure (M01 re-delivered as raw RDS
+# with negprobes+falsecode; Yi 2026-06-10: only the raw object exists). RNA counts now come from the
+# 4 per-slide RDS (bit-identical to the legacy MC-SOLVE counts parquet); Condition + Yi vendor labels
+# + shared morphology/QC metadata are joined from the metadata parquet by reconstructed global
+# cell_id (the parquet is their only source). Yi vendor cols -> yi_reference.tsv; objects split by
+# Condition. A setequal() guard asserts the RDS cohort reproduces the parquet cell set exactly, so
+# per-sample output is numerically INVARIANT vs the prior parquet-counts adapter.
+# Args: <samplesheet.tsv> <common_genes.tsv> <DATADIR> <yi_reference_out.tsv>
+suppressMessages({library(data.table); library(arrow); library(Seurat); library(Matrix); library(readr); library(dplyr)})
+args <- commandArgs(trailingOnly = TRUE)
+SS <- args[1]; GENES <- args[2]; DATADIR <- args[3]; YI_OUT <- args[4]
+
+ss <- read_tsv(SS, show_col_types = FALSE) %>% filter(dataset == "Mutter_01")
+common    <- readLines(GENES)
+meta_path <- unique(ss$metadata_path); stopifnot(length(meta_path) == 1)
+rds_paths <- sort(unique(ss$raw_input_path))                         # 4 per-slide RDS (was the counts parquet)
+
+## ---- metadata parquet: Condition + Yi vendor + shared cols live ONLY here, keyed by cell_id ----
+mdt <- as.data.table(read_parquet(meta_path)); setkey(mdt, cell_id)
+
+## ---- counts from the per-slide RDS -> sparse genes x cells on the common panel ----
+## reconstruct the global parquet cell_id from each object-local barcode c_1_<fov>_<cell> (scheme
+## proven in validate_m01_rds.R / control_sidecar.R); assert 100% reconstruction (no NA-fill).
+mats <- vector("list", length(rds_paths))
+for (i in seq_along(rds_paths)) {
+  o   <- readRDS(rds_paths[i])
+  rtn <- unique(as.character(o$Run_Tissue_name)); stopifnot(length(rtn) == 1)
+  sx  <- paste0("S", as.integer(sub("_.*", "", rtn)))
+  slide_full <- grep(paste0("_", sx, "$"), unique(mdt$Slide), value = TRUE); stopifnot(length(slide_full) == 1)
+  p   <- tstrsplit(colnames(o), "_")
+  gid <- paste0(slide_full, "_", p[[3]], "_", p[[4]])
+  stopifnot(sum(gid %in% mdt$cell_id) == ncol(o))
+  cm  <- LayerData(o, assay = "RNA", layer = "counts"); colnames(cm) <- gid
+  mats[[i]] <- cm[intersect(common, rownames(cm)), , drop = FALSE]
+  cat(sprintf("%-42s %s  %7d cells\n", basename(rds_paths[i]), slide_full, ncol(cm)))
+  rm(o, cm); invisible(gc())
+}
+genes_common <- Reduce(intersect, lapply(mats, rownames))
+sp <- do.call(cbind, lapply(mats, function(m) m[genes_common, , drop = FALSE])); rm(mats); invisible(gc())
+stopifnot(setequal(colnames(sp), mdt$cell_id))                       # RDS cohort == parquet cohort -> invariance
+cat(sprintf("counts (from RDS): %d cells x %d common genes\n", ncol(sp), nrow(sp)))
+
+## ---- metadata: sequester Yi vendor cols; keep shared cols (from the parquet, as before) ----
+yi_cols <- intersect(c("cell_id", "Condition", "Block", "qcFlagsCell",
+  "insitutype_ImmuneAtlas_ImmGen.csv_clust", "ImmuneAtlas_ImmGen_Main_cell_Types",
+  "ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types", "RNA_snn_res.0.1", "umap_1", "umap_2",
+  "TypeI_interferon", "TypeII_interferon", "STING", "DNA_Damage_Repair"), names(mdt))
+dir.create(dirname(YI_OUT), recursive = TRUE, showWarnings = FALSE)
+fwrite(mdt[, ..yi_cols], YI_OUT, sep = "\t")
+
+shared <- intersect(c("nCount_RNA", "nFeature_RNA", "propNegative", "qcFlagsCell",
+  "x_slide_mm", "y_slide_mm", "fov", "Area", "Mean.PanCK", "Mean.CD45",
+  "Mean.CD298.B2M", "Mean.DAPI", "Condition"), names(mdt))
+meta <- as.data.frame(mdt[, c("cell_id", ..shared)]); rownames(meta) <- meta$cell_id
+
+## ---- split by Condition -> per-sample objects ----
+stopifnot(all(ss$extract_key %in% meta$Condition))   # every sample's split key resolves
+outdir <- file.path(DATADIR, "processing", "raw"); dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+for (i in seq_len(nrow(ss))) {
+  s <- ss[i, ]
+  cells <- meta$cell_id[meta$Condition == s$extract_key]
+  stopifnot(length(cells) > 0)
+  md <- meta[cells, , drop = FALSE]
+  md$sample_id <- s$sample_id; md$dataset <- "Mutter_01"; md$treatment <- s$treatment
+  md$condition <- s$condition; md$timepoint_h <- s$timepoint_h; md$model <- s$model
+  obj <- CreateSeuratObject(counts = sp[, cells, drop = FALSE], meta.data = md, project = s$sample_id)
+  saveRDS(obj, file.path(outdir, paste0(s$sample_id, ".raw.rds")))
+  cat(sprintf("%s (%s): %d cells\n", s$sample_id, s$condition, ncol(obj)))
+}
+cat("adapt_mutter01 done\n")
+#+end_src
+
+**** adapt_mutter02.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/adapt_mutter02.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Stage B adapter -- Mutter_02: per-slide Seurat RDS -> per-sample common-format Seurat.
+# Subset to common panel + shared meta; assign 3 y-bands by deterministic k-means; map
+# bands to samples via extract_key (y-rank 1=top..3=bottom). Args: <samplesheet.tsv> <common_genes.tsv> <DATADIR>
+suppressMessages({library(Seurat); library(readr); library(dplyr)})
+args <- commandArgs(trailingOnly = TRUE)
+SS <- args[1]; GENES <- args[2]; DATADIR <- args[3]
+set.seed(1)
+
+ss <- read_tsv(SS, show_col_types = FALSE) %>% filter(dataset == "Mutter_02")
+common <- readLines(GENES)
+shared <- c("nCount_RNA", "nFeature_RNA", "propNegative", "qcFlagsCell",
+            "x_slide_mm", "y_slide_mm", "fov", "Area", "Mean.PanCK", "Mean.CD45",
+            "Mean.CD298.B2M", "Mean.DAPI")
+design <- c("sample_id", "dataset", "treatment", "condition", "timepoint_h", "model")
+outdir <- file.path(DATADIR, "processing", "raw"); dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
+
+slides <- ss %>% distinct(slide_id, raw_input_path)
+for (j in seq_len(nrow(slides))) {
+  sl <- slides[j, ]; this <- ss %>% filter(slide_id == sl$slide_id)
+  obj <- UpdateSeuratObject(readRDS(sl$raw_input_path))
+  obj$propNegative <- obj$nCount_negprobes / (obj$nCount_RNA + obj$nCount_negprobes)  # generate; vendor QC absent for Mutter_02
+  DefaultAssay(obj) <- "RNA"
+  for (a in setdiff(names(obj@assays), "RNA")) obj[[a]] <- NULL          # drop negprobes/falsecode
+  obj <- subset(obj, features = intersect(common, rownames(obj)))
+
+  set.seed(1)
+  km <- kmeans(obj$y_slide_mm, centers = 3, nstart = 10)
+  rank_of_cluster <- order(km$centers[, 1], decreasing = TRUE)           # 1 = top (highest y)
+  cell_rank <- match(km$cluster, rank_of_cluster)
+  stopifnot(length(unique(cell_rank)) == 3)                              # 3 separable bands
+  obj$spatial_rank <- cell_rank
+
+  for (r in 1:3) {
+    srow <- this %>% filter(extract_key == as.character(r))
+    stopifnot(nrow(srow) == 1)
+    sub <- subset(obj, cells = colnames(obj)[cell_rank == r])
+    sub$sample_id <- srow$sample_id; sub$dataset <- "Mutter_02"; sub$treatment <- srow$treatment
+    sub$condition <- srow$condition; sub$timepoint_h <- srow$timepoint_h; sub$model <- srow$model
+    keep <- intersect(c(shared, design), colnames(sub@meta.data))
+    sub@meta.data <- sub@meta.data[, keep, drop = FALSE]
+    saveRDS(sub, file.path(outdir, paste0(srow$sample_id, ".raw.rds")))
+    cat(sprintf("%s (%s, slide %s rank %d): %d cells\n",
+                srow$sample_id, srow$condition, sl$slide_id, r, ncol(sub)))
+  }
+}
+cat("adapt_mutter02 done\n")
+#+end_src
+
+**** qc_filter.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/qc_filter.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Shared per-sample QC -- identical four-criteria gate on both datasets, all from data in hand:
+#   counts (nCount_RNA), complexity (nFeature_RNA), negative-probe proportion (propNegative),
+#   and cell-area outliers (robust MAD on log10 Area). This reproduces what NanoString's
+#   composite qcFlagsCell bundles, transparently and identically across datasets.
+# Args: <in.raw.rds> <out.qc.rds> <out.summary.tsv> <min_counts> <min_features> <max_propneg> [area_nmads=3]
+suppressMessages({library(Seurat); library(readr)})
+args <- commandArgs(trailingOnly = TRUE)
+IN <- args[1]; OUT_RDS <- args[2]; OUT_SUM <- args[3]
+min_counts <- as.numeric(args[4]); min_features <- as.numeric(args[5]); max_propneg <- as.numeric(args[6])
+area_nmads <- if (length(args) >= 7) as.numeric(args[7]) else 3
+
+obj <- readRDS(IN)
+req <- c("nCount_RNA", "nFeature_RNA", "propNegative", "Area")
+miss <- setdiff(req, colnames(obj@meta.data))
+if (length(miss)) stop(sprintf("%s: missing required QC columns: %s", basename(IN), paste(miss, collapse = ", ")))
+
+pre <- ncol(obj)
+la  <- log10(obj$Area)                                   # robust area-outlier gate (identical method both datasets)
+med <- median(la, na.rm = TRUE); md <- mad(la, na.rm = TRUE)
+area_ok <- !is.na(la) & la > (med - area_nmads * md) & la < (med + area_nmads * md)
+keep <- obj$nCount_RNA > min_counts & obj$nFeature_RNA > min_features &
+        obj$propNegative < max_propneg & area_ok
+
+obj$qcFlagsCell <- NULL                                  # drop vendor flag (M01-only) so qc objects share one schema
+obj <- obj[, keep]
+post <- ncol(obj)
+
+sid <- if ("sample_id" %in% colnames(obj@meta.data)) as.character(obj$sample_id[1]) else sub("\\.raw\\.rds$", "", basename(IN))
+summ <- data.frame(sample_id = sid, pre_filter = pre, post_filter = post,
+                   pct_retained = round(100 * post / pre, 1), area_flagged = sum(!area_ok))
+dir.create(dirname(OUT_RDS), recursive = TRUE, showWarnings = FALSE)
+dir.create(dirname(OUT_SUM), recursive = TRUE, showWarnings = FALSE)
+saveRDS(obj, OUT_RDS)
+write_tsv(summ, OUT_SUM)
+cat(sprintf("%s QC: %d -> %d (%.1f%%; %d area-flagged)\n", sid, pre, post, 100 * post / pre, sum(!area_ok)))
+#+end_src
+
+**** normalize.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/normalize.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Shared per-sample normalization: LogNormalize + variable features (full common panel
+# is effectively all-variable on a ~1000-gene targeted panel). Args: <in.qc.rds> <out.norm.rds> <scale_factor> <nfeatures>
+suppressMessages(library(Seurat))
+args <- commandArgs(trailingOnly = TRUE)
+IN <- args[1]; OUT <- args[2]
+sf <- as.numeric(args[3]); nfeat <- as.numeric(args[4])
+
+obj <- readRDS(IN)
+obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = sf, verbose = FALSE)
+nfeat <- min(nfeat, nrow(obj))
+obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = nfeat, verbose = FALSE)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+saveRDS(obj, OUT)
+cat(sprintf("normalized %s: %d cells, %d/%d variable features\n",
+            sub("\\.qc\\.rds$", "", basename(IN)), ncol(obj), length(VariableFeatures(obj)), nrow(obj)))
+#+end_src
+
+**** qc_report.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/qc_report.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Aggregate per-sample QC summaries into one table. Args: <qc_summary_dir> <out.tsv>
+suppressMessages({library(readr); library(dplyr); library(purrr)})
+args <- commandArgs(trailingOnly = TRUE)
+DIR <- args[1]; OUT <- args[2]
+files <- list.files(DIR, pattern = "\\.qcsummary\\.tsv$", full.names = TRUE)
+stopifnot(length(files) > 0)
+df <- map_dfr(files, read_tsv, show_col_types = FALSE) %>% arrange(sample_id)
+dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
+write_tsv(df, OUT)
+cat(sprintf("aggregated %d sample QC rows -> %s\n", nrow(df), OUT))
+print(as.data.frame(df))
+#+end_src
+
+**** qc_plots.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/qc_plots.R
+:END:
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# QC visualizations as pipeline outputs: (1) per-criterion removal attribution (cells failing
+# counts / complexity / propNegative / area -- shows which criteria drive the cuts), and
+# (2) metric distributions with cutoff lines. Cutoffs read from config (match scripts/qc_filter.R).
+# Args: <config.yaml> <out_dir>
+suppressMessages({library(Seurat); library(dplyr); library(tidyr); library(ggplot2); library(patchwork); library(readr); library(yaml)})
+args <- commandArgs(trailingOnly = TRUE)
+CFG <- args[1]; OUT <- args[2]
+cfg <- yaml::read_yaml(CFG); q <- cfg$qc; datadir <- cfg$datadir
+min_counts <- q$min_counts; min_features <- q$min_features
+max_propneg <- q$max_prop_negative; area_nmads <- q$area_nmads
+dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
+
+raw_files <- sort(list.files(file.path(datadir, "processing", "raw"), pattern = "\\.raw\\.rds$", full.names = TRUE))
+stopifnot(length(raw_files) > 0)
+
+set.seed(1)
+attr_rows <- list(); metric_rows <- list()
+for (f in raw_files) {
+  m <- readRDS(f)@meta.data
+  sid <- if ("sample_id" %in% names(m)) as.character(m$sample_id[1]) else sub("\\.raw\\.rds$", "", basename(f))
+  ds  <- if ("dataset" %in% names(m)) as.character(m$dataset[1]) else NA_character_
+  la  <- log10(m$Area); med <- median(la, na.rm = TRUE); md <- mad(la, na.rm = TRUE)
+  attr_rows[[sid]] <- data.frame(
+    sample_id = sid, dataset = ds, n_cells = nrow(m),
+    counts       = sum(!(m$nCount_RNA   > min_counts)),
+    complexity   = sum(!(m$nFeature_RNA > min_features)),
+    propNegative = sum(!(m$propNegative < max_propneg)),
+    area         = sum(is.na(la) | !(la > med - area_nmads * md & la < med + area_nmads * md)))
+  idx <- sample(seq_len(nrow(m)), min(2000L, nrow(m)))
+  metric_rows[[sid]] <- data.frame(sample_id = sid, dataset = ds,
+    nCount_RNA = m$nCount_RNA[idx], nFeature_RNA = m$nFeature_RNA[idx],
+    propNegative = m$propNegative[idx], Area = m$Area[idx])
+  rm(m); gc()
+}
+attr_df <- bind_rows(attr_rows); met <- bind_rows(metric_rows)
+write_tsv(attr_df, file.path(OUT, "qc_removal_attribution.tsv"))
+
+## Plot A -- per-criterion removal attribution
+aL <- attr_df %>%
+  select(sample_id, dataset, counts, complexity, propNegative, area) %>%
+  pivot_longer(c(counts, complexity, propNegative, area), names_to = "criterion", values_to = "n_fail")
+pA <- ggplot(aL, aes(sample_id, n_fail, fill = criterion)) +
+  geom_col() +
+  facet_grid(~dataset, scales = "free_x", space = "free_x") +
+  labs(title = "Cells failing each QC criterion (not mutually exclusive)",
+       subtitle = "Count + complexity floors drive most removal", x = NULL, y = "cells flagged") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 6))
+
+## Plot B -- metric distributions with cutoffs
+mk <- function(col, cutoff, logy, lab) {
+  p <- ggplot(met, aes(dataset, .data[[col]], fill = dataset)) + geom_violin(scale = "width")
+  if (!is.na(cutoff)) p <- p + geom_hline(yintercept = cutoff, linetype = "dashed", color = "red")
+  p <- p + labs(x = NULL, y = lab) + theme_bw() + theme(legend.position = "none")
+  if (logy) p <- p + scale_y_log10()
+  p
+}
+pB <- (mk("nCount_RNA", min_counts, TRUE, "nCount_RNA (log)") | mk("nFeature_RNA", min_features, TRUE, "nFeature_RNA (log)")) /
+      (mk("propNegative", max_propneg, FALSE, "propNegative") | mk("Area", NA, TRUE, "Area (log, per-sample MAD gate)"))
+
+ggsave(file.path(OUT, "qc_removal_attribution.png"), pA, width = 11, height = 5, dpi = 150)
+ggsave(file.path(OUT, "qc_metric_distributions.png"), pB, width = 10, height = 7, dpi = 150)
+cat(sprintf("wrote QC plots + attribution to %s\n", OUT)); print(attr_df)
+#+end_src
+
+**** contamination_qc.R
+:PROPERTIES:
+:header-args:R: :tangle scripts/contamination_qc.R
+:END:
+
+Report-only segmentation/neighbour-contamination QC. CosMx good practice flags poorly-segmented cells whose profiles are contaminated by neighbouring transcripts; the field's per-cell tool (FastReseg) needs per-molecule transcript coordinates / cell polygons, which were NOT delivered (=** Data=, 2026-06-01). The feasible peer-reviewed metric is SpatialQM's MECR (mutually-exclusive co-expression rate), vendored in [[file:scripts/aggregate/spatialqm_metrics.R]]; computed here per sample and per FOV from the post-QC objects against the [[file:config/lineage_markers.yaml]] coarse lineages. The per-FOV table adds orthogonal triage columns (counts, features, propNegative, area) so a high-MECR flag separates true segmentation contamination from necrosis/low-quality tissue and from genuinely dense tumour-immune regions. Additive and report-only -- it never drops cells or FOVs (necrosis is itself a radiation signal), and does not touch the raw->qc->norm->typed->scored chain.
+
+#+begin_src R
+#!/usr/bin/env Rscript
+# Contamination QC (report-only): SpatialQM MECR marker-bleed metric at sample + FOV grain.
+# MECR = mean Jaccard co-expression of cross-lineage marker pairs (LOW = clean, HIGH = bleed /
+# segmentation contamination). FastReseg / per-cell resegmentation is infeasible here (no transcript
+# coords or cell polygons delivered), so MECR -- the feasible peer-reviewed metric (SpatialQM,
+# Plummer/Segato-Dezem et al., Nat Biotechnol 2025; vendored in scripts/aggregate/spatialqm_metrics.R)
+# -- is computed per sample and per FOV. The per-FOV table carries orthogonal triage columns so a
+# high-MECR flag separates segmentation contamination (high MECR, normal counts/background) from
+# necrosis / low-quality tissue (high MECR + LOW counts + HIGH propNeg) from genuine mixed biology
+# (high MECR, normal QC). REPORT-ONLY -- never excludes cells/FOVs (necrosis is itself radiation signal).
+# Args: <qc_dir> <spatialqm_metrics.R> <lineage_markers.yaml> <out_sample.tsv> <out_fov.tsv>
+suppressMessages({library(Seurat); library(data.table); library(yaml); library(Matrix)})
+a <- commandArgs(trailingOnly = TRUE)
+QC_DIR <- a[1]; SQM <- a[2]; MARKERS <- a[3]; OUT_SAMPLE <- a[4]; OUT_FOV <- a[5]
+MIN_FOV_CELLS <- 50L                                   # skip tiny FOVs -- the Jaccard rate is unstable
+source(SQM)                                            # provides sqm_mecr(counts, marker_df, max_markers, seed)
+
+## marker_df: flatten lineage_markers.yaml (Lineage: [genes]) to a long (gene, cell_type) data.frame
+ly <- yaml::read_yaml(MARKERS)
+marker_df <- rbindlist(lapply(names(ly), function(ct) data.table(gene = as.character(ly[[ct]]), cell_type = ct)))
+marker_df <- as.data.frame(unique(marker_df[!is.na(gene) & nzchar(gene)][!duplicated(gene)]))
+
+files <- sort(list.files(QC_DIR, pattern = "\\.qc\\.rds$", full.names = TRUE)); stopifnot(length(files) > 0)
+samp <- list(); fov <- list()
+for (f in files) {
+  o  <- readRDS(f); md <- o@meta.data
+  cm <- LayerData(o, assay = "RNA", layer = "counts")
+  sid <- as.character(md$sample_id[1]); ds <- as.character(md$dataset[1])
+  samp[[f]] <- data.table(sample_id = sid, dataset = ds, n_cells = ncol(cm), mecr = sqm_mecr(cm, marker_df))
+  idx_by_fov <- split(seq_len(ncol(cm)), md$fov)
+  rows <- lapply(names(idx_by_fov), function(fv) {
+    idx <- idx_by_fov[[fv]]
+    if (length(idx) < MIN_FOV_CELLS) return(NULL)
+    data.table(sample_id = sid, dataset = ds, fov = as.integer(fv), n_cells = length(idx),
+               mecr         = sqm_mecr(cm[, idx, drop = FALSE], marker_df),   # off-label per-FOV: may be NaN if a sampled pair has zero union
+               med_nCount   = as.numeric(median(md$nCount_RNA[idx])),
+               med_nFeature = as.numeric(median(md$nFeature_RNA[idx])),
+               mean_propNeg = mean(md$propNegative[idx]),
+               med_area     = as.numeric(median(md$Area[idx])))
+  })
+  fov[[f]] <- rbindlist(rows)
+  cat(sprintf("%-28s %-10s n=%7d  mecr=%.3f  fovs=%d\n", sid, ds, ncol(cm), samp[[f]]$mecr, length(rows)))
+  rm(o, cm); invisible(gc())
+}
+sample_tab <- rbindlist(samp); fov_tab <- rbindlist(fov)
+
+## per-FOV 3-MAD outlier flag on MECR, within dataset (mirrors the falsecode FOV flag in control_sidecar.R)
+fov_tab[, `:=`(med = median(mecr, na.rm = TRUE), mad = mad(mecr, na.rm = TRUE)), by = dataset]
+fov_tab[, mecr_flag := !is.na(mecr) & mecr > med + 3 * mad][, c("med", "mad") := NULL]
+
+dir.create(dirname(OUT_SAMPLE), recursive = TRUE, showWarnings = FALSE)
+fwrite(sample_tab, OUT_SAMPLE, sep = "\t"); fwrite(fov_tab, OUT_FOV, sep = "\t")
+cat(sprintf("contamination QC: %d samples; %d FOVs (%d valid MECR), %d flagged (report-only)\n",
+            nrow(sample_tab), nrow(fov_tab), sum(!is.na(fov_tab$mecr)), sum(fov_tab$mecr_flag)))
+#+end_src
+
+*** Yi Mutter_01
 
 Yi Liu's secondary analysis of Mutter_01 comprised:
 
@@ -778,7 +1562,7 @@ Yi Liu's secondary analysis of Mutter_01 comprised:
 - Cell type annotation by InSituType (NanoString's platform-native classifier, which uses pre-built reference profiles for their panels) against the ImmGen mouse immune atlas
 - Pathway scoring
 
-***** Limitations of the single-shot run
+**** Limitations of the single-shot run
 :PROPERTIES:
 :ID:       ec2cac4e-6d89-4447-b165-5c3da8c20d43
 :END:
@@ -791,18 +1575,18 @@ Two parallel InSituType runs were delivered, both single-pass whole-dataset clas
 
 The dominant structural lineages (tumor, fibroblast, endothelial) were recovered acceptably; the failures are concentrated in the fine immune labels, which are not treated as ground truth in downstream work.
 
-***** Good-practice second pass
+**** Good-practice second pass
 :PROPERTIES:
 :ID:       07e8b60d-690a-4ed8-8208-057db3086631
 :END:
 
 The field-standard remedy for single-shot misclassification on sparse targeted panels is hierarchical (two-tier) cell typing: assign a coarse lineage first, then subset each compartment and subtype it against a compartment-appropriate reference. The aggregate atlas run below supplies the coarse tier (11 lineages plus =tumor_epithelial=). The immune second pass then subsets the lymphoid and myeloid compartment, re-embeds and re-clusters it on its own (Harmony batch integration across slides [cite:@korsunsky2019harmony]; Leiden community detection [cite:@traag2019leiden]), and assigns subtypes by reference-based annotation with SingleR [cite:@aran2019singler] against the celldex ImmGen reference at =label.fine= resolution [cite:@heng2008immgen], validated by UCell marker-set scoring [cite:@andreatta2021ucell]. Subtyping a clustered, compartment-restricted subset rather than every cell at once gives the annotation the per-cluster signal that single-cell fine classification lacks on a 950-gene panel.
 
-**** Quality control
+*** Quality control
 :PROPERTIES:
 :header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
 :END:
-***** Background and probe QC
+**** Background and probe QC
 :PROPERTIES:
 :ID:       3aee569f-4833-4808-9fcb-eadc1dc9ff27
 :END:
@@ -816,13 +1600,13 @@ CosMx data carry off-target "background" counts (~0.01–0.05 counts per plex pe
 
 Implementation: =scripts/probe_qc.R= is a *report-only diagnostic* (=results/processing/probe_qc_report.tsv=) flagging genes at/below the negative-control background in *both* Mutter_01 and Mutter_02 (signal-to-background ≤ 1). The analysis panel stays the full Mutter_01 ∩ Mutter_02 intersection — *no genes are dropped*; InSituType's per-cell background model handles background during cell typing.
 
-****** TODO Review =probe_qc_report.tsv= flagged candidates; smooth (not drop) any confirmed failed lineage-marker probes
+***** TODO Review =probe_qc_report.tsv= flagged candidates; smooth (not drop) any confirmed failed lineage-marker probes
 
-**** Aggregate atlas cell typing
+*** Aggregate atlas cell typing
 
 Cross-dataset comparison of Mutter_01 and Mutter_02 requires both cohorts typed by a single rule applied to the merged data, so cell-type calls are not confounded by a Mutter_01 to Mutter_02 label transfer. An initial per-cell InSituType run [cite:@danaher2022insitutype] against an external mammary-plus-ImmGen reference failed validation: 84.6% of cells were called tumor and immune gold-marker recall fell below 5%, because per-cell reference typing cannot separate lineages at CosMx panel sparsity. Coarse typing was rebuilt as cluster-then-annotate, with an immune second pass and an explicit comparison to the original Mutter_01 labels.
 
-***** scVI integration and coarse cluster-then-annotate
+**** scVI integration and coarse cluster-then-annotate
 
 Cluster-then-annotate assigns one identity per cluster rather than per cell, the regime per-cell typing could not reach at a median of 58 of 950 genes per cell. We integrated the merged 3,277,090-cell, 950-gene cohort with scVI [cite:@lopez2018scvi] (30 latent dimensions, 2 hidden layers, negative-binomial likelihood, =slide_id= as the batch key, and per-cell negative-probe count as a continuous covariate; 50 epochs on the RTX A4000 GPU). scVI replaced Harmony, which LAPACK-errored on two or more grouping covariates in version 2.0.2. We built a 15-nearest-neighbor graph on the scVI latent space and clustered it with Leiden [cite:@traag2019leiden] using the =leidenalg= flavor at two optimization iterations; the =igraph= flavor over-partitioned, and the =leidenalg= run-to-convergence default was intractable on the 3.27M-node graph.
 
@@ -830,38 +1614,38 @@ Clustering resolution was swept rather than assumed. At resolution 0.5 the parti
 
 The partition was validated against four pre-registered gates (Q4). The premise gate passed (25 clusters above 1%, immune 11.2%, stroma 40.6%, no annotated label exceeding 48.1% of cells). The batch-mixing gate used the imbalance-corrected scaled iLISI on the integrated embedding (0.67 against a 0.5 floor and a theoretical ceiling of 1.70 for the 29/71 dataset split); the per-cluster minority criterion was demoted to a quality flag, which flagged one Mutter_02-specific tumor cluster (cluster 3, 2.6% Mutter_01). Marker recall passed for every lineage, and the negative-probe gate held as standing quality control (maximum per-cluster mean 0.023, minimum signal-to-background 9.0). A cluster received a label only with at least 100 cells and a signal-to-background of at least 2; this left 4 cells in one fragment cluster unassigned. The coarse layer resolved into tumor (1,577,685 cells, 48.1%), stroma (1,331,601, 40.6%), and immune (367,800, 11.2%) compartments.
 
-***** Immune subtyping by cluster-level SingleR
+**** Immune subtyping by cluster-level SingleR
 
 We subtyped the 367,800 immune cells by rebuilding a neighbor graph on their scVI latent space, subclustering with Leiden, and annotating each subcluster with SingleR [cite:@aran2019singler] against the celldex ImmGen reference (label.main, 20 classes over 22,134 genes). Immune resolution was walked from 1.0 to 3.0 to 6.0 (16, 65, and 298 subclusters). At resolution 1.0 the lymphoid cells over-merged into a single 71,128-cell block that SingleR labeled T cells, and mast and dendritic populations were missed. At resolution 3.0 the block split into marker-confirmed T cells (16,300 cells, highest Cd3d/Cd3e/Cd3g) and an innate-lymphoid population (Ncr1, Nkg7, and Gzma dominant), and a mast population (1,169 cells, Cma1 highest) resolved. Per-cluster gold-marker means adjudicated the calls and confirmed resolution 3.0 over resolution 1.0. Resolution 6.0 added no new SingleR class, but it supplied the fine substrate the marker-rescue step required: 256 of 298 subclusters were macrophage fragments, while two minor subclusters separated cleanly enough for marker adjudication, a plasma core (subcluster 21, 3,573 cells) and a small neutrophil subcluster (subcluster 272, 259 cells).
 
 A marker-rescue step (=tier2_immune_rescue.py=) corrected the SingleR output where reference confidence and identity-marker evidence disagreed. SingleR assigned no B, plasma, or neutrophil class at this panel sparsity, so for each resolution-6.0 subcluster we let lineage-defining identity markers (a non-secreted, non-shared subset of each lineage panel) override the reference call when those markers won the per-cluster argmax and at least two corroborated above twice the negative-probe background. This marker-overrides-reference rule follows the mast-cell precedent of a published Xenium cell-typing benchmark (Cheng et al., BMC Bioinformatics 2025). A plain signal-to-background argmax was rejected for assignment and retained only as the detectability gate, because ambient immunoglobulin (Jchain, Igkc) and non-specific genes (Cd37, Xbp1) corrupt set means: the naive rule falsely flipped an 8,258-cell T-cell subcluster (Cd3e at 44 times background) to plasma. The rescue recovered plasma cells (3,573, subcluster 21, Mzb1 and Xbp1 at 17.8 and 19.7 times background) and neutrophils (259, anchored by Elane, Prtn3, and Mpo), reassigning only 3,832 cells, 1.0% of the immune compartment. NK and ILC were reported as separate populations rather than pooled into a single innate-lymphoid call. The final immune compartment was macrophage-dominated (300,975 cells, 81.8%) with ILC (34,340), T cells (16,046), dendritic cells (5,315), NK cells (4,991), plasma cells (3,573), mast cells (1,121), and neutrophils (259), plus 1,180 cells of epithelial contamination. Final immune labels are at [[file:results/aggregate/full_labels.parquet][full_labels.parquet]] (per-tier intermediate =immune_subtypes_rescued.parquet=, pre-rescue =immune_subtypes.parquet=).
 
-***** B cells are near-absent in the 4T1 flank
+**** B cells are near-absent in the 4T1 flank
 
 No subcluster expressed B-lineage markers as its dominant signal at any resolution, including 0 of 298 subclusters at immune resolution 6.0. A cohort-wide diagnostic distinguished biological absence from technical loss. The B markers Cd19, Ms4a1, Cd79a, and Ighm were present on the 950-gene panel (Cd79b, Cd22, and Iglc1 were not), so marker dropout does not explain the result. Across all 3,277,090 cells, only 2.4 to 3.3% carried any B-marker count (Cd19 2.40%, Ms4a1 2.52%, Cd79a 3.25%, Ighm 2.71%), distributed diffusely rather than concentrated in a population. The B-marker score was 0.22 in the immune compartment against 0.11 in both stroma and tumor, and the highest-scoring cluster of all 90 reached only 0.365, against the 1.0 to 1.8 a genuine lineage scores in its own markers. B cells are therefore near-absent in this 4T1 flank tumor, consistent with the immune-cold, myeloid-dominated biology of the model, and not an artifact of clustering resolution, panel content, or compartment misassignment.
 
-***** Stroma subtyping by UCell with identity-marker rescue
+**** Stroma subtyping by UCell with identity-marker rescue
 
 The 1,331,601 stroma cells were subtyped with UCell [cite:@andreatta2021ucell] cluster-level argmax plus margin against the stromal sets in =config/lineage_markers.yaml=, not against SingleR with MouseRNAseqData, whose bulk reference carries no pericyte or smooth-muscle class. UCell alone resolved fibroblast (796,933), smooth muscle (73,570), and unassigned (461,098). A marker-rescue step (=tier2_stroma_rescue.py=), the same identity-marker override built for the immune tier, then recovered the minor lineages the fibroblast-washed rank score had missed but the detectability gate confirmed present: endothelial cells (36,937, anchored by Pecam1 and Cdh5; their best subcluster had been 99.5% mislabeled fibroblast) and adipocytes (49,214, anchored by the lipid-droplet gene Cidea and present in both cohorts, so not a single-dataset artifact). A specificity anchor required at least one lineage-exclusive marker to clear the gate on its own, which blocked shared-gene false flips: Fabp4 is shared by adipocytes, endothelium, and macrophages, so a Fabp4-driven call with no Cidea was rejected, catching two false subclusters (Cidea 0.83 and 1.96). The rescue reassigned 86,151 cells, 6.5% of the stroma, only out of fibroblast, smooth muscle, and unassigned. Pericytes stayed at 0: their best subcluster was shared with and dominated by endothelium, only three pericyte markers were on the panel, and Pdgfrb is fibroblast-shared, so the lineage is present but unresolvable de novo and folds into the perivascular endothelial call. The final stroma compartment was fibroblast (732,099), unassigned (441,227), smooth muscle (72,124), adipocyte (49,214), and endothelial (36,937). Final stroma labels are at [[file:results/aggregate/full_labels.parquet][full_labels.parquet]] (per-tier intermediate =stroma_subtypes_rescued.parquet=, pre-rescue =stroma_subtypes.parquet=).
 
-***** Unified per-cell label table
+**** Unified per-cell label table
 
 The three tiers were joined into a single per-cell table by =scripts/aggregate/unify_labels.py=, written to [[file:results/aggregate/full_labels.parquet][full_labels.parquet]] (3,277,090 rows, one per cell). Each row carries the coarse =compartment= (tumor, stroma, immune), the final =cell_subtype= from the matching tier-2 pass, and the =subtype_source= and =rescued= provenance flags. This table is the single canonical input for all downstream cross-dataset analysis and supersedes the per-sample TransferData labels.
 
-***** Marked divergence from the original Mutter_01 (Yi) typing
+**** Marked divergence from the original Mutter_01 (Yi) typing
 
 The aggregate scheme reassigned a large fraction of Mutter_01 cells at the compartment level relative to the original per-sample labels, which typed Mutter_01 alone with InSituType against an ImmGen immune reference (with a confident-epithelial relabel to =tumor_epithelial=). That reference carried no native epithelial anchor and only four stromal profiles, so a solid tumor that is mostly non-immune was forced into an immune-cell vocabulary. The single largest original label was the uninterpretable ImmGen "a" attractor cluster (315,678 cells, 28.0%); a further 7.1% of cells carried thymocyte-development labels (DN2 through DN4, immature single-positive, and thymic CD4/CD8 single-positive and CD3-low double-positive) that cannot occur in a flank tumor, and splenic, microglial, germinal-center, and peritoneal-macrophage labels appeared at lower frequency by the same mechanism. Stromal identity was largely unrecoverable: the four ImmGen stromal labels (blood and lymphatic endothelium, fibroblastic reticular, pericyte) summed to only 11.5% of Mutter_01.
 
 The aggregate scVI cluster-then-annotate scheme recovered the expected solid-tumor architecture on the same Mutter_01 cells (952,121 after the merged-cohort quality filter): stroma 55.3%, tumor 29.2%, and immune 15.5%, with 3 cells unassigned. The explicit tumor compartment rose from the 6.1% captured by the original =tumor_epithelial= relabel to 29.2%, and stroma rose from 11.5% to 55.3%, because the tissue-matched external reference represents the epithelium and stroma the ImmGen-only reference could not. The immune profile also inverted: the largest original immune label was CD8 T cells (7.9% of Mutter_01), whereas the aggregate immune compartment is macrophage-dominated with marker-confirmed T cells a minority. The two schemes disagree on coarse identity rather than on fine subtype, and the disagreement is structural, not a tuning artifact. The original Mutter_01 labels, and any Mutter_01-to-Mutter_02 transfer derived from them, are superseded for all downstream cross-dataset analysis.
 
-**** Layer 2 -- MBRT vs SBRT vs Control Comparative Kinetics
+*** Layer 2 -- MBRT vs SBRT vs Control Comparative Kinetics
 :PROPERTIES:
 :header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
 :END:
 
 Characterize how MBRT and SBRT differ in transcriptomic response over time across cell types. All comparisons are descriptive (n=1 per condition); effect sizes are the primary metric.
 
-***** Differential expression
+**** Differential expression
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle dev/02_deg_analysis.R
 :END:
@@ -949,7 +1733,7 @@ cat("DEG analysis complete.\n")
 
 2,160 bulk DEG rows across all comparisons. Top MBRT vs SBRT findings: at 4h, MBRT upregulates myeloid recruitment genes (Ccl8 log2FC 1.59, Mrc1, Cd74, Arg1). At day 2, the myeloid signal amplifies (Ccl8 log2FC 2.43, Cd163 1.74) while SBRT upregulates Cxcl10 (-1.53, IFN-stimulated). At day 6, MBRT shows massive Igkc (log2FC 3.47, B/plasma cell signature) while SBRT has Nkg7 (-1.31, cytotoxic). Per-cell-type DEGs: 2,534 rows across 25 cell types.
 
-***** DEG visualization
+**** DEG visualization
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -966,7 +1750,7 @@ cat(sprintf("Loaded %d DEG rows\n", nrow(all_degs)))
 # until Mutter_02 (2d) replicates: pseudobulk per sample -> DESeq2/edgeR/limma -> MA/volcano.
 #+end_src
 
-***** Pathway score kinetics
+**** Pathway score kinetics
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -1028,7 +1812,7 @@ cat("Pathway kinetics saved.\n")
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/pathway_kinetics_all_cells.pdf]]
 
-***** Immune composition shifts
+**** Immune composition shifts
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -1087,7 +1871,7 @@ cat("Composition analysis saved.\n")
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/composition_trajectories.pdf]]
 
-***** Spatial neighborhood analysis
+**** Spatial neighborhood analysis
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle no
 :END:
@@ -1135,7 +1919,7 @@ MBRT shows consistently higher immune neighbor fractions than SBRT at 4h across 
 #+ATTR_ORG: :width 800
 [[file:/mnt/gcs/jeszyman/projects/spatial-rads/analysis/figures/spatial_nn_immune_frac.pdf]]
 
-**** Layer 2 Extended -- Comprehensive MBRT vs SBRT (4T1 flank)
+*** Layer 2 Extended -- Comprehensive MBRT vs SBRT (4T1 flank)
 :PROPERTIES:
 :ID:       49023d4a-a8ef-489d-811c-e0d902927cc3
 :CUSTOM_ID: layer2-extended-mbrt-vs-sbrt
@@ -1146,7 +1930,7 @@ Comprehensive MBRT vs SBRT comparison applied to all four Mutter_01 timepoints (
 
 Statistical posture: descriptive only (n=1 per condition × timepoint in Mutter_01). Effect sizes (log2FC, score deltas, ΔProp) are primary; p-values reported for ranking. Mutter_02 day2 (3 reps × 3 conditions × 4 slides) is used as a concordance validation panel via rank correlation against Mutter_01 day2 effects.
 
-***** Headline findings
+**** Headline findings
 
 1. *MBRT engages adaptive-immunity signaling earlier than SBRT.* At 4h, MBRT tumor cells already express antigen presentation (Cd74, B2m), Type II IFN response, and IL-15/IL-24. SBRT tumor cells at 4h show pure stress/scar response (Spp1, Clu, Col18a1).
 2. *MBRT recruits more myeloid + skews toward M2c-like / wound-healing phenotype.* MBRT day2 myeloid 0.42 vs SBRT 0.31 (ΔProp +0.105); 2.3x more total myeloid cells than SBRT. Cross-dataset DEG concordance rho = 0.44 (best of all cell types). MBRT-up: Cd163 +2.51 log2FC, Mrc1/CD206 +2.12, Pf4 +2.44, Ccl8 +2.50, Il4ra +1.50, Arg1 +0.74. M2/M1 polarization ratio: MBRT day2 1.11 vs SBRT day2 1.00 — modest M2 skew. Pattern: Mrc1+Cd163+Arg1+Il4ra (debris-clearing / wound-healing arm) elevated; Vegfa, Ccl22, Mmp9, Tgfb1 (angiogenic/Treg-recruiting/pro-invasive arm) NOT elevated. Consistent with acute phagocytic response to spatially-fragmented damage rather than chronic immunosuppressive TAM phenotype.
@@ -1161,7 +1945,7 @@ These five findings together suggest MBRT shifts the post-RT tumor microenvironm
 #+ATTR_ORG: :width 800
 [[file:dev/mbrt_vs_sbrt/plots/synthesis_executive_summary.png]]
 
-***** Setup, filters, and statistical posture
+**** Setup, filters, and statistical posture
 
 Three filters applied in sequence in =dev/mbrt_vs_sbrt/00_load_and_filter.R=:
 
@@ -1171,7 +1955,7 @@ Three filters applied in sequence in =dev/mbrt_vs_sbrt/00_load_and_filter.R=:
 
 After mapping granular insitutype labels to 9 major cell types, the analytical universe is 581,913 cells across tumor_epithelial, endothelial, fibroblast, smooth_muscle, T cell, B cell, myeloid, NK, and plasma. DEG strata require ≥100 cells per (Condition × cell_type_major); 66 of 72 strata pass (only plasma fails at low timepoints).
 
-***** DEG kinetics by cell type and contrast
+**** DEG kinetics by cell type and contrast
 
 DEGs computed via Seurat::FindMarkers (Wilcox), effect-size ranked, across three contrasts at each available timepoint: MBRT vs Control (1h, 4h, day2, day6), SBRT vs Control (4h, day2, day6), MBRT vs SBRT (4h, day2, day6). Total: 14,704 DEG rows across 90 (contrast × timepoint × cell type) jobs. Sanity check passed: tumor =Cdkn1a= (p21) +0.76 log2FC at 4h MBRT-vs-Control (p_adj=4e-45), confirming canonical DDR response.
 
@@ -1186,7 +1970,7 @@ Outputs: =dev/mbrt_vs_sbrt/data/degs_kinetics.tsv= (14,704 rows long format), =d
 
 Volcano plots retired: -log10(p_val) is a cell-level Wilcoxon p, which pseudoreplicates the n=1-per-condition design (cells are not biological replicates). The effect-size tables above stay valid descriptively. Correct significance test deferred until Mutter_02 (2d) replicates: pseudobulk per sample → DESeq2/edgeR/limma → MA-plot/volcano with real p-values.
 
-***** Pathway kinetics by cell type
+**** Pathway kinetics by cell type
 
 Yi's pre-computed pathway scores (TypeI_interferon, TypeII_interferon, DNA_Damage_Repair, STING) plus 7 curated signatures scored with UCell rank-based method on 547,133 cells (necrosis-zone excluded at day2/day6):
 
@@ -1207,7 +1991,7 @@ A surprising kinetic pattern emerged in =tumor_epithelial=: DDR and Type I IFN p
 
 Per-cell-type pathway kinetics plots in =dev/mbrt_vs_sbrt/plots/pathway_kinetics_<celltype>.png=.
 
-***** Composition trajectories
+**** Composition trajectories
 
 Cell type proportions per (Condition × timepoint × treatment), reported on both the post-Layer-1 universe (preserves total denominator) and the 9-major-only universe (renormalized).
 
@@ -1230,7 +2014,7 @@ The composition story matches the DEG story: MBRT recruits myeloid cells earlier
 #+ATTR_ORG: :width 800
 [[file:dev/mbrt_vs_sbrt/plots/composition_delta_mbrt_vs_sbrt.png]]
 
-***** Spatial neighborhood evolution
+**** Spatial neighborhood evolution
 
 Per-cell k=20 nearest-neighbor immune fraction (=mean(neighbor cell_type_strict %in% c("T.cell","B.cell","myeloid","NK","plasma"))=) computed per slide. Aggregated per (cell_type_major × timepoint × condition).
 
@@ -1255,11 +2039,11 @@ By 4h, MBRT tumor cells have +0.07 higher immune neighborhood than SBRT tumor ce
 #+ATTR_ORG: :width 800
 [[file:dev/mbrt_vs_sbrt/plots/nn_immune_density.png]]
 
-***** Cell death, senescence, and necrosis quantification
+**** Cell death, senescence, and necrosis quantification
 
 Three strands in =dev/mbrt_vs_sbrt/04_celldeath_senescence.R=.
 
-****** Apoptosis and senescence kinetics
+***** Apoptosis and senescence kinetics
 
 UCell-scored Hallmark Apoptosis (60 panel genes) and SenMayo Senescence (67 panel genes), per cell type per timepoint, with =necrosis_zone= cells stratified for biological validation. Unexpectedly, necrosis-zone cells show only marginal elevation of apoptosis or senescence transcriptional scores compared to viable cells (Δmean ≈ 0.01–0.02 across cell types and conditions). Two interpretations: (i) the spatial necrosis-zone flag captures slide-edge sparseness more than truly necrotic cells, and (ii) UCell rank-based scoring is insensitive to absolute transcript loss in dying cells. The CosMx 1000-gene panel also lacks specific apoptosis effectors (no cleaved caspase, limited necroptosis markers). The spatial-extent and Control-calibrated necrosis fraction metrics (4c) remain the more interpretable readouts.
 
@@ -1269,7 +2053,7 @@ UCell-scored Hallmark Apoptosis (60 panel genes) and SenMayo Senescence (67 pane
 #+ATTR_ORG: :width 800
 [[file:dev/mbrt_vs_sbrt/plots/senescence_kinetics.png]]
 
-****** DAMP / alarmin signature
+***** DAMP / alarmin signature
 
 12-gene curated DAMP set (Hmgb1, Hmgb2, S100a8/9, Anxa1/2, Il1b, Il6, Nlrp3, Casp1, Tlr2, Tlr4) with 10 in panel. Distance-to-necrosis analysis: cells were binned by Euclidean distance to the nearest necrosis-zone cell within their slide (≤0.05, 0.05–0.1, 0.1–0.2, 0.2–0.5, 0.5–1.0, >1.0 mm). DAMP score is expected to peak adjacent to necrosis at day2/day6, especially in SBRT.
 
@@ -1279,7 +2063,7 @@ UCell-scored Hallmark Apoptosis (60 panel genes) and SenMayo Senescence (67 pane
 #+ATTR_ORG: :width 800
 [[file:dev/mbrt_vs_sbrt/plots/damp_boundary_kinetics.png]]
 
-****** Necrosis quantification (first-class biological output)
+***** Necrosis quantification (first-class biological output)
 
 Necrosis was operationalized as cells in spatially sparse regions, defined per cell as =local_density_d20 > 95th percentile of Control= (Control-calibrated absolute threshold = 0.034 mm). This is a proxy: it does not directly identify necrosis but flags regions of low surviving-cell density. By construction Control gets ~5% flagged.
 
@@ -1309,11 +2093,11 @@ The all-cell supporting figures (necrosis kinetics + connected-component largest
 #+ATTR_ORG: :width 800
 [[file:dev/mbrt_vs_sbrt/plots/necrosis_celltype_breakdown.png]]
 
-***** Set 2 validation at day2 (Mutter_02)
+**** Set 2 validation at day2 (Mutter_02)
 
 Mutter_02 day2 cohort: 4 slides × 3 biological replicates × 3 conditions (Control, MBRT, SBRT) = 12 samples, 2.35M cells post-QC. Mutter_02 RDS objects lack cell type labels (Yi's insitutype output not yet incorporated for this set), so marker-based classification was applied in =08_set2_validation.R=: 4T1 filter (epith_score > 0.3 & endo_score < 0.1) followed by priority-ordered marker gates (Cd3e/Cd3d for T cells, Cd19/Ms4a1 for B cells, Cd68/Adgre1/Itgam for myeloid, Ncr1/Klrb1c for NK, Jchain/Mzb1 for plasma, Pecam1/Cdh5 for endothelial, Col1a1/Pdgfra for fibroblast, Acta2/Myh11 for smooth muscle). Subsampled per (Condition × cell_type_major) to 3000 cells before DEG to keep wall-clock manageable (=08b_set2_validation_fast.R=).
 
-****** Composition concordance at day2
+***** Composition concordance at day2
 
 Best validation signal. ΔProp(MBRT − SBRT) per cell type compared across the two datasets:
 
@@ -1331,7 +2115,7 @@ Best validation signal. ΔProp(MBRT − SBRT) per cell type compared across the 
 
 *The tumor_epithelial day2 depletion replicates almost exactly (−0.082 vs −0.091).* This is the strongest cross-dataset validation: MBRT day2 has ~9 percentage points fewer tumor cells than SBRT day2, in both n=1 (Mutter_01) and n=4 replicates per condition (Mutter_02). The MBRT myeloid recruitment direction also replicates (both positive) though weaker in Mutter_02. T.cell and smooth_muscle deltas reverse sign across datasets — likely n=1 noise in Mutter_01.
 
-****** DEG concordance (Spearman rho per cell type × contrast)
+***** DEG concordance (Spearman rho per cell type × contrast)
 
 Per-gene log2FC rank correlation between Mutter_01 day2 and Mutter_02 day2, using subsampled 3000-cell-per-stratum DEGs after re-normalizing Mutter_02. *Important bug found and fixed:* the Mutter_02 RDS "data" layer was identical to "counts" (never normalized), so the original DEG analysis produced log2FC values up to ±187 (nonsensical). Script =08c_set2_validation_normalized.R= re-runs LogNormalize then DEGs; final log2FC range now sensible at [−2.22, 2.10].
 
@@ -1359,7 +2143,7 @@ Interpretation:
 #+ATTR_ORG: :width 800
 [[file:dev/mbrt_vs_sbrt/plots/set2_concordance_scatter.png]]
 
-***** Synthesis: what makes MBRT different
+**** Synthesis: what makes MBRT different
 
 Across DEGs, pathways, composition, spatial neighborhoods, and necrosis quantification, a consistent picture emerges:
 
@@ -1370,7 +2154,7 @@ Across DEGs, pathways, composition, spatial neighborhoods, and necrosis quantifi
 
 These four findings together suggest MBRT shifts the post-RT tumor microenvironment toward an immune-engaged trajectory while sparing more tumor architecture (less central necrosis) at the day-2 timepoint. Whether the immune trajectory translates to better tumor control will require independent functional readouts.
 
-***** Known limitations
+**** Known limitations
 
 - *1000-gene panel:* HALLMARK_HYPOXIA (21% panel coverage) and HALLMARK_INTERFERON_ALPHA_RESPONSE (24%) below the 30% gate. Cell death markers limited (no cleaved caspase-3, no specific necroptosis effector except Mlkl-pathway proxies in DAMP set).
 - *4T1 epithelial purity:* Only 46% of cells initially labeled =tumor_epithelial= retained after marker-based 4T1 filter. The remaining 54% (mislabeled "a" bucket) are excluded from per-tumor-cell analyses.
@@ -1381,7 +2165,7 @@ These four findings together suggest MBRT shifts the post-RT tumor microenvironm
 - *Mutter_02 cell typing:* marker-based fallback only (insitutype labels not yet available for Mutter_02). Validates major types only.
 - *MBRT_1h necrosis-zone fraction (33%) is anomalous:* small fragmented sample slide, not real biology at 1h. Treat as artifact.
 
-**** Layer 3 -- Peak/Valley at 4h
+*** Layer 3 -- Peak/Valley at 4h
 :PROPERTIES:
 :ID:       def10c5f-06d2-4313-850b-e37e55933b6a
 :END:
@@ -1396,12 +2180,12 @@ Current best-fit stripe model (dev/03k_4peak_classify.R):
 - Validation: peaks show higher Cdkn1a/p21 (0.632 vs 0.586)
 - Pending: final visual verification of =mbrt4h_4peak_zones_labels.pdf= against H2AX image
 
-**** Layer 4 -- Signature Projection (BLOCKED)
+*** Layer 4 -- Signature Projection (BLOCKED)
 :PROPERTIES:
 :ID:       d6be2ccf-1371-4fac-baf0-89e2c983a9e6
 :END:
 Virtual scientist plan created: =plan-mbrt-signatures.md=, =review-mbrt-signatures.md=, =run-mbrt-signatures.sh=. Session: =spatial-ucell-scoring-plan=. Key decisions: UCell (rank-based) as primary scoring method over AddModuleScore for targeted panel; cell-type-stratified signatures primary, bulk secondary; Moran's I for formal spatial autocorrelation. Blocked on FOV-to-condition mapping from Rob/Jenn for Mutter_02.
-**** Microbeam Peak Valley Analysis                             :bioinfo_dev:
+*** Microbeam Peak Valley Analysis                              :bioinfo_dev:
 :PROPERTIES:
 :ID: 945d9096-1a17-4b99-acfd-058f606cbd24
 :header-args:jupyter-R: :session spatial-rads :kernel spatial-rads :async yes :dir ./dev/peak_valley_analysis
@@ -1413,13 +2197,13 @@ Virtual scientist plan created: =plan-mbrt-signatures.md=, =review-mbrt-signatur
 
 Consolidation of spatial-rads exploratory analysis into a single bioinfo-dev module workbook. Layers 1-2 condensed as infrastructure, Layer 3 stripe model with curated highlights, H2AX validation as critical gate, then new peak/valley DEG/pathway/composition/neighborhood/SBRT analyses. All comparisons are descriptive (n=1 per condition) using effect sizes rather than formal significance testing.
 
-***** Background
+**** Background
 
 Microbeam radiation therapy (MBRT) delivers radiation through an array of parallel, planar beams with sub-millimeter spacing. Unlike conventional spatially uniform (SBRT) irradiation, MBRT creates alternating high-dose peaks and low-dose valleys in tissue. This spatial fractionation pattern may differentially engage DNA damage repair, innate immune signaling, and bystander effects. The CosMx spatial transcriptomics panel (~1000 genes) captures single-cell resolution across 11 conditions spanning MBRT, SBRT, and untreated controls at multiple timepoints (1h, 4h, day 2, day 6) in both flank tumor and tongue normal tissue models.
 
 The central question of this workbook is whether MBRT peak zones (direct beam exposure) and valley zones (bystander) show distinct transcriptomic signatures at 4 hours post-irradiation, and how these compare to the uniform-dose SBRT response.
 
-****** Related work and first-in-field positioning
+***** Related work and first-in-field positioning
 
 A targeted literature search across Scopus and PubMed [2026-04-11] returned zero published studies applying spatial transcriptomics to any spatially-fractionated radiation therapy modality (MBRT, GRID, lattice, or SFRT). Full query strings, result counts, and API responses are captured in [[file:./docs/scopus_negative_result_2026-04-11.json][docs/scopus_negative_result_2026-04-11.json]]; the methodological framing for this gap lives at [[file:~/repos/biotools/biotools.org::*Spatial methods at the radiotherapy / tumor microenvironment interface][biotools.org: Spatial methods at the RT/TME interface]]. This project is accordingly first-in-field for MBRT peak/valley spatial transcriptomics.
 
@@ -1431,7 +2215,7 @@ The closest published analogs all use uniform-dose exposure and can inform manus
 
 None of these three establishes a precedent for the core peak/valley contrast this project addresses: within-slide comparison of sub-millimeter-spaced high-dose and low-dose zones at cellular resolution. The combined absence of (a) any spatially-fractionated RT spatial-omics study and (b) a dose-geometry-aware analysis framework means the methods used in this workbook are being developed de novo.
 
-***** Data
+**** Data
 
 | File                   | Description                                                         | Location              |
 |------------------------+---------------------------------------------------------------------+-----------------------|
@@ -1440,7 +2224,7 @@ None of these three establishes a precedent for the core peak/valley contrast th
 | Gamma H2AX + FOVs.pptx | H2AX immunofluorescence images with FOV overlay                     | GCS inputs/           |
 | seurat_clustered.rds   | Pre-computed Seurat object (QC'd, normalized, clustered)            | GCS analysis/objects/ |
 
-***** Data Loading
+**** Data Loading
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/00_load_data.R
 :END:
@@ -1532,7 +2316,7 @@ PATHWAY_LABELS <- c(
 cat(sprintf("Raw object ready: %d genes x %d cells\n", nrow(obj), ncol(obj)))
 #+end_src
 
-***** QC Filtering
+**** QC Filtering
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/01_qc_filter.R
 :END:
@@ -1572,7 +2356,7 @@ cat("QC'd Seurat object saved.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/qc_violins.png]]
 
-***** Normalization and Clustering
+**** Normalization and Clustering
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/02_normalize_cluster.R
 :END:
@@ -1624,7 +2408,7 @@ cat("Clustered object saved.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/umap_landscape.png]]
 
-***** Cell Type Validation
+**** Cell Type Validation
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/03_cell_type_validation.R
 :END:
@@ -1712,7 +2496,7 @@ cat("Updated object saved with validated cell types.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/spatial_celltype_flank.png]]
 
-***** DEGs and Kinetics Overview
+**** DEGs and Kinetics Overview
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/04_deg_kinetics.R
 :END:
@@ -1842,7 +2626,7 @@ cat("Layer 2 condensed analysis complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/spatial_nn_immune_frac.png]]
 
-***** Stripe Detection
+**** Stripe Detection
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/05_stripe_detection.R
 :END:
@@ -2023,7 +2807,7 @@ cat("Stripe detection complete. Model saved to data/stripe_model.rds\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/stripe_4pathway_heatmaps.png]]
 
-***** H2AX Image Validation
+**** H2AX Image Validation
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/06_h2ax_validation.R
 :END:
@@ -2211,7 +2995,7 @@ cat("\nH2AX validation complete. Review plots/h2ax_zone_map_labeled.png\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/h2ax_intensity_vs_model.png]]
 
-***** Peak Valley Classification
+**** Peak Valley Classification
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/07_peak_valley_classify.R
 :END:
@@ -2295,7 +3079,7 @@ cat("Zone added to Seurat metadata and saved.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/peak_valley_zones.png]]
 
-***** Peak vs Valley DEGs
+**** Peak vs Valley DEGs
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/08_pv_degs.R
 :END:
@@ -2359,7 +3143,7 @@ cat(sprintf("Per-cell-type DEGs: %d rows across %d types\n",
 cat("Peak vs valley DEG analysis complete.\n")
 #+end_src
 
-***** Peak vs Valley Pathway Scores
+**** Peak vs Valley Pathway Scores
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/09_pv_pathways.R
 :END:
@@ -2431,7 +3215,7 @@ cat("Pathway comparison complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pv_pathway_by_celltype.png]]
 
-***** Peak vs Valley Composition
+**** Peak vs Valley Composition
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/10_pv_composition.R
 :END:
@@ -2490,7 +3274,7 @@ cat("Composition analysis complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pv_composition_diff.png]]
 
-***** Peak vs Valley Spatial Neighborhoods
+**** Peak vs Valley Spatial Neighborhoods
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/11_pv_spatial_neighborhoods.R
 :END:
@@ -2544,7 +3328,7 @@ cat("Spatial neighborhood analysis complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pv_spatial_nn.png]]
 
-***** SBRT Comparison
+**** SBRT Comparison
 :PROPERTIES:
 :header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/12_sbrt_comparison.R
 :END:
@@ -2636,11 +3420,11 @@ cat("SBRT comparison complete.\n")
 #+ATTR_ORG: :width 800
 [[file:dev/peak_valley_analysis/plots/pv_sbrt_pathway_comparison.png]]
 
-***** Result Summary
+**** Result Summary
 
 This workbook consolidates 21 standalone R scripts into 13 modular analysis steps spanning data loading through SBRT comparison. Key findings pending script execution: (1) stripe model parameters (15-degree tilt, ~1.02mm spacing, 4 peaks) require H2AX image validation; (2) peak vs valley DEGs, pathway scores, composition, and spatial neighborhoods will characterize the distinct biology of direct-beam vs bystander zones; (3) SBRT comparison will establish whether MBRT valleys resemble uniform-dose irradiation or represent a transcriptomically distinct bystander state.
 
-***** Ideas                                                        :noexport:
+**** Ideas                                                         :noexport:
 
 - Layer 4: project peak/valley gene signatures onto other timepoints (MBRT_1h, MBRT_day2, MBRT_day6) to track signature evolution
 - Integrate Mutter_02 dataset when available for replication
@@ -2649,7 +3433,7 @@ This workbook consolidates 21 standalone R scripts into 13 modular analysis step
 - Spatial ligand-receptor interaction analysis (CellChat/NicheNet) between peak and valley zones
 - Machine learning classifier trained on peak/valley gene signatures for de novo zone prediction
 
-***** Limitations                                                  :noexport:
+**** Limitations                                                   :noexport:
 
 - n=1 per condition: all comparisons are exploratory and descriptive, using effect sizes rather than formal significance testing
 - Geometric stripe model assumes uniform beam spacing and parallel planar geometry; real beam profiles may have penumbra effects
@@ -2658,7 +3442,7 @@ This workbook consolidates 21 standalone R scripts into 13 modular analysis step
 - Peak/valley classification uses a hard threshold (spacing/4) rather than a continuous dose gradient model
 - CosMx panel (~1000 genes) may miss key pathway genes not represented in the targeted panel
 
-***** Method                                                       :noexport:
+**** Method                                                        :noexport:
 
 The stripe model classifies MBRT_4h cells into peak (direct beam) and valley (bystander) zones using a geometric approach. Cell positions are expressed in tilt-corrected coordinates: y_corr = y_slide_mm + x_slide_mm * tan(theta), where theta = 15 degrees is the optimal tilt angle determined by maximizing p21 (Cdkn1a) contrast between putative peak and valley zones across a parameter sweep (5-35 degrees, 2-degree steps). Beam spacing is determined by grid search over 0.8-1.3mm with a forced 4-peak constraint, optimizing for peak-valley p21 contrast. The best-fit model (spacing ~1.02mm, beam centers at corrected-y ~1.14, 2.16, 3.18, 4.20mm) is validated against gamma-H2AX immunofluorescence images extracted from the lab-provided PPTX. Cells are classified as peak if their tilt-corrected y-distance to the nearest beam center is less than spacing/4, and valley otherwise. Differential expression uses Seurat FindMarkers with effect-size ranking (no formal significance testing given n=1 per condition). Spatial neighborhoods use k=20 nearest neighbors via RANN.
 
@@ -3248,1002 +4032,6 @@ str(meta)
 #+end_src
 
 ** Results
-*** Initial processing and QC
-
-This pipeline takes that raw output and turns it into labeled, comparable per-cell tables. Briefly, per-slide raw Seurat RDS objects are reshaped to a common format across experiments.
-
-Files are subset from the slide level to tissue experimental condition, experiment 1 by its labeled condition, experiment 2 by physical position on the slide.
-
-The two experiments measured slightly different gene sets, and we keep only the intersect ~950 genes both measured. Cells are quality-filtered by four criteria:
-
-- nCount_RNA > 20 — total counts floor
-- nFeature_RNA > 10 — complexity floor (unique genes)
-- propNegative < 0.5 — negative-probe background backstop
-- |log10(Area) − median| < 3·MAD — robust cell-area outlier gate (segmentation errors/doublets)
-
-Counts are normalized by total counts per cell.
-
-UCC labels from experiment 1 are applied for cell type labels used as a validator / check for full design labeling.
-
-UCell rank-based enrichment scoring is performed per cell.
-
-
-8. **Quality-control reports (these only flag things; they never change the data):**
-   - *Probe check* — are any of the ~1000 genes basically indistinguishable from noise?
-   - *Control check* — how much background and decoding-error each cell carries.
-   - *Contamination check* **(the new one)** — when the software drew each cell's boundary, did it accidentally scoop in a neighbor's genes? It scores how often genes that belong to *different* cell types show up together in one cell (which shouldn't happen if boundaries are clean), reported per sample and per small image-tile, with extra columns so a high score can be read as a real boundary problem vs. just a dense or damaged tissue patch.
-   - Plus plain summary tables and plots.
-
-**End product:** one standardized, quality-checked, labeled, program-scored table per sample — the input the comparison pipeline then uses.
-
-Want me to finish the doc refresh (changelog + CLAUDE.md note) now, or hold while you look this over?
-
-**** processing.smk
-:PROPERTIES:
-:header-args:snakemake: :tangle workflows/processing.smk
-:END:
-
-#+begin_src snakemake
-# spatial-rads -- initial processing & QC workflow (per-sample, pre-aggregate).
-# adapter (raw -> common-format Seurat) -> QC filter -> LogNormalize -> cell typing
-# (Yi labels for M01; Seurat anchor TransferData for M02 against pooled M01 cell reference)
-# -> pathway scoring (UCell + AddModuleScore). probe-QC diagnostic flags background-level
-# probes (report-only). Both datasets traverse identical Stage C onward; Yi's Mutter_01
-# layers held as a check. Run: conda run -n basecamp snakemake -s workflows/processing.smk --cores 4
-# R steps run in the spatial-rads env via `conda run` (driver lives in basecamp).
-import pandas as pd
-configfile: "config/config.yaml"
-
-# Pin BLAS to 1 thread per R process: snakemake schedules job-level parallelism, not
-# R BLAS-level multi-threading. Without this, --cores N x ~48 BLAS threads each swamps the box.
-shell.prefix("export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1; ")
-
-RSCRIPT = "conda run -n spatial-rads Rscript"
-DATADIR = config["datadir"]
-MASTER  = config["samplesheet"]            # master sheet from the data_model workflow
-SCOPED  = "results/processing/samplesheet.tsv"
-GENES   = "results/data_model/common_genes.tsv"  # common panel (Mutter_01 ∩ Mutter_02; built in data_model.smk); NOT gene-filtered
-YIREF   = "results/processing/yi_reference.tsv"
-QC      = config["qc"]
-NRM     = config["normalize"]
-M01_RDS_DIR = f"{DATADIR}/inputs/mutter01"
-M02_RDS_DIR = f"{DATADIR}/inputs/mutter02"
-M01_META_PQ = f"{DATADIR}/inputs/mutter01/Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"
-
-# Parse-time sample lists come from the existing master sheet.
-_s = pd.read_csv(MASTER, sep="\t")
-M01 = _s.loc[_s["name"] == "Mutter_01", "sample_id"].tolist()
-M02 = _s.loc[_s["name"] == "Mutter_02", "sample_id"].tolist()
-ALL = _s["sample_id"].tolist()
-
-rule all:
-    input:
-        expand(f"{DATADIR}/processing/scored/{{s}}.scored.rds", s=ALL),
-        "results/processing/qc_summary.tsv",
-        "results/processing/yi_concordance.tsv",
-        "results/processing/celltype_summary.tsv",
-        "results/processing/probe_qc_report.tsv",
-        "results/processing/plots/qc_removal_attribution.png",
-        "results/processing/plots/qc_metric_distributions.png",
-        "results/processing/m01_rds_validation.tsv",
-        "results/processing/control_characterization.tsv",
-        "results/processing/fov_falsecode_qc.tsv",
-        "results/processing/contamination_qc.tsv",
-        "results/processing/contamination_fov_qc.tsv",
-
-# --- workflow-linked sample sheet (scoped view of the data model) ---
-rule processing_samplesheet:
-    input:
-        rda = "data/data_model.rda",
-    output:
-        SCOPED,
-    threads: 1
-    log:
-        "logs/processing_samplesheet.log",
-    shell:
-        "{RSCRIPT} scripts/processing_samplesheet.R {input.rda} {output} > {log} 2>&1"
-
-# --- probe-vs-negative-control QC DIAGNOSTIC (report-only; does NOT drop genes -- see scripts/probe_qc.R) ---
-rule probe_qc:
-    input:
-        ss    = SCOPED,
-        panel = GENES,
-    output:
-        "results/processing/probe_qc_report.tsv",
-    threads: 1
-    log:
-        "logs/probe_qc.log",
-    shell:
-        "{RSCRIPT} scripts/probe_qc.R {input.ss} {input.panel} {output} > {log} 2>&1"
-
-# --- Control QC (report-only): negprobe + falsecode characterization & per-cell sidecar ---
-# Additive diagnostic. Depends on raw RDS + M01 parquet, NOT scored.rds -> cannot re-fire the
-# locked aggregate. propNegative/scored objects are untouched.
-rule control_qc:
-    input:
-        validate     = "scripts/validate_m01_rds.R",
-        characterize = "scripts/characterize_controls.R",
-        sidecar      = "scripts/control_sidecar.R",
-        m01_meta     = M01_META_PQ,
-    output:
-        valid   = "results/processing/m01_rds_validation.tsv",
-        charac  = "results/processing/control_characterization.tsv",
-        falsecode_density = "results/processing/plots/fov_falsecode_density.png",
-        cells   = f"{DATADIR}/processing/cell_controls.parquet",
-        fovqc   = "results/processing/fov_falsecode_qc.tsv",
-    log:
-        "logs/control_qc.log",
-    threads: 1
-    shell:
-        "{RSCRIPT} {input.validate} " + M01_RDS_DIR + " {input.m01_meta} {output.valid} > {log} 2>&1 && "
-        "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.falsecode_density} >> {log} 2>&1 && "
-        "{RSCRIPT} {input.sidecar} " + M01_RDS_DIR + " {input.m01_meta} " + M02_RDS_DIR + " {output.cells} {output.fovqc} >> {log} 2>&1"
-
-# --- Contamination QC (report-only): SpatialQM MECR marker-bleed metric, sample + FOV grain ---
-# Additive: reads qc.rds, writes NEW TSVs -> cannot re-fire the raw->qc->norm->typed->scored chain.
-# Per-FOV table carries orthogonal triage cols (counts/propNeg/area) to separate segmentation
-# contamination from necrosis/low-quality tissue vs genuine mixed biology. NEVER excludes (report-only).
-rule contamination_qc:
-    input:
-        qc      = expand(f"{DATADIR}/processing/qc/{{s}}.qc.rds", s=ALL),
-        sqm     = "scripts/aggregate/spatialqm_metrics.R",
-        markers = "config/lineage_markers.yaml",
-        script  = "scripts/contamination_qc.R",
-    output:
-        sample = "results/processing/contamination_qc.tsv",
-        fov    = "results/processing/contamination_fov_qc.tsv",
-    threads: 1
-    log:
-        "logs/contamination_qc.log",
-    shell:
-        "{RSCRIPT} scripts/contamination_qc.R {DATADIR}/processing/qc {input.sqm} "
-        "{input.markers} {output.sample} {output.fov} > {log} 2>&1"
-
-# --- Stage B adapters: raw -> per-sample common-format Seurat ---
-rule adapt_mutter01:
-    input:
-        ss    = SCOPED,
-        genes = GENES,
-    output:
-        rds = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=M01),
-        yi  = YIREF,
-    threads: 1
-    log:
-        "logs/adapt_mutter01.log",
-    shell:
-        "{RSCRIPT} scripts/adapt_mutter01.R {input.ss} {input.genes} {DATADIR} {output.yi} > {log} 2>&1"
-
-rule adapt_mutter02:
-    input:
-        ss    = SCOPED,
-        genes = GENES,
-    output:
-        rds = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=M02),
-    threads: 1
-    log:
-        "logs/adapt_mutter02.log",
-    shell:
-        "{RSCRIPT} scripts/adapt_mutter02.R {input.ss} {input.genes} {DATADIR} > {log} 2>&1"
-
-# --- Stage C (shared): QC filter -> normalize ---
-rule qc_filter:
-    input:
-        f"{DATADIR}/processing/raw/{{s}}.raw.rds",
-    output:
-        rds     = f"{DATADIR}/processing/qc/{{s}}.qc.rds",
-        summary = "results/processing/qc/{s}.qcsummary.tsv",
-    params:
-        min_counts   = QC["min_counts"],
-        min_features = QC["min_features"],
-        max_propneg  = QC["max_prop_negative"],
-        area_nmads   = QC["area_nmads"],
-    threads: 1
-    log:
-        "logs/qc_filter.{s}.log",
-    shell:
-        "{RSCRIPT} scripts/qc_filter.R {input} {output.rds} {output.summary} "
-        "{params.min_counts} {params.min_features} {params.max_propneg} {params.area_nmads} > {log} 2>&1"
-
-rule normalize:
-    input:
-        f"{DATADIR}/processing/qc/{{s}}.qc.rds",
-    output:
-        f"{DATADIR}/processing/norm/{{s}}.norm.rds",
-    params:
-        scale_factor = NRM["scale_factor"],
-        nfeatures    = NRM["n_variable_features"],
-    threads: 1
-    log:
-        "logs/normalize.{s}.log",
-    shell:
-        "{RSCRIPT} scripts/normalize.R {input} {output} {params.scale_factor} {params.nfeatures} > {log} 2>&1"
-
-# --- cell typing (label transfer against M01-derived 42-type reference) ---
-rule build_celltype_reference:
-    input:
-        yi    = YIREF,
-        genes = GENES,
-        m01   = expand(f"{DATADIR}/processing/norm/{{s}}.norm.rds", s=M01),
-    output:
-        f"{DATADIR}/processing/celltype_reference.rds",
-    threads: 1
-    log:
-        "logs/build_celltype_reference.log",
-    shell:
-        "{RSCRIPT} scripts/build_celltype_reference.R {input.yi} {input.genes} {output} {input.m01} > {log} 2>&1"
-
-rule celltype:
-    input:
-        norm = f"{DATADIR}/processing/norm/{{s}}.norm.rds",
-        ref  = f"{DATADIR}/processing/celltype_reference.rds",
-        yi   = YIREF,
-    output:
-        rds     = f"{DATADIR}/processing/typed/{{s}}.typed.rds",
-        summary = "results/processing/celltype/{s}.celltype.tsv",
-    threads: 1
-    log:
-        "logs/celltype.{s}.log",
-    shell:
-        "{RSCRIPT} scripts/celltype.R {input.norm} {input.ref} {input.yi} {output.rds} {output.summary} > {log} 2>&1"
-
-rule celltype_report:
-    input:
-        expand("results/processing/celltype/{s}.celltype.tsv", s=ALL),
-    output:
-        "results/processing/celltype_summary.tsv",
-    threads: 1
-    log:
-        "logs/celltype_report.log",
-    shell:
-        "{RSCRIPT} scripts/celltype_report.R results/processing/celltype {output} > {log} 2>&1"
-
-# --- pathway scoring (UCell primary + AddModuleScore seed=42 secondary) ---
-rule pathway_score:
-    input:
-        typed = f"{DATADIR}/processing/typed/{{s}}.typed.rds",
-        genes = "config/pathway_gene_lists.yaml",
-    output:
-        f"{DATADIR}/processing/scored/{{s}}.scored.rds",
-    threads: 1
-    log:
-        "logs/pathway_score.{s}.log",
-    shell:
-        "{RSCRIPT} scripts/pathway_score.R {input.typed} {input.genes} {output} > {log} 2>&1"
-
-# --- reports / checks ---
-rule qc_report:
-    input:
-        expand("results/processing/qc/{s}.qcsummary.tsv", s=ALL),
-    output:
-        "results/processing/qc_summary.tsv",
-    threads: 1
-    log:
-        "logs/qc_report.log",
-    shell:
-        "{RSCRIPT} scripts/qc_report.R results/processing/qc {output} > {log} 2>&1"
-
-rule yi_concordance:
-    input:
-        yi = YIREF,
-        qc = expand(f"{DATADIR}/processing/qc/{{s}}.qc.rds", s=M01),
-    output:
-        "results/processing/yi_concordance.tsv",
-    threads: 1
-    log:
-        "logs/yi_concordance.log",
-    shell:
-        "{RSCRIPT} scripts/yi_concordance.R {input.yi} {DATADIR} {output} > {log} 2>&1"
-
-rule qc_plots:
-    input:
-        raw = expand(f"{DATADIR}/processing/raw/{{s}}.raw.rds", s=ALL),
-        cfg = "config/config.yaml",
-    output:
-        "results/processing/plots/qc_removal_attribution.png",
-        "results/processing/plots/qc_metric_distributions.png",
-        "results/processing/plots/qc_removal_attribution.tsv",
-    threads: 1
-    log:
-        "logs/qc_plots.log",
-    shell:
-        "{RSCRIPT} scripts/qc_plots.R {input.cfg} results/processing/plots > {log} 2>&1"
-#+end_src
-
-**** processing_samplesheet.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/processing_samplesheet.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Workflow-linked sample sheet: scoped view of data_model.rda for the processing workflow.
-# Args: <data_model.rda> <out.tsv>
-suppressMessages({library(dplyr); library(readr)})
-args <- commandArgs(trailingOnly = TRUE)
-RDA <- args[1]; OUT <- args[2]
-load(RDA)  # -> data_model (named list of tibbles)
-dm <- data_model
-scoped <- dm$samples %>%
-  left_join(dm$slides,   by = "slide_id") %>%
-  left_join(dm$datasets, by = "dataset_id") %>%
-  mutate(raw_input_path = if_else(format == "rds", input_path, counts_path)) %>%
-  transmute(sample_id, dataset = name, format, treatment, condition, timepoint_h, model,
-            slide_id, physical_barcode, block_label, extract_key,
-            counts_path, metadata_path, raw_input_path)
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-write_tsv(scoped, OUT)
-cat(sprintf("wrote %s (%d samples: %d Mutter_01, %d Mutter_02)\n",
-            OUT, nrow(scoped), sum(scoped$dataset=="Mutter_01"), sum(scoped$dataset=="Mutter_02")))
-#+end_src
-
-**** common_gene_panel.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/common_gene_panel.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Common gene panel = Mutter_01 panel INT Mutter_02 panel, both read from the RNA-assay
-# rownames of one per-slide raw RDS (both datasets are format=rds; the counts parquet is
-# retired). Invariance guard: the freshly-built list must setequal the currently-committed
-# common_genes.tsv before overwrite -- this panel is frozen because the locked aggregate
-# was typed on it, so identity (not just cardinality) must hold.
-# Args: <samplesheet.tsv> <out.tsv>
-suppressMessages({library(readr); library(dplyr); library(Seurat)})
-args <- commandArgs(trailingOnly = TRUE); SS <- args[1]; OUT <- args[2]
-ss <- read_tsv(SS, show_col_types = FALSE)
-
-# One per-slide RDS per dataset suffices for a panel (rownames) lookup; the RNA assay is
-# the gene panel (negprobes/falsecode are separate assays in the same object).
-rds_genes <- function(ds) {
-  p <- ss %>% filter(name == ds) %>% pull(raw_input_path) %>% unique()
-  stopifnot(length(p) >= 1, file.exists(p[1]))
-  o <- readRDS(p[1]); g <- rownames(o[["RNA"]]); rm(o); gc(); g
-}
-m01 <- rds_genes("Mutter_01"); m02 <- rds_genes("Mutter_02")
-common <- sort(intersect(m01, m02))
-cat(sprintf("Mutter_01: %d | Mutter_02: %d | common: %d\n", length(m01), length(m02), length(common)))
-stopifnot(length(common) > 500)  # sanity: panels should overlap heavily
-
-## ---- invariance guard vs committed snapshot (identity, not count) ----
-if (file.exists(OUT)) {
-  old <- readLines(OUT)
-  if (!setequal(common, old))
-    stop(sprintf("panel invariance FAILED: %d added, %d removed vs committed %s",
-                 length(setdiff(common, old)), length(setdiff(old, common)), OUT))
-}
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-writeLines(common, OUT)
-#+end_src
-
-**** probe_qc.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/probe_qc.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Probe-vs-negative-control DIAGNOSTIC -- report-only, does NOT drop genes.
-#
-# NanoString good practice (Danaher, CosMx Analysis Scratch Space) advises AGAINST removing
-# low-expression genes -- that loses rare-cell-type markers -- and instead models background
-# per cell; InSituType accounts for background internally via its per-cell neg term. So we keep
-# the full panel and only FLAG candidate failed probes (Ozirmak Lermi 2025, Nat Commun
-# 10.1038/s41467-025-63414-1): genes sitting at/below the negative-control background in BOTH
-# datasets (signal-to-background <= 1), i.e. behaving like a negative probe. Review, do not auto-drop.
-# Args: <samplesheet.tsv> <common_genes.tsv> <out_report.tsv>
-suppressMessages({library(readr); library(dplyr); library(arrow); library(data.table); library(Seurat); library(Matrix)})
-args <- commandArgs(trailingOnly = TRUE)
-SS <- args[1]; PANEL <- args[2]; OUT <- args[3]
-ss <- read_tsv(SS, show_col_types = FALSE)
-panel <- readLines(PANEL)
-
-m02_paths <- unique(ss$raw_input_path[ss$dataset == "Mutter_02"])
-o1 <- UpdateSeuratObject(readRDS(m02_paths[1]))
-NEG_N <- nrow(GetAssayData(o1, assay = "negprobes", layer = "counts")); rm(o1); gc()
-
-## Mutter_01: per-gene mean (counts parquet); per-negprobe background (metadata negprobe summary)
-m01 <- ss %>% filter(dataset == "Mutter_01")
-cdt <- as.data.table(read_parquet(unique(m01$counts_path)))
-gcols <- intersect(setdiff(names(cdt), c("Slide", "fov", "cell_id")), panel)
-m01_mean <- unlist(cdt[, lapply(.SD, mean), .SDcols = gcols]); rm(cdt); gc()
-mdt <- as.data.table(read_parquet(unique(m01$metadata_path)))
-m01_bg <- mean(mdt$nCount_NegativeProbes, na.rm = TRUE) / NEG_N; rm(mdt); gc()
-
-## Mutter_02: per-gene mean (RNA assay); per-negprobe background (negprobes assay)
-gm <- list(); bgs <- numeric(0)
-for (p in m02_paths) {
-  o <- UpdateSeuratObject(readRDS(p))
-  rna <- GetAssayData(o, assay = "RNA", layer = "counts")
-  gm[[p]] <- Matrix::rowMeans(rna[intersect(panel, rownames(rna)), , drop = FALSE])
-  bgs <- c(bgs, mean(Matrix::rowMeans(GetAssayData(o, assay = "negprobes", layer = "counts")))); rm(o); gc()
-}
-g02 <- Reduce(intersect, lapply(gm, names))
-m02_mean <- rowMeans(vapply(gm, function(x) x[g02], numeric(length(g02)))); m02_bg <- mean(bgs)
-
-genes <- intersect(names(m01_mean), g02)
-rep <- data.frame(gene = genes,
-                  m01_mean = m01_mean[genes], m01_bg = m01_bg, m01_s2b = m01_mean[genes] / m01_bg,
-                  m02_mean = m02_mean[genes], m02_bg = m02_bg, m02_s2b = m02_mean[genes] / m02_bg)
-rep$flagged_failed <- rep$m01_s2b <= 1 & rep$m02_s2b <= 1   # at background in BOTH = candidate failed probe
-rep <- rep[order(-rep$flagged_failed, rep$m02_s2b), ]
-cat(sprintf("probe-QC diagnostic: %d genes | NEG_N=%d | M01 bg=%.4f M02 bg=%.4f | %d flagged at-background in BOTH (NOT dropped)\n",
-            nrow(rep), NEG_N, m01_bg, m02_bg, sum(rep$flagged_failed)))
-if (sum(rep$flagged_failed)) cat("flagged failed-probe candidates:", paste(rep$gene[rep$flagged_failed], collapse = ", "), "\n")
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-write_tsv(rep, OUT)
-#+end_src
-
-**** adapt_mutter01.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/adapt_mutter01.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Stage B adapter -- Mutter_01: per-slide raw Seurat RDS -> per-sample common-format Seurat.
-# Harmonized with adapt_mutter02 on the per-slide-RDS data structure (M01 re-delivered as raw RDS
-# with negprobes+falsecode; Yi 2026-06-10: only the raw object exists). RNA counts now come from the
-# 4 per-slide RDS (bit-identical to the legacy MC-SOLVE counts parquet); Condition + Yi vendor labels
-# + shared morphology/QC metadata are joined from the metadata parquet by reconstructed global
-# cell_id (the parquet is their only source). Yi vendor cols -> yi_reference.tsv; objects split by
-# Condition. A setequal() guard asserts the RDS cohort reproduces the parquet cell set exactly, so
-# per-sample output is numerically INVARIANT vs the prior parquet-counts adapter.
-# Args: <samplesheet.tsv> <common_genes.tsv> <DATADIR> <yi_reference_out.tsv>
-suppressMessages({library(data.table); library(arrow); library(Seurat); library(Matrix); library(readr); library(dplyr)})
-args <- commandArgs(trailingOnly = TRUE)
-SS <- args[1]; GENES <- args[2]; DATADIR <- args[3]; YI_OUT <- args[4]
-
-ss <- read_tsv(SS, show_col_types = FALSE) %>% filter(dataset == "Mutter_01")
-common    <- readLines(GENES)
-meta_path <- unique(ss$metadata_path); stopifnot(length(meta_path) == 1)
-rds_paths <- sort(unique(ss$raw_input_path))                         # 4 per-slide RDS (was the counts parquet)
-
-## ---- metadata parquet: Condition + Yi vendor + shared cols live ONLY here, keyed by cell_id ----
-mdt <- as.data.table(read_parquet(meta_path)); setkey(mdt, cell_id)
-
-## ---- counts from the per-slide RDS -> sparse genes x cells on the common panel ----
-## reconstruct the global parquet cell_id from each object-local barcode c_1_<fov>_<cell> (scheme
-## proven in validate_m01_rds.R / control_sidecar.R); assert 100% reconstruction (no NA-fill).
-mats <- vector("list", length(rds_paths))
-for (i in seq_along(rds_paths)) {
-  o   <- readRDS(rds_paths[i])
-  rtn <- unique(as.character(o$Run_Tissue_name)); stopifnot(length(rtn) == 1)
-  sx  <- paste0("S", as.integer(sub("_.*", "", rtn)))
-  slide_full <- grep(paste0("_", sx, "$"), unique(mdt$Slide), value = TRUE); stopifnot(length(slide_full) == 1)
-  p   <- tstrsplit(colnames(o), "_")
-  gid <- paste0(slide_full, "_", p[[3]], "_", p[[4]])
-  stopifnot(sum(gid %in% mdt$cell_id) == ncol(o))
-  cm  <- LayerData(o, assay = "RNA", layer = "counts"); colnames(cm) <- gid
-  mats[[i]] <- cm[intersect(common, rownames(cm)), , drop = FALSE]
-  cat(sprintf("%-42s %s  %7d cells\n", basename(rds_paths[i]), slide_full, ncol(cm)))
-  rm(o, cm); invisible(gc())
-}
-genes_common <- Reduce(intersect, lapply(mats, rownames))
-sp <- do.call(cbind, lapply(mats, function(m) m[genes_common, , drop = FALSE])); rm(mats); invisible(gc())
-stopifnot(setequal(colnames(sp), mdt$cell_id))                       # RDS cohort == parquet cohort -> invariance
-cat(sprintf("counts (from RDS): %d cells x %d common genes\n", ncol(sp), nrow(sp)))
-
-## ---- metadata: sequester Yi vendor cols; keep shared cols (from the parquet, as before) ----
-yi_cols <- intersect(c("cell_id", "Condition", "Block", "qcFlagsCell",
-  "insitutype_ImmuneAtlas_ImmGen.csv_clust", "ImmuneAtlas_ImmGen_Main_cell_Types",
-  "ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types", "RNA_snn_res.0.1", "umap_1", "umap_2",
-  "TypeI_interferon", "TypeII_interferon", "STING", "DNA_Damage_Repair"), names(mdt))
-dir.create(dirname(YI_OUT), recursive = TRUE, showWarnings = FALSE)
-fwrite(mdt[, ..yi_cols], YI_OUT, sep = "\t")
-
-shared <- intersect(c("nCount_RNA", "nFeature_RNA", "propNegative", "qcFlagsCell",
-  "x_slide_mm", "y_slide_mm", "fov", "Area", "Mean.PanCK", "Mean.CD45",
-  "Mean.CD298.B2M", "Mean.DAPI", "Condition"), names(mdt))
-meta <- as.data.frame(mdt[, c("cell_id", ..shared)]); rownames(meta) <- meta$cell_id
-
-## ---- split by Condition -> per-sample objects ----
-stopifnot(all(ss$extract_key %in% meta$Condition))   # every sample's split key resolves
-outdir <- file.path(DATADIR, "processing", "raw"); dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
-for (i in seq_len(nrow(ss))) {
-  s <- ss[i, ]
-  cells <- meta$cell_id[meta$Condition == s$extract_key]
-  stopifnot(length(cells) > 0)
-  md <- meta[cells, , drop = FALSE]
-  md$sample_id <- s$sample_id; md$dataset <- "Mutter_01"; md$treatment <- s$treatment
-  md$condition <- s$condition; md$timepoint_h <- s$timepoint_h; md$model <- s$model
-  obj <- CreateSeuratObject(counts = sp[, cells, drop = FALSE], meta.data = md, project = s$sample_id)
-  saveRDS(obj, file.path(outdir, paste0(s$sample_id, ".raw.rds")))
-  cat(sprintf("%s (%s): %d cells\n", s$sample_id, s$condition, ncol(obj)))
-}
-cat("adapt_mutter01 done\n")
-#+end_src
-
-**** adapt_mutter02.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/adapt_mutter02.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Stage B adapter -- Mutter_02: per-slide Seurat RDS -> per-sample common-format Seurat.
-# Subset to common panel + shared meta; assign 3 y-bands by deterministic k-means; map
-# bands to samples via extract_key (y-rank 1=top..3=bottom). Args: <samplesheet.tsv> <common_genes.tsv> <DATADIR>
-suppressMessages({library(Seurat); library(readr); library(dplyr)})
-args <- commandArgs(trailingOnly = TRUE)
-SS <- args[1]; GENES <- args[2]; DATADIR <- args[3]
-set.seed(1)
-
-ss <- read_tsv(SS, show_col_types = FALSE) %>% filter(dataset == "Mutter_02")
-common <- readLines(GENES)
-shared <- c("nCount_RNA", "nFeature_RNA", "propNegative", "qcFlagsCell",
-            "x_slide_mm", "y_slide_mm", "fov", "Area", "Mean.PanCK", "Mean.CD45",
-            "Mean.CD298.B2M", "Mean.DAPI")
-design <- c("sample_id", "dataset", "treatment", "condition", "timepoint_h", "model")
-outdir <- file.path(DATADIR, "processing", "raw"); dir.create(outdir, recursive = TRUE, showWarnings = FALSE)
-
-slides <- ss %>% distinct(slide_id, raw_input_path)
-for (j in seq_len(nrow(slides))) {
-  sl <- slides[j, ]; this <- ss %>% filter(slide_id == sl$slide_id)
-  obj <- UpdateSeuratObject(readRDS(sl$raw_input_path))
-  obj$propNegative <- obj$nCount_negprobes / (obj$nCount_RNA + obj$nCount_negprobes)  # generate; vendor QC absent for Mutter_02
-  DefaultAssay(obj) <- "RNA"
-  for (a in setdiff(names(obj@assays), "RNA")) obj[[a]] <- NULL          # drop negprobes/falsecode
-  obj <- subset(obj, features = intersect(common, rownames(obj)))
-
-  set.seed(1)
-  km <- kmeans(obj$y_slide_mm, centers = 3, nstart = 10)
-  rank_of_cluster <- order(km$centers[, 1], decreasing = TRUE)           # 1 = top (highest y)
-  cell_rank <- match(km$cluster, rank_of_cluster)
-  stopifnot(length(unique(cell_rank)) == 3)                              # 3 separable bands
-  obj$spatial_rank <- cell_rank
-
-  for (r in 1:3) {
-    srow <- this %>% filter(extract_key == as.character(r))
-    stopifnot(nrow(srow) == 1)
-    sub <- subset(obj, cells = colnames(obj)[cell_rank == r])
-    sub$sample_id <- srow$sample_id; sub$dataset <- "Mutter_02"; sub$treatment <- srow$treatment
-    sub$condition <- srow$condition; sub$timepoint_h <- srow$timepoint_h; sub$model <- srow$model
-    keep <- intersect(c(shared, design), colnames(sub@meta.data))
-    sub@meta.data <- sub@meta.data[, keep, drop = FALSE]
-    saveRDS(sub, file.path(outdir, paste0(srow$sample_id, ".raw.rds")))
-    cat(sprintf("%s (%s, slide %s rank %d): %d cells\n",
-                srow$sample_id, srow$condition, sl$slide_id, r, ncol(sub)))
-  }
-}
-cat("adapt_mutter02 done\n")
-#+end_src
-
-**** qc_filter.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/qc_filter.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Shared per-sample QC -- identical four-criteria gate on both datasets, all from data in hand:
-#   counts (nCount_RNA), complexity (nFeature_RNA), negative-probe proportion (propNegative),
-#   and cell-area outliers (robust MAD on log10 Area). This reproduces what NanoString's
-#   composite qcFlagsCell bundles, transparently and identically across datasets.
-# Args: <in.raw.rds> <out.qc.rds> <out.summary.tsv> <min_counts> <min_features> <max_propneg> [area_nmads=3]
-suppressMessages({library(Seurat); library(readr)})
-args <- commandArgs(trailingOnly = TRUE)
-IN <- args[1]; OUT_RDS <- args[2]; OUT_SUM <- args[3]
-min_counts <- as.numeric(args[4]); min_features <- as.numeric(args[5]); max_propneg <- as.numeric(args[6])
-area_nmads <- if (length(args) >= 7) as.numeric(args[7]) else 3
-
-obj <- readRDS(IN)
-req <- c("nCount_RNA", "nFeature_RNA", "propNegative", "Area")
-miss <- setdiff(req, colnames(obj@meta.data))
-if (length(miss)) stop(sprintf("%s: missing required QC columns: %s", basename(IN), paste(miss, collapse = ", ")))
-
-pre <- ncol(obj)
-la  <- log10(obj$Area)                                   # robust area-outlier gate (identical method both datasets)
-med <- median(la, na.rm = TRUE); md <- mad(la, na.rm = TRUE)
-area_ok <- !is.na(la) & la > (med - area_nmads * md) & la < (med + area_nmads * md)
-keep <- obj$nCount_RNA > min_counts & obj$nFeature_RNA > min_features &
-        obj$propNegative < max_propneg & area_ok
-
-obj$qcFlagsCell <- NULL                                  # drop vendor flag (M01-only) so qc objects share one schema
-obj <- obj[, keep]
-post <- ncol(obj)
-
-sid <- if ("sample_id" %in% colnames(obj@meta.data)) as.character(obj$sample_id[1]) else sub("\\.raw\\.rds$", "", basename(IN))
-summ <- data.frame(sample_id = sid, pre_filter = pre, post_filter = post,
-                   pct_retained = round(100 * post / pre, 1), area_flagged = sum(!area_ok))
-dir.create(dirname(OUT_RDS), recursive = TRUE, showWarnings = FALSE)
-dir.create(dirname(OUT_SUM), recursive = TRUE, showWarnings = FALSE)
-saveRDS(obj, OUT_RDS)
-write_tsv(summ, OUT_SUM)
-cat(sprintf("%s QC: %d -> %d (%.1f%%; %d area-flagged)\n", sid, pre, post, 100 * post / pre, sum(!area_ok)))
-#+end_src
-
-**** normalize.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/normalize.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Shared per-sample normalization: LogNormalize + variable features (full common panel
-# is effectively all-variable on a ~1000-gene targeted panel). Args: <in.qc.rds> <out.norm.rds> <scale_factor> <nfeatures>
-suppressMessages(library(Seurat))
-args <- commandArgs(trailingOnly = TRUE)
-IN <- args[1]; OUT <- args[2]
-sf <- as.numeric(args[3]); nfeat <- as.numeric(args[4])
-
-obj <- readRDS(IN)
-obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = sf, verbose = FALSE)
-nfeat <- min(nfeat, nrow(obj))
-obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = nfeat, verbose = FALSE)
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-saveRDS(obj, OUT)
-cat(sprintf("normalized %s: %d cells, %d/%d variable features\n",
-            sub("\\.qc\\.rds$", "", basename(IN)), ncol(obj), length(VariableFeatures(obj)), nrow(obj)))
-#+end_src
-
-**** build_celltype_reference.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/build_celltype_reference.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Build the cell-typing reference for Seurat anchor label transfer, on the common gene panel:
-#   pooled Mutter_01 cells labeled with cell_type = Yi ImmGen label, with confident-epithelial
-#   a/b/NA cells relabeled tumor_epithelial (identical rule to celltype.R's Mutter_01 branch, so
-#   the reference labels match how M01 cells are actually typed). Per-label subsampled for balance
-#   and anchor-finding speed; LogNormalized. -> reference Seurat object (reference.rds).
-# Args: <yi_reference.tsv> <common_genes.tsv> <out_reference.rds> <m01_norm_rds...>
-suppressMessages({library(Seurat); library(Matrix); library(readr)})
-args <- commandArgs(trailingOnly = TRUE)
-YI <- args[1]; GENES <- args[2]; OUT <- args[3]; M01_RDS <- args[-(1:3)]
-MIN_CELLS <- 100      # drop Yi label classes rarer than this in the pool
-N_TOTAL   <- 20000    # uniform random subsample of the pool (preserves natural abundance; bounds anchor cost / per-job memory: 40k OOM-killed sam0023 transfer at --cores 1)
-EPI <- c("Epcam", "Krt8", "Krt18", "Krt19")
-set.seed(1)
-
-common <- readLines(GENES)
-yi <- read_tsv(YI, show_col_types = FALSE)
-yi_lab <- setNames(yi$ImmuneAtlas_ImmGen_Main_cell_Types, yi$cell_id)
-
-cat(sprintf("Pooling %d Mutter_01 objects...\n", length(M01_RDS)))
-mats   <- lapply(M01_RDS, function(f) GetAssayData(readRDS(f), layer = "counts"))
-genes  <- Reduce(intersect, c(list(common), lapply(mats, rownames)))
-counts <- do.call(cbind, lapply(mats, function(m) m[genes, , drop = FALSE]))
-rm(mats); gc()
-
-## cell_type = Yi label, with confident-epithelial a/b/NA -> tumor_epithelial (== celltype.R M01 logic)
-ct  <- unname(yi_lab[colnames(counts)])
-epi <- intersect(EPI, genes); stopifnot(length(epi) >= 2)
-epi_detect <- Matrix::colSums(counts[epi, , drop = FALSE] > 0)
-ct[(ct %in% c("a", "b") | is.na(ct)) & epi_detect >= 2] <- "tumor_epithelial"
-cat(sprintf("Pooled: %d genes x %d cells; %d candidate types\n",
-            nrow(counts), ncol(counts), length(unique(na.omit(ct)))))
-
-## keep labels with >= MIN_CELLS; uniform random subsample PRESERVING natural abundance.
-## Per-label balancing over-represents rare ImmGen subsets, flattening class priors so transfer
-## scatters epithelial cells into spurious thymocyte/spleen types; natural abundance keeps the
-## tumor/immune composition that anchors the transfer (smoke test sam0018: balancing put only
-## 8% of epithelial-marker+ cells in tumor_epithelial; natural abundance restores it).
-tc   <- table(ct)
-keep <- names(tc[tc >= MIN_CELLS])
-pool <- which(ct %in% keep)
-if (length(pool) > N_TOTAL) pool <- sample(pool, N_TOTAL)
-counts <- counts[, pool]; ct <- ct[pool]
-cat(sprintf("Reference: %d cells across %d types (natural abundance; >= %d cells/type in pool; dropped %d rare/NA types)\n",
-            length(pool), length(unique(ct)), MIN_CELLS, length(tc) - length(keep)))
-
-ref <- CreateSeuratObject(counts = counts)
-ref$cell_type <- ct
-ref <- NormalizeData(ref, verbose = FALSE)
-ref <- FindVariableFeatures(ref, nfeatures = length(genes), verbose = FALSE)
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-saveRDS(ref, OUT)
-cat("wrote", OUT, "-", ncol(ref), "cells,", length(keep), "types\n")
-#+end_src
-
-**** celltype.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/celltype.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Per-sample cell typing (label transfer against the M01-derived reference):
-#   Mutter_01: carry Yi's ImmGen label as cell_type (yi_celltype = original); relabel
-#              confident-epithelial cells in Yi's de-novo a/b buckets -> tumor_epithelial.
-#   Mutter_02: Seurat anchor label transfer (FindTransferAnchors CCA + TransferData) against the
-#              reference of pooled M01 cells -> cell_type (+ celltype_prob = prediction.score.max).
-#              Batch-robust; replaces InSituType, whose count-likelihood collapsed M02's tumor
-#              compartment into a Lymphatic.endothelial sink under the M01->M02 platform shift.
-# Args: <in.norm.rds> <reference.rds> <yi_reference.tsv> <out.typed.rds> <out.summary.tsv>
-suppressMessages({library(Seurat); library(Matrix); library(readr)})
-args <- commandArgs(trailingOnly = TRUE)
-IN <- args[1]; REF <- args[2]; YI <- args[3]; OUT_RDS <- args[4]; OUT_SUM <- args[5]
-EPI <- c("Epcam", "Krt8", "Krt18", "Krt19")
-
-obj <- readRDS(IN)
-ds  <- as.character(obj$dataset[1]); sid <- as.character(obj$sample_id[1])
-
-if (ds == "Mutter_01") {
-  yi  <- read_tsv(YI, show_col_types = FALSE)
-  lab <- setNames(yi$ImmuneAtlas_ImmGen_Main_cell_Types, yi$cell_id)
-  ct  <- unname(lab[colnames(obj)])
-  obj$yi_celltype <- ct
-  epi <- intersect(EPI, rownames(obj))
-  cnt <- GetAssayData(obj, layer = "counts")
-  epi_detect <- Matrix::colSums(cnt[epi, , drop = FALSE] > 0)
-  relabel <- (ct %in% c("a", "b") | is.na(ct)) & epi_detect >= 2
-  ct[relabel] <- "tumor_epithelial"
-  obj$cell_type <- ct
-  cat(sprintf("%s (Mutter_01): %d cells; %d relabeled -> tumor_epithelial\n", sid, ncol(obj), sum(relabel)))
-} else {
-  refobj  <- readRDS(REF)
-  feat    <- intersect(rownames(obj), rownames(refobj))
-  anchors <- FindTransferAnchors(reference = refobj, query = obj, features = feat,
-                                 dims = 1:30, reduction = "cca", verbose = FALSE)
-  pred <- TransferData(anchorset = anchors, refdata = as.character(refobj$cell_type),
-                       weight.reduction = "cca", dims = 1:30, verbose = FALSE)
-  obj$cell_type     <- pred$predicted.id
-  obj$celltype_prob <- pred$prediction.score.max
-  cat(sprintf("%s (Mutter_02): Seurat label transfer typed %d cells\n", sid, ncol(obj)))
-}
-
-summ <- as.data.frame(table(obj$cell_type), responseName = "n")
-names(summ)[1] <- "cell_type"; summ$sample_id <- sid; summ$dataset <- ds
-dir.create(dirname(OUT_RDS), recursive = TRUE, showWarnings = FALSE)
-dir.create(dirname(OUT_SUM), recursive = TRUE, showWarnings = FALSE)
-saveRDS(obj, OUT_RDS); write_tsv(summ, OUT_SUM)
-#+end_src
-
-**** celltype_report.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/celltype_report.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Aggregate per-sample cell-type counts into one table. Args: <celltype_dir> <out.tsv>
-suppressMessages({library(readr); library(dplyr); library(purrr); library(tidyr)})
-args <- commandArgs(trailingOnly = TRUE)
-DIR <- args[1]; OUT <- args[2]
-files <- list.files(DIR, pattern = "\\.celltype\\.tsv$", full.names = TRUE)
-stopifnot(length(files) > 0)
-df <- map_dfr(files, read_tsv, show_col_types = FALSE)
-wide <- df %>% group_by(dataset, sample_id, cell_type) %>% summarise(n = sum(n), .groups = "drop") %>%
-  pivot_wider(names_from = cell_type, values_from = n, values_fill = 0) %>% arrange(dataset, sample_id)
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-write_tsv(wide, OUT)
-cat(sprintf("aggregated cell types for %d samples -> %s\n", nrow(wide), OUT))
-#+end_src
-
-**** pathway_score.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/pathway_score.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Pathway/module scoring on a typed object. UCell::AddModuleScore_UCell (primary -- rank-based,
-# no random background, dataset-independent) + Seurat AddModuleScore (seed=42, secondary, for
-# comparison). Gene lists from config/pathway_gene_lists.yaml; genes absent from the panel dropped.
-# Adds <pathway>_UCell and <pathway>_AMS columns. Args: <in.typed.rds> <gene_lists.yaml> <out.scored.rds>
-suppressMessages({library(Seurat); library(UCell); library(yaml)})
-args <- commandArgs(trailingOnly = TRUE)
-IN <- args[1]; YAML <- args[2]; OUT <- args[3]
-set.seed(42)
-
-obj  <- readRDS(IN)
-sets <- yaml::read_yaml(YAML)
-present <- rownames(obj)
-sets <- lapply(sets, function(g) intersect(g, present))
-sets <- sets[vapply(sets, length, integer(1)) >= 2]    # need >=2 detectable genes
-stopifnot(length(sets) > 0)
-cat(sprintf("scoring %d pathways: %s\n", length(sets),
-            paste(sprintf("%s(%d)", names(sets), lengths(sets)), collapse = ", ")))
-
-## UCell (primary)
-obj <- AddModuleScore_UCell(obj, features = sets, name = "_UCell")
-## AddModuleScore (secondary, seeded) -> rename AMS1..n to <pathway>_AMS
-## panel-aware ctrl/nbin: default ctrl=100 over-samples the thin ~870-gene background pool
-obj <- AddModuleScore(obj, features = sets, name = "AMS", seed = 42,
-                      nbin = 12, ctrl = min(50L, floor(nrow(obj) / 10)))
-for (i in seq_along(sets)) {
-  obj[[paste0(names(sets)[i], "_AMS")]] <- obj[[paste0("AMS", i)]]
-  obj[[paste0("AMS", i)]] <- NULL
-}
-
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-saveRDS(obj, OUT)
-cat(sprintf("scored %s: %d cells\n", sub("\\.typed\\.rds$", "", basename(IN)), ncol(obj)))
-#+end_src
-
-**** qc_report.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/qc_report.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Aggregate per-sample QC summaries into one table. Args: <qc_summary_dir> <out.tsv>
-suppressMessages({library(readr); library(dplyr); library(purrr)})
-args <- commandArgs(trailingOnly = TRUE)
-DIR <- args[1]; OUT <- args[2]
-files <- list.files(DIR, pattern = "\\.qcsummary\\.tsv$", full.names = TRUE)
-stopifnot(length(files) > 0)
-df <- map_dfr(files, read_tsv, show_col_types = FALSE) %>% arrange(sample_id)
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-write_tsv(df, OUT)
-cat(sprintf("aggregated %d sample QC rows -> %s\n", nrow(df), OUT))
-print(as.data.frame(df))
-#+end_src
-
-**** qc_plots.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/qc_plots.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# QC visualizations as pipeline outputs: (1) per-criterion removal attribution (cells failing
-# counts / complexity / propNegative / area -- shows which criteria drive the cuts), and
-# (2) metric distributions with cutoff lines. Cutoffs read from config (match scripts/qc_filter.R).
-# Args: <config.yaml> <out_dir>
-suppressMessages({library(Seurat); library(dplyr); library(tidyr); library(ggplot2); library(patchwork); library(readr); library(yaml)})
-args <- commandArgs(trailingOnly = TRUE)
-CFG <- args[1]; OUT <- args[2]
-cfg <- yaml::read_yaml(CFG); q <- cfg$qc; datadir <- cfg$datadir
-min_counts <- q$min_counts; min_features <- q$min_features
-max_propneg <- q$max_prop_negative; area_nmads <- q$area_nmads
-dir.create(OUT, recursive = TRUE, showWarnings = FALSE)
-
-raw_files <- sort(list.files(file.path(datadir, "processing", "raw"), pattern = "\\.raw\\.rds$", full.names = TRUE))
-stopifnot(length(raw_files) > 0)
-
-set.seed(1)
-attr_rows <- list(); metric_rows <- list()
-for (f in raw_files) {
-  m <- readRDS(f)@meta.data
-  sid <- if ("sample_id" %in% names(m)) as.character(m$sample_id[1]) else sub("\\.raw\\.rds$", "", basename(f))
-  ds  <- if ("dataset" %in% names(m)) as.character(m$dataset[1]) else NA_character_
-  la  <- log10(m$Area); med <- median(la, na.rm = TRUE); md <- mad(la, na.rm = TRUE)
-  attr_rows[[sid]] <- data.frame(
-    sample_id = sid, dataset = ds, n_cells = nrow(m),
-    counts       = sum(!(m$nCount_RNA   > min_counts)),
-    complexity   = sum(!(m$nFeature_RNA > min_features)),
-    propNegative = sum(!(m$propNegative < max_propneg)),
-    area         = sum(is.na(la) | !(la > med - area_nmads * md & la < med + area_nmads * md)))
-  idx <- sample(seq_len(nrow(m)), min(2000L, nrow(m)))
-  metric_rows[[sid]] <- data.frame(sample_id = sid, dataset = ds,
-    nCount_RNA = m$nCount_RNA[idx], nFeature_RNA = m$nFeature_RNA[idx],
-    propNegative = m$propNegative[idx], Area = m$Area[idx])
-  rm(m); gc()
-}
-attr_df <- bind_rows(attr_rows); met <- bind_rows(metric_rows)
-write_tsv(attr_df, file.path(OUT, "qc_removal_attribution.tsv"))
-
-## Plot A -- per-criterion removal attribution
-aL <- attr_df %>%
-  select(sample_id, dataset, counts, complexity, propNegative, area) %>%
-  pivot_longer(c(counts, complexity, propNegative, area), names_to = "criterion", values_to = "n_fail")
-pA <- ggplot(aL, aes(sample_id, n_fail, fill = criterion)) +
-  geom_col() +
-  facet_grid(~dataset, scales = "free_x", space = "free_x") +
-  labs(title = "Cells failing each QC criterion (not mutually exclusive)",
-       subtitle = "Count + complexity floors drive most removal", x = NULL, y = "cells flagged") +
-  theme_bw() + theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 6))
-
-## Plot B -- metric distributions with cutoffs
-mk <- function(col, cutoff, logy, lab) {
-  p <- ggplot(met, aes(dataset, .data[[col]], fill = dataset)) + geom_violin(scale = "width")
-  if (!is.na(cutoff)) p <- p + geom_hline(yintercept = cutoff, linetype = "dashed", color = "red")
-  p <- p + labs(x = NULL, y = lab) + theme_bw() + theme(legend.position = "none")
-  if (logy) p <- p + scale_y_log10()
-  p
-}
-pB <- (mk("nCount_RNA", min_counts, TRUE, "nCount_RNA (log)") | mk("nFeature_RNA", min_features, TRUE, "nFeature_RNA (log)")) /
-      (mk("propNegative", max_propneg, FALSE, "propNegative") | mk("Area", NA, TRUE, "Area (log, per-sample MAD gate)"))
-
-ggsave(file.path(OUT, "qc_removal_attribution.png"), pA, width = 11, height = 5, dpi = 150)
-ggsave(file.path(OUT, "qc_metric_distributions.png"), pB, width = 10, height = 7, dpi = 150)
-cat(sprintf("wrote QC plots + attribution to %s\n", OUT)); print(attr_df)
-#+end_src
-
-**** yi_concordance.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/yi_concordance.R
-:END:
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Mutter_01 cross-check: our QC-pass cell set vs Yi's vendor QC (qcFlagsCell == Pass),
-# per condition. Args: <yi_reference.tsv> <DATADIR> <out.tsv>
-suppressMessages({library(data.table); library(Seurat); library(readr); library(dplyr)})
-args <- commandArgs(trailingOnly = TRUE)
-YI <- args[1]; DATADIR <- args[2]; OUT <- args[3]
-
-yi <- fread(YI)
-stopifnot(all(c("cell_id", "Condition", "qcFlagsCell") %in% names(yi)))
-
-qc_files <- list.files(file.path(DATADIR, "processing", "qc"), pattern = "\\.qc\\.rds$", full.names = TRUE)
-rows <- list()
-for (f in qc_files) {
-  o <- readRDS(f)
-  if (!("dataset" %in% colnames(o@meta.data)) || o$dataset[1] != "Mutter_01") next
-  cond <- as.character(o$condition[1]); our_cells <- colnames(o)
-  yi_cells <- yi[Condition == cond & qcFlagsCell == "Pass", cell_id]
-  rows[[length(rows) + 1]] <- data.frame(
-    condition = cond, our_kept = length(our_cells), yi_pass = length(yi_cells),
-    overlap = length(intersect(our_cells, yi_cells)),
-    pct_of_yi = round(100 * length(our_cells) / max(length(yi_cells), 1), 1))
-}
-out <- bind_rows(rows) %>% arrange(condition)
-dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
-write_tsv(out, OUT)
-cat("Mutter_01 QC concordance vs Yi (qcFlagsCell == Pass):\n")
-print(as.data.frame(out))
-#+end_src
-
-**** contamination_qc.R
-:PROPERTIES:
-:header-args:R: :tangle scripts/contamination_qc.R
-:END:
-
-Report-only segmentation/neighbour-contamination QC. CosMx good practice flags poorly-segmented cells whose profiles are contaminated by neighbouring transcripts; the field's per-cell tool (FastReseg) needs per-molecule transcript coordinates / cell polygons, which were NOT delivered (=** Data=, 2026-06-01). The feasible peer-reviewed metric is SpatialQM's MECR (mutually-exclusive co-expression rate), vendored in [[file:scripts/aggregate/spatialqm_metrics.R]]; computed here per sample and per FOV from the post-QC objects against the [[file:config/lineage_markers.yaml]] coarse lineages. The per-FOV table adds orthogonal triage columns (counts, features, propNegative, area) so a high-MECR flag separates true segmentation contamination from necrosis/low-quality tissue and from genuinely dense tumour-immune regions. Additive and report-only -- it never drops cells or FOVs (necrosis is itself a radiation signal), and does not touch the raw->qc->norm->typed->scored chain.
-
-#+begin_src R
-#!/usr/bin/env Rscript
-# Contamination QC (report-only): SpatialQM MECR marker-bleed metric at sample + FOV grain.
-# MECR = mean Jaccard co-expression of cross-lineage marker pairs (LOW = clean, HIGH = bleed /
-# segmentation contamination). FastReseg / per-cell resegmentation is infeasible here (no transcript
-# coords or cell polygons delivered), so MECR -- the feasible peer-reviewed metric (SpatialQM,
-# Plummer/Segato-Dezem et al., Nat Biotechnol 2025; vendored in scripts/aggregate/spatialqm_metrics.R)
-# -- is computed per sample and per FOV. The per-FOV table carries orthogonal triage columns so a
-# high-MECR flag separates segmentation contamination (high MECR, normal counts/background) from
-# necrosis / low-quality tissue (high MECR + LOW counts + HIGH propNeg) from genuine mixed biology
-# (high MECR, normal QC). REPORT-ONLY -- never excludes cells/FOVs (necrosis is itself radiation signal).
-# Args: <qc_dir> <spatialqm_metrics.R> <lineage_markers.yaml> <out_sample.tsv> <out_fov.tsv>
-suppressMessages({library(Seurat); library(data.table); library(yaml); library(Matrix)})
-a <- commandArgs(trailingOnly = TRUE)
-QC_DIR <- a[1]; SQM <- a[2]; MARKERS <- a[3]; OUT_SAMPLE <- a[4]; OUT_FOV <- a[5]
-MIN_FOV_CELLS <- 50L                                   # skip tiny FOVs -- the Jaccard rate is unstable
-source(SQM)                                            # provides sqm_mecr(counts, marker_df, max_markers, seed)
-
-## marker_df: flatten lineage_markers.yaml (Lineage: [genes]) to a long (gene, cell_type) data.frame
-ly <- yaml::read_yaml(MARKERS)
-marker_df <- rbindlist(lapply(names(ly), function(ct) data.table(gene = as.character(ly[[ct]]), cell_type = ct)))
-marker_df <- as.data.frame(unique(marker_df[!is.na(gene) & nzchar(gene)][!duplicated(gene)]))
-
-files <- sort(list.files(QC_DIR, pattern = "\\.qc\\.rds$", full.names = TRUE)); stopifnot(length(files) > 0)
-samp <- list(); fov <- list()
-for (f in files) {
-  o  <- readRDS(f); md <- o@meta.data
-  cm <- LayerData(o, assay = "RNA", layer = "counts")
-  sid <- as.character(md$sample_id[1]); ds <- as.character(md$dataset[1])
-  samp[[f]] <- data.table(sample_id = sid, dataset = ds, n_cells = ncol(cm), mecr = sqm_mecr(cm, marker_df))
-  idx_by_fov <- split(seq_len(ncol(cm)), md$fov)
-  rows <- lapply(names(idx_by_fov), function(fv) {
-    idx <- idx_by_fov[[fv]]
-    if (length(idx) < MIN_FOV_CELLS) return(NULL)
-    data.table(sample_id = sid, dataset = ds, fov = as.integer(fv), n_cells = length(idx),
-               mecr         = sqm_mecr(cm[, idx, drop = FALSE], marker_df),   # off-label per-FOV: may be NaN if a sampled pair has zero union
-               med_nCount   = as.numeric(median(md$nCount_RNA[idx])),
-               med_nFeature = as.numeric(median(md$nFeature_RNA[idx])),
-               mean_propNeg = mean(md$propNegative[idx]),
-               med_area     = as.numeric(median(md$Area[idx])))
-  })
-  fov[[f]] <- rbindlist(rows)
-  cat(sprintf("%-28s %-10s n=%7d  mecr=%.3f  fovs=%d\n", sid, ds, ncol(cm), samp[[f]]$mecr, length(rows)))
-  rm(o, cm); invisible(gc())
-}
-sample_tab <- rbindlist(samp); fov_tab <- rbindlist(fov)
-
-## per-FOV 3-MAD outlier flag on MECR, within dataset (mirrors the falsecode FOV flag in control_sidecar.R)
-fov_tab[, `:=`(med = median(mecr, na.rm = TRUE), mad = mad(mecr, na.rm = TRUE)), by = dataset]
-fov_tab[, mecr_flag := !is.na(mecr) & mecr > med + 3 * mad][, c("med", "mad") := NULL]
-
-dir.create(dirname(OUT_SAMPLE), recursive = TRUE, showWarnings = FALSE)
-fwrite(sample_tab, OUT_SAMPLE, sep = "\t"); fwrite(fov_tab, OUT_FOV, sep = "\t")
-cat(sprintf("contamination QC: %d samples; %d FOVs (%d valid MECR), %d flagged (report-only)\n",
-            nrow(sample_tab), nrow(fov_tab), sum(!is.na(fov_tab$mecr)), sum(fov_tab$mecr_flag)))
-#+end_src
-
 *** Cross-dataset aggregate: MBRT vs SBRT vs Control differential analysis
 We merged the 20 flank samples (Mutter_01 n=1 timecourse, Mutter_02 n=4 per arm at day 2) into a single 3,277,090-cell object and re-typed every cell at merged scale: tier-1 scVI integration with Leiden clustering at resolution 3.0 for the coarse tumor/stroma/immune compartments, then tier-2 SingleR against ImmGen for immune subtypes and UCell against curated stromal markers, each followed by a marker-rescue step. The MBRT-vs-SBRT-vs-Control differential layer then ran on the unified per-cell labels ([[file:results/aggregate/full_labels.parquet]]). Three pre-registered confirmatory hypotheses (H1 immune activation, H2 vascular and oxygenation, H3 stromal sparing) were tested by cell-type composition, pseudobulk DESeq2 differential expression, and UCell program scores across three contrasts (MBRT vs Control, SBRT vs Control, MBRT vs SBRT). Inference rested on effect size with 95% confidence intervals and the n=4 minimum detectable effect under tiered FDR, with the confirmatory family BH-pooled to padj_confirmatory and exploratory readouts keeping their own BH; volcano plots were omitted as uninterpretable on the sparse ~950-gene CosMx panel.
 

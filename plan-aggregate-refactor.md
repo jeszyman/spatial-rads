@@ -1,6 +1,11 @@
 # Aggregate workflow — harmonized refactor plan (decisions resolved 2026-06-22)
 
-> **Status: decisions resolved, ready to execute on approval.** A devils-advocate panel
+> **Status: Steps 1–5 EXECUTED and committed 2026-06-22.** The real scVI cluster-then-annotate
+> typing chain is wired (`full_scvi.py` authored, dead InSituType rules deleted); the full
+> 3.27M-cell rebuild reproduced the locked labels bit-identically (all four Q4 gates pass),
+> exceeding the re-validation acceptance bar. **Remaining: Step 6** (refresh `results_master.tsv`
+> on the rebuilt labels), **Step 7** (literate transfer), and the `recover_negprobes` retirement
+> (still blocked — 0% barcode overlap between the raw-RDS negprobes and the scored cells). A devils-advocate panel
 > (2026-06-22, run `wf_c66fbfa4-c5f`) split the original *investigate → update → transfer*
 > bundle into three decoupled workstreams (A honesty / B best-practice / C literate). The
 > user resolved the three gating decisions 2026-06-22:

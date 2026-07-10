@@ -44,7 +44,7 @@ for (i in seq_along(m02_files)) {
 out <- vector("list", length(scored))
 for (k in seq_along(scored)) {
   o   <- readRDS(scored[k])
-  sid <- sub("\\.scored\\.rds$", "", basename(scored[k]))     # merge.R's prefix
+  sid <- sub("\\.norm\\.rds$", "", basename(scored[k]))     # merge.R's prefix
   ds  <- unique(as.character(o$dataset))[1]
   bc  <- colnames(o)
   if (grepl("01", ds)) {

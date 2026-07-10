@@ -18,7 +18,7 @@ DATADIR = config["datadir"]
 MASTER  = config["samplesheet"]                  # results/data_model/samples.tsv
 AGG     = f"{DATADIR}/aggregate"                  # heavy intermediates
 FULL    = f"{AGG}/full"                           # tier-1/2 typing intermediate dir
-SCORED  = f"{DATADIR}/processing/scored"          # per-sample inputs
+NORM    = f"{DATADIR}/processing/norm"             # per-sample inputs (normalized; per-sample typing/pathway retired)
 PANEL   = "results/data_model/common_genes.tsv"   # 950 shared-panel gene list (built in data_model.smk)
 MARKERS = "config/lineage_markers.yaml"           # coarse + tier-2 lineage marker sets
 # Raw inputs for negprobe recovery (dropped during 950-gene harmonization):
@@ -67,7 +67,7 @@ rule all:
 rule merge_pilot:
     input:
         script = "scripts/aggregate/merge_pilot.R",
-        rds    = expand(f"{SCORED}/{{s}}.scored.rds", s=PILOT),
+        rds    = expand(f"{NORM}/{{s}}.norm.rds", s=PILOT),
     output:
         "results/aggregate/merge_pilot_memory.tsv",
     params:
@@ -83,7 +83,7 @@ rule merge:
     input:
         script = "scripts/aggregate/merge.R",
         ss     = MASTER,
-        rds    = expand(f"{SCORED}/{{s}}.scored.rds", s=FLANK),
+        rds    = expand(f"{NORM}/{{s}}.norm.rds", s=FLANK),
     output:
         rds     = f"{AGG}/merged.rds",
         summary = "results/aggregate/merge_summary.tsv",
@@ -110,7 +110,7 @@ rule recover_negprobes:
         script = "scripts/aggregate/recover_negprobes.R",
         m01    = M01_META,
         m02    = expand(f"{M02_RAW}/seuratObject_0{{i}}_Mutter_02_CosMmR.RDS", i=[1,2,3,4]),
-        rds    = expand(f"{SCORED}/{{s}}.scored.rds", s=FLANK),
+        rds    = expand(f"{NORM}/{{s}}.norm.rds", s=FLANK),
     output:
         neg = f"{AGG}/cell_neg.tsv",
     params:
@@ -536,7 +536,7 @@ rule coords_necrosis:
     input:
         script = "scripts/aggregate/coords_necrosis.R",
         ss     = MASTER,
-        rds    = expand(f"{SCORED}/{{s}}.scored.rds", s=FLANK),
+        rds    = expand(f"{NORM}/{{s}}.norm.rds", s=FLANK),
     output:
         coords = f"{AGG}/coords_necrosis.parquet",
     threads: 1

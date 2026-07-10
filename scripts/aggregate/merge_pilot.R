@@ -16,7 +16,7 @@ peak_rss_gb <- function() {
   as.numeric(gsub("[^0-9]", "", hwm)) / 1024 / 1024
 }
 
-sids <- sub("\\.scored\\.rds$", "", basename(rds_paths))
+sids <- sub("\\.norm\\.rds$", "", basename(rds_paths))
 objs <- lapply(rds_paths, readRDS)
 names(objs) <- sids
 n_cells <- sum(vapply(objs, ncol, numeric(1)))

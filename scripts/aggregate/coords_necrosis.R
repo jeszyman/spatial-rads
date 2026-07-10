@@ -12,7 +12,7 @@ suppressPackageStartupMessages({library(Seurat); library(data.table); library(ar
 a <- commandArgs(trailingOnly = TRUE)
 out <- a[2]; rds <- a[-(1:2)]
 res <- rbindlist(lapply(rds, function(p){
-  s <- sub("\\.scored\\.rds$", "", basename(p)); o <- readRDS(p); m <- o@meta.data
+  s <- sub("\\.norm\\.rds$", "", basename(p)); o <- readRDS(p); m <- o@meta.data
   d <- data.table(cell = paste0(s, "_", rownames(m)), sample_id = s,
                   x_slide_mm = m$x_slide_mm, y_slide_mm = m$y_slide_mm)
   xy <- as.matrix(d[, .(x_slide_mm, y_slide_mm)])

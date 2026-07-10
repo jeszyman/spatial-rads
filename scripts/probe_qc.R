@@ -18,11 +18,17 @@ m02_paths <- unique(ss$raw_input_path[ss$dataset == "Mutter_02"])
 o1 <- UpdateSeuratObject(readRDS(m02_paths[1]))
 NEG_N <- nrow(GetAssayData(o1, assay = "negprobes", layer = "counts")); rm(o1); gc()
 
-## Mutter_01: per-gene mean (counts parquet); per-negprobe background (metadata negprobe summary)
+## Mutter_01: per-gene mean (RNA assay from per-slide RDS -- counts_path retired by the 2026-06-22
+## rds re-base); per-negprobe background (metadata negprobe summary, byte-identical to the RDS negprobes).
 m01 <- ss %>% filter(dataset == "Mutter_01")
-cdt <- as.data.table(read_parquet(unique(m01$counts_path)))
-gcols <- intersect(setdiff(names(cdt), c("Slide", "fov", "cell_id")), panel)
-m01_mean <- unlist(cdt[, lapply(.SD, mean), .SDcols = gcols]); rm(cdt); gc()
+gm1 <- list()
+for (p in unique(m01$raw_input_path)) {
+  o <- UpdateSeuratObject(readRDS(p))
+  rna <- GetAssayData(o, assay = "RNA", layer = "counts")
+  gm1[[p]] <- Matrix::rowMeans(rna[intersect(panel, rownames(rna)), , drop = FALSE]); rm(o); gc()
+}
+g01 <- Reduce(intersect, lapply(gm1, names))
+m01_mean <- rowMeans(vapply(gm1, function(x) x[g01], numeric(length(g01))))
 mdt <- as.data.table(read_parquet(unique(m01$metadata_path)))
 m01_bg <- mean(mdt$nCount_NegativeProbes, na.rm = TRUE) / NEG_N; rm(mdt); gc()
 

@@ -15,7 +15,7 @@ dir.create(file.path(outdir, "mtx"), recursive = TRUE, showWarnings = FALSE)
 
 cat("reading merged object ...\n")
 o <- readRDS(merged)
-stopifnot(all(c("dataset", "slide_id", "cell_type", "sample_id") %in% colnames(o@meta.data)))
+stopifnot(all(c("dataset", "slide_id", "sample_id") %in% colnames(o@meta.data)))
 o <- JoinLayers(o)
 cat(sprintf("cohort: %d cells x %d genes\n", ncol(o), nrow(o)))
 
@@ -36,7 +36,7 @@ obs <- data.table(
   sample_id   = as.character(o$sample_id),
   dataset     = as.character(o$dataset),
   slide_id    = as.character(o$slide_id),
-  cell_type   = as.character(o$cell_type),
+  cell_type   = NA_character_,  # per-sample typing retired; benchmark label re-based at merged scale
   condition   = as.character(o$condition),
   treatment   = as.character(o$treatment),
   timepoint_h = as.character(o$timepoint_h),

@@ -27,7 +27,7 @@ peak_rss_gb <- function() {
 }
 
 ss        <- fread(ss_path)
-sids      <- sub("\\.scored\\.rds$", "", basename(rds_paths))
+sids      <- sub("\\.norm\\.rds$", "", basename(rds_paths))
 slide_map <- setNames(ss$slide_id, ss$sample_id)
 stopifnot(all(sids %in% ss$sample_id))
 
@@ -97,7 +97,7 @@ saveRDS(merged, out_rds)
 # --- slim per-cell metadata cache for downstream metadata-only tracks ---
 # (composition / niche_composition / pseudobulk colData read this 30 MB table
 # instead of re-loading the ~17 GB merged object).
-meta_cols <- c("sample_id", "cell_type", "condition", "treatment",
+meta_cols <- c("sample_id", "condition", "treatment",
                "timepoint_h", "dataset", "slide_id", "x_slide_mm", "y_slide_mm")
 meta_out  <- data.table(cell = rownames(md), md[, meta_cols])
 fwrite(meta_out, out_meta, sep = "\t")
