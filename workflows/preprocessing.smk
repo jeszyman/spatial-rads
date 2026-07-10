@@ -41,10 +41,6 @@ _s = pd.read_csv(MASTER, sep="\t")
 M01 = _s.loc[_s["name"] == "Mutter_01", "sample_id"].tolist()
 M02 = _s.loc[_s["name"] == "Mutter_02", "sample_id"].tolist()
 ALL = _s["sample_id"].tolist()
-
-# =============================================================================
-# SECTION: TARGETS
-# =============================================================================
 rule all:
     input:
         expand(f"{D_PROC}/norm/{{s}}.norm.rds", s=ALL),
@@ -57,11 +53,6 @@ rule all:
         f"{D_RES}/contamination_fov_qc.tsv",
         f"{D_RES}/plots/qc_removal_attribution.png",
         f"{D_RES}/plots/qc_metric_distributions.png",
-
-# =============================================================================
-# SECTION: SAMPLE SHEET + PANEL / CONTROL QC (report-only)
-# =============================================================================
-
 # Workflow-linked sample sheet (scoped view of the data model).
 rule preproc_samplesheet:
     message: "[samplesheet] scoped view of the data model"
@@ -75,7 +66,6 @@ rule preproc_samplesheet:
         ss = SCOPED,
     shell:
         "{RSCRIPT} {input.script} {input.rda} {output.ss} > {log} 2>&1"
-
 # Probe-vs-negative-control QC DIAGNOSTIC (report-only; does NOT drop genes).
 rule preproc_probe_qc:
     message: "[probe_qc] background-level probe flags"
@@ -90,7 +80,6 @@ rule preproc_probe_qc:
         report = f"{D_RES}/probe_qc_report.tsv",
     shell:
         "{RSCRIPT} {input.script} {input.ss} {input.panel} {output.report} > {log} 2>&1"
-
 # Control QC (report-only): negprobe + falsecode characterization & per-cell sidecar.
 # Additive; depends on raw RDS + M01 parquet, never scored objects.
 rule preproc_control_qc:
@@ -113,7 +102,6 @@ rule preproc_control_qc:
         "{RSCRIPT} {input.validate} " + M01_RDS_DIR + " {input.m01_meta} {output.valid} > {log} 2>&1 && "
         "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.density} >> {log} 2>&1 && "
         "{RSCRIPT} {input.sidecar} " + M01_RDS_DIR + " {input.m01_meta} " + M02_RDS_DIR + " {output.cells} {output.fovqc} >> {log} 2>&1"
-
 # Contamination QC (report-only): SpatialQM MECR marker-bleed, sample + FOV grain.
 rule preproc_contamination_qc:
     message: "[contamination_qc] SpatialQM MECR marker-bleed"
@@ -131,10 +119,6 @@ rule preproc_contamination_qc:
     shell:
         "{RSCRIPT} {input.script} {D_PROC}/qc {input.sqm} "
         "{input.markers} {output.sample} {output.fov} > {log} 2>&1"
-
-# =============================================================================
-# SECTION: ADAPTERS (dataset-specific: raw per-slide RDS -> common-format Seurat)
-# =============================================================================
 rule preproc_adapt_mutter01:
     message: "[adapt_mutter01] raw per-slide RDS -> common Seurat"
     input:
@@ -149,7 +133,6 @@ rule preproc_adapt_mutter01:
         yi  = YIREF,
     shell:
         "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} {output.yi} > {log} 2>&1"
-
 rule preproc_adapt_mutter02:
     message: "[adapt_mutter02] raw per-slide RDS -> common Seurat"
     input:
@@ -163,10 +146,6 @@ rule preproc_adapt_mutter02:
         rds = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=M02),
     shell:
         "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} > {log} 2>&1"
-
-# =============================================================================
-# SECTION: QC FILTER -> NORMALIZE (shared; invariant terminus = norm.rds)
-# =============================================================================
 rule preproc_qc_filter:
     message: "[qc_filter] {wildcards.s}"
     input:
@@ -186,7 +165,6 @@ rule preproc_qc_filter:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {output.rds} {output.summary} "
         "{params.min_counts} {params.min_features} {params.max_propneg} {params.area_nmads} > {log} 2>&1"
-
 rule preproc_normalize:
     message: "[normalize] {wildcards.s}"
     input:
@@ -202,10 +180,6 @@ rule preproc_normalize:
         rds = f"{D_PROC}/norm/{{s}}.norm.rds",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {output.rds} {params.scale_factor} {params.nfeatures} > {log} 2>&1"
-
-# =============================================================================
-# SECTION: REPORTS
-# =============================================================================
 rule preproc_qc_report:
     message: "[qc_report] pooled per-sample QC summaries"
     input:
@@ -218,7 +192,6 @@ rule preproc_qc_report:
         report = f"{D_RES}/qc_summary.tsv",
     shell:
         "{RSCRIPT} {input.script} {D_RES}/qc {output.report} > {log} 2>&1"
-
 rule preproc_qc_plots:
     message: "[qc_plots] QC removal attribution + metric distributions"
     input:
