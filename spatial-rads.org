@@ -824,11 +824,7 @@ Want me to finish the doc refresh (changelog + CLAUDE.md note) now, or hold whil
 :PROPERTIES:
 :header-args:snakemake: :tangle workflows/preprocessing.smk
 :END:
-
-Invariant per-sample preprocessing: dataset adapter → QC filter → LogNormalize, plus report-only QC. A deterministic function of (raw input, pinned config); per-sample terminus =norm.rds=. Canonical cell typing is cohort-scale in the aggregate workflow.
-
-Preamble — strict-mode + BLAS-pinned shell prefix, the =conda run= interpreter, =D_=/=R_= path constants, and the parse-time sample lists from the master sheet.
-
+***** Preamble
 #+begin_src snakemake
 # spatial-rads -- invariant per-sample preprocessing workflow (pre-aggregate).
 # Deterministic function of (raw input, pinned config): dataset adapter (raw per-slide
@@ -873,11 +869,8 @@ _s = pd.read_csv(MASTER, sep="\t")
 M01 = _s.loc[_s["name"] == "Mutter_01", "sample_id"].tolist()
 M02 = _s.loc[_s["name"] == "Mutter_02", "sample_id"].tolist()
 ALL = _s["sample_id"].tolist()
-
 #+end_src
-
-Targets — the run manifest: 23 normalized objects plus the report-only QC tables and plots.
-
+***** All rule
 #+begin_src snakemake
 rule all:
     input:
@@ -891,11 +884,8 @@ rule all:
         f"{D_RES}/contamination_fov_qc.tsv",
         f"{D_RES}/plots/qc_removal_attribution.png",
         f"{D_RES}/plots/qc_metric_distributions.png",
-
 #+end_src
-
-Sample sheet — scoped view of the data model.
-
+***** Sample sheet                                                 :smk_rule:
 #+begin_src snakemake
 # Workflow-linked sample sheet (scoped view of the data model).
 rule preproc_samplesheet:
@@ -910,11 +900,8 @@ rule preproc_samplesheet:
         ss = SCOPED,
     shell:
         "{RSCRIPT} {input.script} {input.rda} {output.ss} > {log} 2>&1"
-
 #+end_src
-
-Probe-QC diagnostic — flags background-level probes in both datasets; report-only, never drops genes.
-
+***** Probe-QC diagnostic                                          :smk_rule:
 #+begin_src snakemake
 # Probe-vs-negative-control QC DIAGNOSTIC (report-only; does NOT drop genes).
 rule preproc_probe_qc:
@@ -930,11 +917,8 @@ rule preproc_probe_qc:
         report = f"{D_RES}/probe_qc_report.tsv",
     shell:
         "{RSCRIPT} {input.script} {input.ss} {input.panel} {output.report} > {log} 2>&1"
-
 #+end_src
-
-Control QC (report-only) — negprobe + falsecode characterization and the per-cell control sidecar.
-
+***** Control QC                                                   :smk_rule:
 #+begin_src snakemake
 # Control QC (report-only): negprobe + falsecode characterization & per-cell sidecar.
 # Additive; depends on raw RDS + M01 parquet, never scored objects.
@@ -958,11 +942,8 @@ rule preproc_control_qc:
         "{RSCRIPT} {input.validate} " + M01_RDS_DIR + " {input.m01_meta} {output.valid} > {log} 2>&1 && "
         "{RSCRIPT} {input.characterize} " + M01_RDS_DIR + " " + M02_RDS_DIR + " {output.charac} {output.density} >> {log} 2>&1 && "
         "{RSCRIPT} {input.sidecar} " + M01_RDS_DIR + " {input.m01_meta} " + M02_RDS_DIR + " {output.cells} {output.fovqc} >> {log} 2>&1"
-
 #+end_src
-
-Contamination QC (report-only) — SpatialQM MECR marker-bleed, sample + FOV grain.
-
+***** Contamination QC                                             :smk_rule:
 #+begin_src snakemake
 # Contamination QC (report-only): SpatialQM MECR marker-bleed, sample + FOV grain.
 rule preproc_contamination_qc:
@@ -981,11 +962,8 @@ rule preproc_contamination_qc:
     shell:
         "{RSCRIPT} {input.script} {D_PROC}/qc {input.sqm} "
         "{input.markers} {output.sample} {output.fov} > {log} 2>&1"
-
 #+end_src
-
-Adapter — Mutter_01 per-slide raw RDS to common-panel Seurat (dataset-specific).
-
+***** Mutter_01 adapter                                            :smk_rule:
 #+begin_src snakemake
 rule preproc_adapt_mutter01:
     message: "[adapt_mutter01] raw per-slide RDS -> common Seurat"
@@ -1001,11 +979,8 @@ rule preproc_adapt_mutter01:
         yi  = YIREF,
     shell:
         "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} {output.yi} > {log} 2>&1"
-
 #+end_src
-
-Adapter — Mutter_02 per-slide raw RDS to common-panel Seurat (dataset-specific).
-
+***** Mutter_02 adapter                                            :smk_rule:
 #+begin_src snakemake
 rule preproc_adapt_mutter02:
     message: "[adapt_mutter02] raw per-slide RDS -> common Seurat"
@@ -1020,11 +995,8 @@ rule preproc_adapt_mutter02:
         rds = expand(f"{D_PROC}/raw/{{s}}.raw.rds", s=M02),
     shell:
         "{RSCRIPT} {input.script} {input.ss} {input.genes} {D_DATA} > {log} 2>&1"
-
 #+end_src
-
-QC filter — the 4-criteria per-cell filter.
-
+***** QC filter                                                    :smk_rule:
 #+begin_src snakemake
 rule preproc_qc_filter:
     message: "[qc_filter] {wildcards.s}"
@@ -1045,11 +1017,8 @@ rule preproc_qc_filter:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {output.rds} {output.summary} "
         "{params.min_counts} {params.min_features} {params.max_propneg} {params.area_nmads} > {log} 2>&1"
-
 #+end_src
-
-Normalize — LogNormalize; the invariant per-sample terminus (=norm.rds=).
-
+***** Normalize                                                    :smk_rule:
 #+begin_src snakemake
 rule preproc_normalize:
     message: "[normalize] {wildcards.s}"
@@ -1066,11 +1035,8 @@ rule preproc_normalize:
         rds = f"{D_PROC}/norm/{{s}}.norm.rds",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {output.rds} {params.scale_factor} {params.nfeatures} > {log} 2>&1"
-
 #+end_src
-
-Report — pooled per-sample QC summary.
-
+***** QC report                                                    :smk_rule:
 #+begin_src snakemake
 rule preproc_qc_report:
     message: "[qc_report] pooled per-sample QC summaries"
@@ -1084,11 +1050,8 @@ rule preproc_qc_report:
         report = f"{D_RES}/qc_summary.tsv",
     shell:
         "{RSCRIPT} {input.script} {D_RES}/qc {output.report} > {log} 2>&1"
-
 #+end_src
-
-Report — QC removal attribution + metric distributions.
-
+***** QC plots                                                     :smk_rule:
 #+begin_src snakemake
 rule preproc_qc_plots:
     message: "[qc_plots] QC removal attribution + metric distributions"
@@ -1105,7 +1068,6 @@ rule preproc_qc_plots:
         attr_tsv      = f"{D_RES}/plots/qc_removal_attribution.tsv",
     shell:
         "{RSCRIPT} {input.script} {input.cfg} {D_RES}/plots > {log} 2>&1"
-
 #+end_src
 **** processing_samplesheet.R
 :PROPERTIES:
