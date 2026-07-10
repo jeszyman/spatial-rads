@@ -51,7 +51,7 @@ First-in-field spatial transcriptomics study of MBRT peak/valley biology. MBRT d
 - **Conda env**: `spatial-rads` (R ≥4.4, conda-forge + bioconda)
 - **Compute**: jeff-beast (48 cores, 124 GB RAM, **NVIDIA RTX A4000 16 GB GPU**). Memory, not CPU, is the practical bound on Seurat operations over the merged ~3.32M-cell cohort. The GPU drives scVI integration (env `spatial-rads-scvi`), which trains GPU-direct — no CPU sketch-train workaround needed.
 - **Data storage**: `/mnt/data/projects/spatial-rads/` (local disk; mirrored from GCS). Heavy intermediates (raw/qc/norm/typed/scored RDS, reference) live here; small TSVs + plots in `results/`.
-- **Snakemake**: workflows under `workflows/*.smk`, driver in `basecamp` env, R steps via `conda run -n spatial-rads Rscript`. **Always set `TMPDIR=/mnt/data/projects/spatial-rads/tmp`** (not root `/tmp`). The preprocessing.smk workflow bakes `shell.prefix("set -euo pipefail; export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1; ")` (strict mode preserved, per the Snakemake style guide) + per-rule `threads: 1` to prevent R BLAS thread oversubscription (see memory `feedback_smk_thread_hygiene`); aggregate.smk should do the same.
+- **Snakemake**: workflows under `workflows/*.smk`, driver in `basecamp` env, R steps via `conda run -n spatial-rads Rscript`. **Always set `TMPDIR=/mnt/data/projects/spatial-rads/tmp`** (not root `/tmp`). Per the Snakemake style guide, workflows use the per-rule `threads:` directive and rely on Snakemake's default `set -euo pipefail` — **no `shell.prefix`** (a workflow `shell.prefix` clobbers the default strict mode). (`aggregate.smk` still carries a legacy `shell.prefix` to be removed.)
 
 ## Key Conventions
 

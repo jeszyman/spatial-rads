@@ -880,11 +880,6 @@ import pandas as pd
 
 configfile: "config/config.yaml"
 
-# Strict mode (Snakemake default, preserved) + BLAS pinned to 1 thread per R process:
-# snakemake schedules job-level parallelism, not R BLAS multi-threading. Without the pin,
-# --cores N x ~48 BLAS threads each swamps the box.
-shell.prefix("set -euo pipefail; export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1; ")
-
 # --- interpreter (driver runs in basecamp; R steps in spatial-rads) ---
 RSCRIPT = "conda run -n spatial-rads Rscript"
 
