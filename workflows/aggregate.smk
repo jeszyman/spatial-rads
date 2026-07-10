@@ -8,10 +8,6 @@
 import pandas as pd
 configfile: "config/config.yaml"
 
-# Pin BLAS to 1 thread per R process (see feedback_smk_thread_hygiene): snakemake
-# schedules job-level parallelism, not R BLAS multi-threading. Every R rule is threads: 1.
-shell.prefix("export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1; ")
-
 RSCRIPT = "conda run -n spatial-rads Rscript"
 PYSCVI  = "conda run -n spatial-rads-scvi python"   # tier-1/2 Python (scVI/scanpy, GPU)
 DATADIR = config["datadir"]
@@ -458,8 +454,7 @@ rule gsea:
         "{RSCRIPT} {input.script} {input.degs} {input.sets} {output.gsea} > {log} 2>&1"
 
 # --- Track 2 pathway: per-cell UCell + AddModuleScore scoring + M02 limma test ---
-# threads: 4 -- UCell runs ncores=4 fork (BiocParallel) parallelism, not BLAS, so the
-# threads:1 BLAS-hygiene convention is unaffected (BLAS stays pinned to 1 thread).
+# threads: 4 -- UCell runs ncores=4 fork (BiocParallel) parallelism, not BLAS.
 rule pathway_scores:
     input:
         script = "scripts/aggregate/pathway_scores.R",
@@ -604,7 +599,7 @@ rule spatial_mixing:
 
 # --- T11: myeloid M1/M2 polarization (UCell M1/M2 panels -> per-sample ratio) ---
 # threads: 8 -- AddModuleScore_UCell forks UCELL_CORES=8 workers (BiocParallel, not
-# BLAS), so reserve 8 to avoid oversubscription; BLAS stays pinned to 1 via shell.prefix.
+# BLAS), so reserve 8 to avoid oversubscription.
 rule myeloid_polarization:
     input:
         script = "scripts/aggregate/myeloid_polarization.R",
