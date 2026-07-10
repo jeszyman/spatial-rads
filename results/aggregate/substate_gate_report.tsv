@@ -1,0 +1,2 @@
+n_fibroblast	n_activated	n_resting	activated_marker_s2b_mean	anchor_s2b	best_anchor_s2b	gate_passed
+732099	313088	419011	30.23	Col5a1=2.62;Col5a3=1.82	2.62	TRUE
