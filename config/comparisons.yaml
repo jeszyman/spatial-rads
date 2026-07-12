@@ -1,0 +1,123 @@
+# config/comparisons.yaml
+# Curated registry of the experimental comparisons this sample set admits.
+# Group predicates filter results/data_model/samples.tsv; the builder resolves realized n,
+# model rank, residual df, and inference-capability from the resolved sample subset.
+# Pre-registered: tier + hypotheses are frozen (git-HEAD freeze check, like pathway sets).
+
+comparisons:
+  # ---- sample-level, day-2 inference cohort (n=4, formal) ----
+  - name: SBRT_vs_Ctrl
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: mutter02_day2
+    group1: {treatment: SBRT, timepoint_h: 48, model: flank}
+    group2: {treatment: NT,   timepoint_h: 48, model: flank}
+    unit: mouse
+    formula: "~0 + condition + slide_id"
+    tier: confirmatory
+    hypotheses: [H1_immune, H2_vascular, H3_stromal]
+    dose_confounded: false
+
+  - name: MBRT_vs_Ctrl
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: mutter02_day2
+    group1: {treatment: MBRT, timepoint_h: 48, model: flank}
+    group2: {treatment: NT,   timepoint_h: 48, model: flank}
+    unit: mouse
+    formula: "~0 + condition + slide_id"
+    tier: confirmatory
+    hypotheses: [H1_immune, H2_vascular, H3_stromal]
+    dose_confounded: false
+    notes: >
+      Whole-compartment averaging cancels a peak-restricted MBRT signal (dilution).
+      Bounds, does not resolve, the MBRT question -- see region MBRT_peak_vs_valley.
+
+  - name: MBRT_vs_SBRT
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: mutter02_day2
+    group1: {treatment: MBRT, timepoint_h: 48, model: flank}
+    group2: {treatment: SBRT, timepoint_h: 48, model: flank}
+    unit: mouse
+    formula: "~0 + condition + slide_id"
+    tier: confirmatory
+    hypotheses: [H1_immune, H2_vascular, H3_stromal]
+    dose_confounded: true
+    view:
+      differential_response_scatter: true
+
+  # ---- region-level, within-sample ----
+  - name: MBRT_peak_vs_valley
+    kind: region
+    axis: dist_to_peak
+    test: periodicity_rotation_null
+    cohorts: [mutter01_mbrt_4h, mutter02_day2]
+    unit: mouse
+    pairing: within_mouse
+    requires: h2ax_registration
+    tier: confirmatory
+    method_notes: [fov_alias_guard, dose_dropout_check, boundary_buffer, nonlinear_distance]
+
+  - name: MBRT_valley_vs_SBRT
+    kind: region
+    cohorts: [mutter02_day2]
+    unit: mouse
+    requires: h2ax_registration
+    tier: exploratory
+    dose_confounded: true
+
+  - name: niche_DA_by_arm
+    kind: region
+    test: kmeans_knn_composition
+    cohort: mutter02_day2
+    unit: mouse
+    formula: "~0 + condition + slide_id"
+    tier: exploratory
+
+  - name: tumor_immune_mixing_by_arm
+    kind: region
+    test: keren_mixing_score
+    cohort: mutter02_day2
+    unit: mouse
+    formula: "~0 + condition + slide_id"
+    tier: exploratory
+
+  - name: substate_composition_by_arm
+    kind: region
+    test: substate_fraction
+    cohort: mutter02_day2
+    unit: mouse
+    formula: "~0 + condition + slide_id"
+    tier: exploratory
+
+  # ---- descriptive, time-course cohort (n=1, effect sizes only) ----
+  - name: treated_vs_baseline_timecourse
+    kind: sample
+    cohort: mutter01_flank
+    group1: {treatment: [MBRT, SBRT], model: flank}
+    group2: {treatment: NT, timepoint_h: 0, model: flank}
+    unit: sample
+    tier: descriptive
+    notes: single 0h control conflates time-since-implant with treatment; descriptive only.
+
+  - name: MBRT_vs_SBRT_matched_timepoint
+    kind: sample
+    cohort: mutter01_flank
+    strata: [4, 48, 144]
+    unit: sample
+    tier: descriptive
+
+  - name: MBRT_vs_SBRT_tongue_day10
+    kind: sample
+    cohort: mutter01_tongue
+    unit: sample
+    tier: descriptive
+    notes: different tumor + site; timepoint-confounded cross-model context only.
+
+  # ---- context / replication ----
+  - name: cohort_concordance
+    kind: context
+    test: effect_size_concordance
+    tier: exploratory
+    notes: M01 n=1 anti-correlates with M02 on the SBRT signal; contextual, cannot corroborate.
