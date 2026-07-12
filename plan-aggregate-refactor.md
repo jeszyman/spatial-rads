@@ -200,6 +200,23 @@ rebuild regenerates that file, so the committed `results_master.tsv` is now stal
   *points at* `scripts/aggregate/` rather than tangling them. Keeps the guideline; literate index
   without doubling the file.
 
+**2026-07-12 addendum — executed as a two-file split, not one `aggregate.smk`.** The literate
+transfer described above (one `** Aggregate analysis` heading tangling one `aggregate.smk`) was
+carried out instead as **two** org-tangled workflows, split at the label-handoff seam:
+`aggregate_typing.smk` (15 rules, terminus `full_labels.parquet` + `merged.rds`) and
+`aggregate_differential.smk` (21 rules, consumes those three leaf inputs, terminus
+`results_master.tsv`). Rationale: the typing/differential boundary is the biological seam —
+typing is a one-time structural identity assignment on the merged cohort, while the differential
+layer (and the future peak/valley spatial analysis) only ever *consume* labels, never recompute
+them — and the split isolates the GPU/multi-env typing DAG (scVI, Leiden, SingleR, tier-2 rescue
+scripts) from the fast-iterating R differential work, so a differential-side edit no longer
+forces a re-think of the typing DAG's environment/GPU dependencies. A rule-conservation diff
+confirmed no rule was lost or duplicated across the split (36 named rules old == 15 + 21 new),
+resolved output-path values were confirmed unchanged (`{AGG}`/`{FULL}` renamed to
+`{D_AGG}`/`{D_FULL}` in both new files with identical resolved strings), and both new workflows
+dry-run clean (only the expected `MissingInputException` for not-yet-materialized upstream
+intermediates). The monolithic `workflows/aggregate.smk` was removed after these checks passed.
+
 ---
 
 ## Cross-cutting — reproducibility artifact
