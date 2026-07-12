@@ -1,0 +1,17 @@
+set	tier	source	n_total	n_panel	frac_panel	thin	weak_separation
+Adipocyte	nonimmune	canonical adipocyte	5	5	1	FALSE	""
+B	immune	ImmGen canonical B-lineage	8	8	1	FALSE	""
+DC	immune	ImmGen canonical DC	7	7	1	FALSE	shared_with_Macrophage (Itgax/Ciita)
+Endothelial	nonimmune	canonical endothelial	10	10	1	FALSE	""
+Epithelial	nonimmune	canonical epithelial; 4T1 flank epithelial = tumor implant	8	8	1	FALSE	""
+Fibroblast	nonimmune	canonical fibroblast	10	10	1	FALSE	""
+Macrophage	immune	ImmGen canonical myeloid	14	14	1	FALSE	""
+Mast	immune	ImmGen canonical mast (panel-clean lineage-level)	6	6	1	FALSE	""
+NK	immune	ImmGen canonical NK	7	7	1	FALSE	""
+Neutrophil	immune	ImmGen canonical neutrophil (panel-clean lineage-level)	8	8	1	FALSE	""
+Pericyte	nonimmune	canonical perivascular	3	3	1	TRUE	shared_with_SmoothMuscle (3 panel markers; Pdgfrb fibroblast-shared)
+Plasma	immune	ImmGen canonical plasma (panel-clean lineage-level)	7	7	1	FALSE	""
+SmoothMuscle	nonimmune	canonical SMC	7	7	1	FALSE	""
+T	immune	ImmGen canonical T-lineage	11	11	1	FALSE	""
+fibroblast_activated	substate	pre-registered (Zhang 2019 double-dip guard); Col5a1/Col5a3 specificity anchor	5	5	1	FALSE	""
+fibroblast_resting	substate	pre-registered (Zhang 2019 double-dip guard)	6	6	1	FALSE	""

@@ -1,0 +1,17 @@
+set	tier	source	weak_separation
+T	immune	ImmGen canonical T-lineage
+B	immune	ImmGen canonical B-lineage
+Plasma	immune	ImmGen canonical plasma (panel-clean lineage-level)
+NK	immune	ImmGen canonical NK
+Macrophage	immune	ImmGen canonical myeloid
+Neutrophil	immune	ImmGen canonical neutrophil (panel-clean lineage-level)
+Mast	immune	ImmGen canonical mast (panel-clean lineage-level)
+DC	immune	ImmGen canonical DC	shared_with_Macrophage (Itgax/Ciita)
+Epithelial	nonimmune	canonical epithelial; 4T1 flank epithelial = tumor implant
+Endothelial	nonimmune	canonical endothelial
+Fibroblast	nonimmune	canonical fibroblast
+Pericyte	nonimmune	canonical perivascular	shared_with_SmoothMuscle (3 panel markers; Pdgfrb fibroblast-shared)
+SmoothMuscle	nonimmune	canonical SMC
+Adipocyte	nonimmune	canonical adipocyte
+fibroblast_resting	substate	pre-registered (Zhang 2019 double-dip guard)
+fibroblast_activated	substate	pre-registered (Zhang 2019 double-dip guard); Col5a1/Col5a3 specificity anchor
