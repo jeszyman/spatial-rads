@@ -5,6 +5,13 @@
 > `plan-mbrt-vs-sbrt-reanalysis.md`. This is a bioinformatics analysis (R + snakemake), so
 > "verify" = dry-run / output-schema / value-check / figure-inspection, not pytest.
 
+> **⚠️ Workflow renamed (2026-07-12):** `aggregate.smk` was split into `aggregate_typing.smk`
+> (cell typing) and `aggregate_differential.smk` (differential layer). Every `workflows/aggregate.smk`
+> path and `snakemake -s workflows/aggregate.smk …` invocation below now lives in
+> **`workflows/aggregate_differential.smk`** (the differential-layer rules — `assemble_results`,
+> `composition`, etc. — moved there verbatim; rule bodies unchanged, only file + line numbers
+> differ). Substitute the new filename when executing. Typing outputs are consumed as leaf inputs.
+
 **Goal:** Refresh the arm-level MBRT/SBRT/Control differential on the reproducible labels and add
 the devils-advocate fixes — symmetric panel-coverage, a magnitude-floored detectability view, and
 an honest effect-size figure set across all three contrasts.

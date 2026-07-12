@@ -1,6 +1,6 @@
 # plan-preprocessing.md — invariant per-sample preprocessing workflow
 
-**Status: as-built (split executed 2026-07-10).** The per-sample pipeline was split into this invariant preprocessing workflow; per-sample cell typing + pathway scoring were **deleted** (canonical typing is cohort-scale in `aggregate.smk`). Supersedes `plan-processing-pipeline.md` and folds the adapter/control facts from `plan-mutter01-controls.md` (both deleted). Companion to `plan-aggregate.md` / `plan-aggregate-refactor.md` (the cohort-scale consumer).
+**Status: as-built (split executed 2026-07-10).** The per-sample pipeline was split into this invariant preprocessing workflow; per-sample cell typing + pathway scoring were **deleted** (canonical typing is cohort-scale in `aggregate_typing.smk`). Supersedes `plan-processing-pipeline.md` and folds the adapter/control facts from `plan-mutter01-controls.md` (both deleted). Companion to `plan-aggregate.md` / `plan-aggregate-refactor.md` (the cohort-scale consumer).
 
 ## What it is
 
@@ -30,7 +30,7 @@ The per-sample output is a pure function of raw input + pinned config — no coh
 
 ## Handoff to the aggregate workflow
 
-The aggregate merge reads `norm.rds` (re-pointed from `scored.rds` 2026-07-10 across `merge.R`/`merge_pilot.R`/`coords_necrosis.R`/`recover_negprobes.R` + the `aggregate.smk` expands) and re-types all cells at merged scale (canonical `full_labels.parquet`). The vestigial per-sample `cell_type` requirement in the merge/export was removed and the integration-QC benchmark label nulled (`full_export.R`) — **re-base that benchmark on the merged coarse labels at the next aggregate rebuild.**
+The aggregate merge reads `norm.rds` (re-pointed from `scored.rds` 2026-07-10 across `merge.R`/`merge_pilot.R`/`coords_necrosis.R`/`recover_negprobes.R` + the aggregate workflow expands; those merge/typing rules now live in `aggregate_typing.smk` after the 2026-07-12 split) and re-types all cells at merged scale (canonical `full_labels.parquet`). The vestigial per-sample `cell_type` requirement in the merge/export was removed and the integration-QC benchmark label nulled (`full_export.R`) — **re-base that benchmark on the merged coarse labels at the next aggregate rebuild.**
 
 ## Files
 

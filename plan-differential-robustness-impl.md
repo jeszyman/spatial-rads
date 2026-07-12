@@ -2,6 +2,16 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **⚠️ Workflow renamed (2026-07-12):** `aggregate.smk` was split into `aggregate_typing.smk`
+> (cell typing) and `aggregate_differential.smk` (differential layer). Every `workflows/aggregate.smk`
+> reference and `snakemake -s workflows/aggregate.smk …` command below now targets
+> **`workflows/aggregate_differential.smk`** — all differential rules (`pseudobulk_build`,
+> `deg_pseudobulk`, `detection_test`, `substate_split`, `assemble_results`, etc.) moved there
+> verbatim. Two Global-Constraints facts are also stale: the workflow no longer carries a
+> `shell.prefix` (Snakemake default strict mode is used instead, no BLAS pinning), and the
+> `RSCRIPT`/`PYSCVI` line-15-16 anchor now applies to the typing file; the differential file
+> defines `RSCRIPT` only (it has no Python rules). Rule bodies are otherwise unchanged.
+
 **Goal:** Implement the six confounding fixes in `plan-differential-robustness.md` on the `aggregate.smk` differential layer, ending in one consolidated rerun that regenerates `results/aggregate/results_master.tsv` with the new detection/sub-state/claim-scoping columns.
 
 **Architecture:** Edit five existing scripts (`pseudobulk_build.R`, `deg_pseudobulk.R`, `composition.R`, `pathway_summary.R`, `assemble_results.R`), add three new ones (`detection_test.R`, `substate_split.R`, optional `milo_da.py`), add one config (`config/substate_markers.yaml`), and rewire the affected Snakemake rules. Most work is verified on existing intermediates (`pseudobulk_se.rds`, `merged.rds`, `full_labels.parquet`) so the expensive UCell recompute happens only once, in the final task.

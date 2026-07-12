@@ -1,4 +1,4 @@
-# `aggregate.smk` — design, decisions, status
+# Aggregate workflow (`aggregate_typing.smk` + `aggregate_differential.smk`) — design, decisions, status
 
 Cross-sample / cross-dataset analysis workflow consuming the 23 per-sample
 scored RDS produced by `processing.smk`. Reads the flank cohort (20 of 23
@@ -10,6 +10,15 @@ the pipeline emits richly-annotated tables rather than pre-filtered results.
 This file supersedes the earlier handoff "plan for a plan." Companion to
 `plan-processing-pipeline.md` (the per-sample upstream that aggregate
 consumes). Brainstormed and devils-advocate-reviewed 2026-05-31.
+
+**Status note (2026-07-12): `aggregate.smk` was split into two literate,
+org-tangled workflows** at the cell-typing/differential seam — `aggregate_typing.smk`
+(merge → scVI typing → `full_labels.parquet` + `merged.rds`) and
+`aggregate_differential.smk` (the differential layer → `results_master.tsv`,
+consuming the typing outputs as leaf inputs). This document's design/decision
+history below refers to the pre-split monolithic file; the rule content is
+unchanged, only partitioned across the two files. See the 2026-07-12 Change log
+entry in `spatial-rads.org` and the Step-7 addendum in `plan-aggregate-refactor.md`.
 
 ## v2.0 — Atlas re-typing precedes this workflow (2026-05-31)
 
