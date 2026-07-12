@@ -13,10 +13,13 @@ rule all:
         "results/data_model/common_genes.tsv",
         "results/data_model/pathway_sets.tsv",
         "results/data_model/gene_set_panel_coverage.tsv",
+        "results/data_model/comparisons.tsv",
+        "results/data_model/marker_panel_coverage.tsv",
         "results/data_model/panel_provenance.tsv",
         "results/data_model/plots/design_grid.png",
         "results/data_model/plots/panel_provenance.png",
         "results/data_model/plots/geneset_coverage.png",
+        "results/data_model/plots/marker_coverage.png",
 rule make_data_model:
     input:
         xlsx   = config["metadata"]["xlsx"],
@@ -57,6 +60,45 @@ rule build_gene_sets:
     shell:
         "{RSCRIPT} {input.script} {input.yaml} {input.prov} {input.panel} {params.minpg} "
         "{output.sets} {output.coverage} > {log} 2>&1"
+# --- comparison registry: curated design resolved against the samplesheet ---
+rule build_comparisons:
+    input:
+        script = "scripts/build_comparisons.R",
+        yaml   = "config/comparisons.yaml",
+        ss     = config["samplesheet"],
+    output:
+        "results/data_model/comparisons.tsv",
+    threads: 1
+    log: "logs/build_comparisons.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.yaml} {input.ss} {output} > {log} 2>&1"
+# --- cell-marker provenance + panel coverage (mirrors build_gene_sets) ---
+rule build_marker_sets:
+    input:
+        script   = "scripts/build_marker_sets.R",
+        lineage  = "config/lineage_markers.yaml",
+        substate = "config/substate_markers.yaml",
+        prov     = "config/marker_sets_provenance.tsv",
+        panel    = "results/data_model/common_genes.tsv",
+    output:
+        coverage = "results/data_model/marker_panel_coverage.tsv",
+    params:
+        minpg = config["pathway"]["min_panel_genes"],
+    threads: 1
+    log: "logs/build_marker_sets.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.lineage} {input.substate} {input.prov} "
+        "{input.panel} {params.minpg} {output.coverage} > {log} 2>&1"
+rule fig_marker_coverage:
+    input:
+        script = "scripts/fig_marker_coverage.R",
+        cov    = "results/data_model/marker_panel_coverage.tsv",
+    output:
+        "results/data_model/plots/marker_coverage.png",
+    threads: 1
+    log: "logs/fig_marker_coverage.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.cov} {output} > {log} 2>&1"
 # --- panel provenance: UCC-standard vs per-experiment custom (from the delivered objects) ---
 rule panel_provenance:
     input:
