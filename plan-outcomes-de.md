@@ -46,7 +46,7 @@ and how does the whole-tumor response compare to uniform SBRT? Plan 2
 
 ## What already exists (build on, don't rebuild)
 
-`aggregate.smk` DE machinery (per `plan-aggregate.md`), stages built +
+`aggregate_differential.smk` DE machinery (per `plan-aggregate.md`), stages built +
 verified this session: merge, composition (propeller), pseudobulk_build,
 deg_pseudobulk, gsea, pathway_summary. Remaining aggregate stages
 (deg_percell, concordance_m01_m02, niche tracks) are still pending and may

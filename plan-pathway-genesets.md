@@ -20,7 +20,7 @@ Four coupled defects in how gene sets and the panel are handled today:
    unpinned** — a reproducibility hole (a version bump silently shifts the set list).
 3. **Redundant double scoring.** Per-cell program scores are computed twice: per-sample
    (`processing.smk/pathway_score.R`, curated 8) and again merged
-   (`aggregate.smk/pathway_summary.R`, curated + Hallmark, "recomputes"). UCell is
+   (`aggregate_differential.smk/pathway_summary.R`, curated + Hallmark, "recomputes"). UCell is
    rank-based **within a cell** (cohort-independent), so per-sample UCell == merged UCell
    exactly; the per-sample values are recomputed and discarded. No inference consumer
    reads the per-sample `_UCell`/`_AMS` columns (`assemble_results.R`, `power_mde.R` read
@@ -78,7 +78,7 @@ them instead of re-deriving; pathway scoring happens **once**, at merged scale.
 | `gsea.R` | Replace inline `read_yaml + msigdbr` (L28-36) with a read of `pathway_sets.tsv`; filter by `tier`. Net **removal** of duplicated logic. |
 | `pathway_summary.R` | Same: read `pathway_sets.tsv` instead of yaml+live msigdbr (L52-58). Becomes the **single** scoring path. |
 | `assemble_results.R` | Read tier=primary gene membership for the H1/H2/H3 families from the artifact (was `read_yaml`). Confirmatory family hypothesis lookup is unchanged. |
-| `build_gene_sets.R` | Promoted from `scripts/aggregate/` to `scripts/build_gene_sets.R` and extended from audit-only to the **generator**: emits `pathway_sets.tsv` + `gene_set_panel_coverage.tsv` from the curated yaml + pinned msigdbr, against the panel. The `aggregate.smk` audit-only `build_gene_sets` rule is retired. |
+| `build_gene_sets.R` | Promoted from `scripts/aggregate/` to `scripts/build_gene_sets.R` and extended from audit-only to the **generator**: emits `pathway_sets.tsv` + `gene_set_panel_coverage.tsv` from the curated yaml + pinned msigdbr, against the panel. The `aggregate_differential.smk` audit-only `build_gene_sets` rule is retired. |
 | `panel_coverage.R` | Read `pathway_sets.tsv` (was yaml). |
 | `contamination_qc.R`, `qc_plots.R`, `tier2_stroma_ucell.R` | Confirm whether they need pathway sets or `lineage_markers.yaml`; repoint pathway-set reads only. (lineage markers are a separate file, untouched.) |
 
@@ -88,14 +88,14 @@ them instead of re-deriving; pathway scoring happens **once**, at merged scale.
   pipeline now terminates at `typed.rds` (the `scored` stage was `typed` + redundant
   pathway columns).
 - `pathway_summary.R` (merged scale, sourcing the artifact) is the single scoring path.
-- **Aggregate merge input** `*.scored.rds` → `*.typed.rds`: update `aggregate.smk`
+- **Aggregate merge input** `*.scored.rds` → `*.typed.rds`: update `aggregate_typing.smk`
   (`SCORED`/`PILOT`/`FLANK` expands) and the `.scored.rds`-stripping scripts (`merge.R`,
   `merge_pilot.R`, `coords_necrosis.R`, `recover_negprobes.R`, `cell_assignment_map.R`).
 
 ### Path-move rewiring (panel)
 
 `results/processing/common_genes.tsv` → `results/data_model/common_genes.tsv` in:
-`processing.smk` (`GENES`), `aggregate.smk` (`PANEL`), `adapt_mutter01.R`, `adapt_mutter02.R`,
+`processing.smk` (`GENES`), `aggregate_typing.smk` (`PANEL`), `adapt_mutter01.R`, `adapt_mutter02.R`,
 `probe_qc.R`, `build_celltype_reference.R`, `prepare_reference.R`, and the
 `lineage_markers.yaml` comment. The committed snapshot stays at the old path as the frozen
 invariance reference (or is moved + re-committed; decide at implementation).

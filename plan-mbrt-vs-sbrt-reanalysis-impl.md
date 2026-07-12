@@ -5,18 +5,17 @@
 > `plan-mbrt-vs-sbrt-reanalysis.md`. This is a bioinformatics analysis (R + snakemake), so
 > "verify" = dry-run / output-schema / value-check / figure-inspection, not pytest.
 
-> **⚠️ Workflow renamed (2026-07-12):** `aggregate.smk` was split into `aggregate_typing.smk`
-> (cell typing) and `aggregate_differential.smk` (differential layer). Every `workflows/aggregate.smk`
-> path and `snakemake -s workflows/aggregate.smk …` invocation below now lives in
-> **`workflows/aggregate_differential.smk`** (the differential-layer rules — `assemble_results`,
-> `composition`, etc. — moved there verbatim; rule bodies unchanged, only file + line numbers
-> differ). Substitute the new filename when executing. Typing outputs are consumed as leaf inputs.
+> **⚠️ Note (2026-07-12):** the differential layer lives in `workflows/aggregate_differential.smk`
+> (split out of the former monolithic `aggregate.smk`; cell typing is now the separate
+> `aggregate_typing.smk`, whose `full_labels.parquet` / `merged.rds` / `obs.parquet` this workflow
+> consumes as leaf inputs). Rule bodies are unchanged, but any `workflows/...smk:<line>` numbers
+> below predate the split — locate rules by name, not line.
 
 **Goal:** Refresh the arm-level MBRT/SBRT/Control differential on the reproducible labels and add
 the devils-advocate fixes — symmetric panel-coverage, a magnitude-floored detectability view, and
 an honest effect-size figure set across all three contrasts.
 
-**Architecture:** The differential layer already exists in `workflows/aggregate.smk` and emits
+**Architecture:** The differential layer already exists in `workflows/aggregate_differential.smk` and emits
 `results/aggregate/results_master.tsv` via `scripts/aggregate/assemble_results.R`. We (a) verify
 prereqs + regenerate it on the rebuilt labels, (b) extend `assemble_results.R` with a coverage
 join + magnitude-floor `trend_call` + a `detectability_summary.tsv`, (c) add two figure scripts.
@@ -45,7 +44,7 @@ join + magnitude-floor `trend_call` + a `detectability_summary.tsv`, (c) add two
 
 - Modify `scripts/aggregate/assemble_results.R` — add coverage join (Task 3) + magnitude-floor
   `trend_call` and `detectability_summary.tsv` (Task 4).
-- Modify `workflows/aggregate.smk` — `assemble_results` rule: add the coverage input + the new
+- Modify `workflows/aggregate_differential.smk` — `assemble_results` rule: add the coverage input + the new
   output (Task 4); add the two figures to `rule all` (Task 7).
 - Create `scripts/aggregate/fig_program_panel.R` — a priori 8-program effect-size forest (Task 5).
 - Create `scripts/aggregate/fig_contrast_effects.R` — 3-contrast effect view + SBRT fibrosis (Task 6).
@@ -69,7 +68,7 @@ join + magnitude-floor `trend_call` + a `detectability_summary.tsv`, (c) add two
   Run:
   ```bash
   TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp \
-    snakemake -s workflows/aggregate.smk results/aggregate/results_master.tsv \
+    snakemake -s workflows/aggregate_differential.smk results/aggregate/results_master.tsv \
     --dry-run --rerun-incomplete 2>&1 | tail -30
   ```
   Expected: clean DAG, ends "This was a dry-run", no MissingInputException; the differential rules
@@ -85,7 +84,7 @@ join + magnitude-floor `trend_call` + a `detectability_summary.tsv`, (c) add two
 - [ ] **Step 1: Run the differential chain (background; GPU not needed).**
   ```bash
   TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp --no-capture-output \
-    snakemake -s workflows/aggregate.smk results/aggregate/results_master.tsv \
+    snakemake -s workflows/aggregate_differential.smk results/aggregate/results_master.tsv \
     --cores 8 --rerun-incomplete 2>&1 | tee logs/aggregate/step6_refresh.log
   ```
 - [ ] **Step 2: Verify the refreshed table reproduces the known result.**
@@ -101,7 +100,7 @@ join + magnitude-floor `trend_call` + a `detectability_summary.tsv`, (c) add two
 
 ### Task 3: Symmetric panel-coverage join in `assemble_results.R`
 
-**Files:** Modify `scripts/aggregate/assemble_results.R`; Modify `workflows/aggregate.smk`
+**Files:** Modify `scripts/aggregate/assemble_results.R`; Modify `workflows/aggregate_differential.smk`
 (`assemble_results` rule input).
 
 **Interfaces — Produces:** `results_master.tsv` gains 3 columns on every `pathway`/`gsea` row:
@@ -123,7 +122,7 @@ join + magnitude-floor `trend_call` + a `detectability_summary.tsv`, (c) add two
                     panel_cov_frac = round(mm$n_panel / mm$n_set_total, 3))]
   ```
   and add `"n_panel","n_set_total","panel_cov_frac"` to the `setcolorder` tail.
-- [ ] **Step 3: Wire the rule input + arg.** In `workflows/aggregate.smk` `assemble_results` rule,
+- [ ] **Step 3: Wire the rule input + arg.** In `workflows/aggregate_differential.smk` `assemble_results` rule,
   add input `cov = "results/data_model/gene_set_panel_coverage.tsv"` and insert `{input.cov}` in the
   shell **before** `{output.master}` (matching the new positional `cov_p <- a[10]`, `out_p <- a[11]`).
 - [ ] **Step 4: Verify.** Re-run `assemble_results` only
@@ -139,7 +138,7 @@ join + magnitude-floor `trend_call` + a `detectability_summary.tsv`, (c) add two
 
 ### Task 4: Magnitude-floor `trend_call` + `detectability_summary.tsv`
 
-**Files:** Modify `scripts/aggregate/assemble_results.R`; Modify `workflows/aggregate.smk`.
+**Files:** Modify `scripts/aggregate/assemble_results.R`; Modify `workflows/aggregate_differential.smk`.
 
 **Interfaces — Produces:** `results_master.tsv` gains `clears_mde` (logical) + `trend_call`
 (`up`/`down`/`below-floor`/`na`); new file `results/aggregate/detectability_summary.tsv`
@@ -212,7 +211,7 @@ join + magnitude-floor `trend_call` + a `detectability_summary.tsv`, (c) add two
 
 ### Task 7: Wire figures into the workflow + close out
 
-**Files:** Modify `workflows/aggregate.smk`.
+**Files:** Modify `workflows/aggregate_differential.smk`.
 
 - [ ] **Step 1: Add `program_panel` + `fig_contrast_effects` rules** (R rules, `threads: 1`,
   consuming `results_master.tsv`), and add the 3 new PNGs + `detectability_summary.tsv` to
@@ -220,14 +219,14 @@ join + magnitude-floor `trend_call` + a `detectability_summary.tsv`, (c) add two
 - [ ] **Step 2: Dry-run.**
   ```bash
   TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp \
-    snakemake -s workflows/aggregate.smk --dry-run 2>&1 | tail -20
+    snakemake -s workflows/aggregate_differential.smk --dry-run 2>&1 | tail -20
   ```
   Expected: clean; the new figure rules appear.
 - [ ] **Step 3: Commit.**
   ```bash
   repo-commit "feat(mbrt-reanalysis): symmetric coverage + detectability + honest contrast figures" \
     scripts/aggregate/assemble_results.R scripts/aggregate/fig_program_panel.R \
-    scripts/aggregate/fig_contrast_effects.R workflows/aggregate.smk \
+    scripts/aggregate/fig_contrast_effects.R workflows/aggregate_differential.smk \
     results/aggregate/detectability_summary.tsv
   ```
 

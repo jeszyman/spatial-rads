@@ -301,7 +301,7 @@ repo-commit "feat(data_model): generate common panel + tiered gene sets as Stage
 
 **Files (modify the panel path `results/processing/common_genes.tsv` → `results/data_model/common_genes.tsv`):**
 - `workflows/processing.smk` (`GENES` var, L19)
-- `workflows/aggregate.smk` (`PANEL` var, L21)
+- `workflows/aggregate_typing.smk` (`PANEL` var, L21)
 - `scripts/adapt_mutter01.R`, `scripts/adapt_mutter02.R`, `scripts/probe_qc.R`, `scripts/build_celltype_reference.R`, `scripts/aggregate/prepare_reference.R` (header arg comments only — the path is passed in; update any hardcoded default)
 - `config/lineage_markers.yaml` (the verification comment, L2)
 
@@ -320,7 +320,7 @@ Run: `grep -rn "processing/common_genes" workflows/ scripts/ config/` → expect
 Run:
 ```bash
 TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/processing.smk --dry-run
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk --dry-run
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk --dry-run
 ```
 Expected: no `MissingInputException`. (If aggregate dry-run flags unrelated pre-existing gaps per `plan-aggregate-refactor.md`, note them but they are out of scope.)
 
@@ -328,7 +328,7 @@ Expected: no `MissingInputException`. (If aggregate dry-run flags unrelated pre-
 
 ```bash
 repo-commit "refactor: point panel consumers at results/data_model/common_genes.tsv" \
-  workflows/processing.smk workflows/aggregate.smk scripts/adapt_mutter01.R scripts/adapt_mutter02.R \
+  workflows/processing.smk workflows/aggregate_typing.smk scripts/adapt_mutter01.R scripts/adapt_mutter02.R \
   scripts/probe_qc.R scripts/build_celltype_reference.R scripts/aggregate/prepare_reference.R config/lineage_markers.yaml
 ```
 
@@ -338,7 +338,7 @@ repo-commit "refactor: point panel consumers at results/data_model/common_genes.
 
 **Files:**
 - Modify: `scripts/aggregate/gsea.R`, `scripts/aggregate/pathway_summary.R`, `scripts/aggregate/assemble_results.R`, `scripts/aggregate/panel_coverage.R`
-- Modify: `workflows/aggregate.smk` (swap `yaml = "config/pathway_gene_lists.yaml"` → `sets = "results/data_model/pathway_sets.tsv"` in the `gsea`, `pathway_summary`, `panel_coverage`, `assemble_results` rules; retire the audit-only `build_gene_sets` rule + its `gene_set_panel_coverage.tsv` target now produced by data_model)
+- Modify: `workflows/aggregate_differential.smk` (swap `yaml = "config/pathway_gene_lists.yaml"` → `sets = "results/data_model/pathway_sets.tsv"` in the `gsea`, `pathway_summary`, `panel_coverage`, `assemble_results` rules; retire the audit-only `build_gene_sets` rule + its `gene_set_panel_coverage.tsv` target now produced by data_model)
 - Check (repoint only if they read pathway sets, not lineage markers): `scripts/contamination_qc.R`, `scripts/qc_plots.R`, `scripts/aggregate/tier2_stroma_ucell.R`
 
 **Interfaces:**
@@ -373,11 +373,11 @@ Remove `library(msigdbr)`; rename `yaml_path <- args[3]` → `sets_path <- args[
 gs_dt <- fread(yaml_p)                             # now pathway_sets.tsv (renamed arg)
 gs    <- split(gs_dt[tier == "primary", gene], gs_dt[tier == "primary", set])
 ```
-Rename the CLI arg/comment from `<pathway_yaml>` to `<pathway_sets>`; update the `aggregate.smk` `assemble_results` rule input accordingly.
+Rename the CLI arg/comment from `<pathway_yaml>` to `<pathway_sets>`; update the `aggregate_differential.smk` `assemble_results` rule input accordingly.
 
 - [x] **Step 4: Edit `panel_coverage.R`** the same way (read `pathway_sets.tsv`, `split(gene, set)`); remove any `msigdbr`/`read_yaml`.
 
-- [x] **Step 5: Update `workflows/aggregate.smk`** — in rules `gsea`, `pathway_summary`, `panel_coverage`, `assemble_results`: change the `yaml = "config/pathway_gene_lists.yaml"` input to `sets = "results/data_model/pathway_sets.tsv"` and the positional arg in the `shell:` line. Delete the `rule build_gene_sets:` block (now produced by data_model); update any rule that listed `results/aggregate/gene_set_panel_coverage.tsv` to consume `results/data_model/gene_set_panel_coverage.tsv` instead.
+- [x] **Step 5: Update `workflows/aggregate_differential.smk`** — in rules `gsea`, `pathway_summary`, `panel_coverage`, `assemble_results`: change the `yaml = "config/pathway_gene_lists.yaml"` input to `sets = "results/data_model/pathway_sets.tsv"` and the positional arg in the `shell:` line. Delete the `rule build_gene_sets:` block (now produced by data_model); update any rule that listed `results/aggregate/gene_set_panel_coverage.tsv` to consume `results/data_model/gene_set_panel_coverage.tsv` instead.
 
 - [x] **Step 6: Check the three yaml-readers** — `grep -n "pathway_gene_lists\|read_yaml\|msigdbr" scripts/contamination_qc.R scripts/qc_plots.R scripts/aggregate/tier2_stroma_ucell.R`. If a script reads `pathway_gene_lists.yaml` for **pathway** sets, repoint to `pathway_sets.tsv` + `split`. If it reads `config/lineage_markers.yaml` (typing markers), leave it — out of scope.
 
@@ -400,7 +400,7 @@ Expected: `EQUIVALENT` (the only legitimate differences are tier-2 sets excluded
 
 - [x] **Step 8: Dry-run aggregate**
 
-Run: `TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk --dry-run`. Expected: no `msigdbr`/yaml-related MissingInput; `build_gene_sets` rule gone.
+Run: `TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk --dry-run`. Expected: no `msigdbr`/yaml-related MissingInput; `build_gene_sets` rule gone.
 
 - [x] **Step 9: Confirm msigdbr fully removed from consumers**
 
@@ -411,7 +411,7 @@ Run: `grep -rn "msigdbr" scripts/` → only `scripts/build_gene_sets.R`.
 ```bash
 repo-commit "refactor(pathway): all gene-set readers consume results/data_model/pathway_sets.tsv (no live msigdbr)" \
   scripts/aggregate/gsea.R scripts/aggregate/pathway_summary.R scripts/aggregate/assemble_results.R \
-  scripts/aggregate/panel_coverage.R workflows/aggregate.smk
+  scripts/aggregate/panel_coverage.R workflows/aggregate_differential.smk
 ```
 
 ---
@@ -425,7 +425,7 @@ repo-commit "refactor(pathway): all gene-set readers consume results/data_model/
 **Files:**
 - Modify: `workflows/processing.smk` (delete `pathway_score` rule; `rule all` → `typed.rds`)
 - Delete: `scripts/pathway_score.R`
-- Modify: `workflows/aggregate.smk` (`SCORED` → typed dir; all `*.scored.rds` expands → `*.typed.rds`)
+- Modify: `workflows/aggregate_typing.smk` (`SCORED` → typed dir; all `*.scored.rds` expands → `*.typed.rds`)
 - Modify: `scripts/aggregate/merge.R`, `merge_pilot.R`, `coords_necrosis.R`, `recover_negprobes.R`, `cell_assignment_map.R` (the `sub("\\.scored\\.rds$", ...)` prefix-strip → `\\.typed\\.rds$`)
 
 **Interfaces:**
@@ -433,7 +433,7 @@ repo-commit "refactor(pathway): all gene-set readers consume results/data_model/
 
 - [ ] **Step 1: Delete the per-sample scoring rule** — remove `rule pathway_score:` from `processing.smk`; change `rule all` `input:` from `…/scored/{s}.scored.rds` to `…/typed/{s}.typed.rds`. `git rm scripts/pathway_score.R`.
 
-- [ ] **Step 2: Switch aggregate to typed inputs** — in `workflows/aggregate.smk` set `SCORED = f"{DATADIR}/processing/typed"` (rename var to `TYPED` for clarity) and replace every `{{s}}.scored.rds` with `{{s}}.typed.rds`.
+- [ ] **Step 2: Switch aggregate to typed inputs** — in `workflows/aggregate_typing.smk` set `SCORED = f"{DATADIR}/processing/typed"` (rename var to `TYPED` for clarity) and replace every `{{s}}.scored.rds` with `{{s}}.typed.rds`.
 
 - [ ] **Step 3: Update the prefix-strip in the 5 scripts** — replace `sub("\\.scored\\.rds$", "", ...)` with `sub("\\.typed\\.rds$", "", ...)` in `merge.R`, `merge_pilot.R`, `coords_necrosis.R`, `recover_negprobes.R`, `cell_assignment_map.R`.
 
@@ -449,7 +449,7 @@ Run the processing + aggregate `--dry-run`. Expected: processing terminates at `
 
 ```bash
 repo-commit "refactor(scoring): collapse to single merged-scale path; per-sample ends at typed.rds" \
-  workflows/processing.smk workflows/aggregate.smk scripts/aggregate/merge.R scripts/aggregate/merge_pilot.R \
+  workflows/processing.smk workflows/aggregate_typing.smk scripts/aggregate/merge.R scripts/aggregate/merge_pilot.R \
   scripts/aggregate/coords_necrosis.R scripts/aggregate/recover_negprobes.R scripts/aggregate/cell_assignment_map.R
 ```
 

@@ -2,17 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-> **⚠️ Workflow renamed (2026-07-12):** `aggregate.smk` was split into `aggregate_typing.smk`
-> (cell typing) and `aggregate_differential.smk` (differential layer). Every `workflows/aggregate.smk`
-> reference and `snakemake -s workflows/aggregate.smk …` command below now targets
-> **`workflows/aggregate_differential.smk`** — all differential rules (`pseudobulk_build`,
-> `deg_pseudobulk`, `detection_test`, `substate_split`, `assemble_results`, etc.) moved there
-> verbatim. Two Global-Constraints facts are also stale: the workflow no longer carries a
-> `shell.prefix` (Snakemake default strict mode is used instead, no BLAS pinning), and the
-> `RSCRIPT`/`PYSCVI` line-15-16 anchor now applies to the typing file; the differential file
-> defines `RSCRIPT` only (it has no Python rules). Rule bodies are otherwise unchanged.
+> **⚠️ Note (2026-07-12):** the differential layer lives in `workflows/aggregate_differential.smk`
+> (split out of the former monolithic `aggregate.smk`; cell typing is now the separate
+> `aggregate_typing.smk`). Rule bodies are unchanged, but any `workflows/...smk:<line>` numbers
+> below predate the split — locate rules by name. The Global Constraints below are corrected inline
+> for the split.
 
-**Goal:** Implement the six confounding fixes in `plan-differential-robustness.md` on the `aggregate.smk` differential layer, ending in one consolidated rerun that regenerates `results/aggregate/results_master.tsv` with the new detection/sub-state/claim-scoping columns.
+**Goal:** Implement the six confounding fixes in `plan-differential-robustness.md` on the `aggregate_differential.smk` differential layer, ending in one consolidated rerun that regenerates `results/aggregate/results_master.tsv` with the new detection/sub-state/claim-scoping columns.
 
 **Architecture:** Edit five existing scripts (`pseudobulk_build.R`, `deg_pseudobulk.R`, `composition.R`, `pathway_summary.R`, `assemble_results.R`), add three new ones (`detection_test.R`, `substate_split.R`, optional `milo_da.py`), add one config (`config/substate_markers.yaml`), and rewire the affected Snakemake rules. Most work is verified on existing intermediates (`pseudobulk_se.rds`, `merged.rds`, `full_labels.parquet`) so the expensive UCell recompute happens only once, in the final task.
 
@@ -20,9 +16,9 @@
 
 ## Global Constraints
 
-- Snakemake invocation: `TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk --cores N`; dry-run (`-n`) before every execute.
-- R steps run via `RSCRIPT = conda run -n spatial-rads Rscript`; Python tier steps via `PYSCVI = conda run -n spatial-rads-scvi python`. Both defined at `workflows/aggregate.smk:15-16`.
-- Every R rule keeps `threads: 1` + the workflow's `shell.prefix` BLAS pinning (`OMP/OPENBLAS/MKL_NUM_THREADS=1`); the one exception already in the file is `pathway_summary` (`threads: 4`, fork parallelism, BLAS still pinned).
+- Snakemake invocation: `TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk --cores N`; dry-run (`-n`) before every execute.
+- R steps run via `RSCRIPT = conda run -n spatial-rads Rscript` (the only interpreter in `aggregate_differential.smk`; the Python `PYSCVI` env is used by the typing workflow, not here).
+- Rules keep `threads: 1` except `pathway_scores`/`pathway_summary` (`threads: 4`, fork parallelism). The workflow carries **no `shell.prefix`** — it relies on Snakemake's default strict mode (`set -euo pipefail`); there is no workflow-level BLAS pinning.
 - Snakemake does not track `shell:`-invoked scripts unless declared `input:`; every rule below keeps its `script = "scripts/aggregate/<x>"` as an `input` so edits trigger reruns.
 - Inference cohort = Mutter_02 day-2, n=4/arm, balanced (3 conditions × 4 slides). Mutter_01 stays descriptive (n=1).
 - **No beta-binomial GLM and no cell-as-replicate MAST** for the detection test — use limma empirical-Bayes on arcsin-sqrt per-sample fractions (calibrated at n=4 by borrowing strength across genes).
@@ -45,7 +41,7 @@
 | `scripts/aggregate/milo_da.py` | optional ~200k-subsample cluster-free DA | **create (optional)** |
 | `scripts/aggregate/pathway_scores.R` + `pathway_plots.R` | split UCell compute from plotting | **create (split)** |
 | `scripts/aggregate/assemble_results.R` | join detection/class + claim-scoping flags into master | modify |
-| `workflows/aggregate.smk` | rewire rules | modify |
+| `workflows/aggregate_differential.smk` | rewire rules | modify |
 
 ---
 
@@ -80,7 +76,7 @@ stopifnot(all(pct_expr >= 0 & pct_expr <= 1))
 Run:
 ```bash
 cd /home/jeszyman/repos/spatial-rads
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk \
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk \
   /mnt/data/projects/spatial-rads/aggregate/pseudobulk_se.rds --cores 4 --force
 conda run -n spatial-rads Rscript -e '
   se <- readRDS("/mnt/data/projects/spatial-rads/aggregate/pseudobulk_se.rds")
@@ -100,7 +96,7 @@ repo-commit "feat(aggregate): emit per-group detection assays (pct_expr, mean_am
 
 **Files:**
 - Create: `scripts/aggregate/detection_test.R`
-- Modify: `workflows/aggregate.smk` (new `detection_test` rule after `deg_pseudobulk`)
+- Modify: `workflows/aggregate_differential.smk` (new `detection_test` rule after `deg_pseudobulk`)
 
 **Interfaces:**
 - Consumes: `pseudobulk_se.rds` (`pct_expr`, `mean_among_expr` assays + `colData$condition,$slide_id,$sample_id,$cell_type`).
@@ -167,7 +163,7 @@ cat(sprintf("detection_test: %d rows | %d regulation / %d fraction_shift / %d am
             dt[call_class=="ambiguous",.N]))
 ```
 
-- [ ] **Step 2: Add the Snakemake rule** after `deg_pseudobulk` (≈line 428 of `workflows/aggregate.smk`):
+- [ ] **Step 2: Add the Snakemake rule** after `deg_pseudobulk` (≈line 428 of `workflows/aggregate_differential.smk`):
 
 ```python
 rule detection_test:
@@ -186,7 +182,7 @@ rule detection_test:
 
 Run:
 ```bash
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk \
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk \
   results/aggregate/detection_test_m02day2.tsv --cores 4
 awk -F'\t' 'NR==1||($1=="Cdkn1a"&&$3=="SBRT_vs_Ctrl")' results/aggregate/detection_test_m02day2.tsv
 ```
@@ -195,7 +191,7 @@ Expected: the `Cdkn1a` / `SBRT_vs_Ctrl` rows (Fibroblast, Macrophages, etc.) sho
 - [ ] **Step 4: Commit.**
 ```bash
 repo-commit "feat(aggregate): detection-vs-level moderated test + sparsity-aware call_class" \
-  scripts/aggregate/detection_test.R workflows/aggregate.smk
+  scripts/aggregate/detection_test.R workflows/aggregate_differential.smk
 ```
 
 ---
@@ -204,13 +200,13 @@ repo-commit "feat(aggregate): detection-vs-level moderated test + sparsity-aware
 
 **Files:**
 - Modify: `scripts/aggregate/assemble_results.R` (join `detection_test_m02day2.tsv` onto the DE rows)
-- Modify: `workflows/aggregate.smk` (`assemble_results` gains `detect` input)
+- Modify: `workflows/aggregate_differential.smk` (`assemble_results` gains `detect` input)
 
 **Interfaces:**
 - Consumes: `detection_test_m02day2.tsv` (Task 2). Joins on `gene==feature & cell_type==unit & contrast`.
 - Produces: `results_master.tsv` DE rows gain `pct_expr_*`-derived `detection_padj`, `level_padj`, `mean_among_expr_max`, `call_class`.
 
-- [ ] **Step 1: Add the detection input to the rule.** In `assemble_results` (`workflows/aggregate.smk:613`) add under `input:`:
+- [ ] **Step 1: Add the detection input to the rule.** In `assemble_results` (`workflows/aggregate_differential.smk:613`) add under `input:`:
 ```python
         det     = "results/aggregate/detection_test_m02day2.tsv",
 ```
@@ -230,7 +226,7 @@ for (c in c("detection_padj","level_padj","mean_among_expr_max","call_class"))
 - [ ] **Step 3: Verify columns + p21 row.**
 Run (after a local assemble dry-run on existing inputs):
 ```bash
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk \
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk \
   results/aggregate/results_master.tsv --cores 2 --force
 awk -F'\t' 'NR==1{for(i=1;i<=NF;i++)h[$i]=i} $h["feature"]=="Cdkn1a"&&$h["contrast"]=="SBRT_vs_Ctrl"{print $h["unit"],$h["call_class"]}' results/aggregate/results_master.tsv
 ```
@@ -239,7 +235,7 @@ Expected: stromal `Cdkn1a` rows print `fraction_shift`.
 - [ ] **Step 4: Commit.**
 ```bash
 repo-commit "feat(aggregate): carry detection_padj/level_padj/call_class onto DE rows in results_master" \
-  scripts/aggregate/assemble_results.R workflows/aggregate.smk
+  scripts/aggregate/assemble_results.R workflows/aggregate_differential.smk
 ```
 
 ---
@@ -249,7 +245,7 @@ repo-commit "feat(aggregate): carry detection_padj/level_padj/call_class onto DE
 **Files:**
 - Modify: `scripts/aggregate/composition.R` (unassigned-fraction test + with/without sensitivity output)
 - Modify: `scripts/aggregate/assemble_results.R` (flag `cell_type=="unassigned"` DE rows non-interpretable)
-- Modify: `workflows/aggregate.smk` (`composition` gains a sensitivity output)
+- Modify: `workflows/aggregate_differential.smk` (`composition` gains a sensitivity output)
 
 **Interfaces:**
 - Produces: `results/aggregate/composition_unassigned_sensitivity.tsv` — each labelled cell type's `log2FC_logit`+`padj` under (a) unassigned retained, (b) unassigned excluded, plus a `flip` flag; and a dedicated test row for the `unassigned` proportion itself across the three contrasts.
@@ -287,7 +283,7 @@ master[, interpretable := !(readout_class == "DE" & unit == "unassigned")]
 - [ ] **Step 3: Verify.**
 Run:
 ```bash
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk \
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk \
   results/aggregate/composition_unassigned_sensitivity.tsv --cores 2
 head -1 results/aggregate/composition_unassigned_sensitivity.tsv; grep -c TRUE results/aggregate/composition_unassigned_sensitivity.tsv || true
 awk -F'\t' 'NR==1{for(i=1;i<=NF;i++)h[$i]=i} $h["unit"]=="unassigned"&&$h["readout_class"]=="DE"{print $h["interpretable"]}' results/aggregate/results_master.tsv | sort -u
@@ -297,7 +293,7 @@ Expected: sensitivity table has both inclusion columns + `flip`; unassigned DE r
 - [ ] **Step 4: Commit.**
 ```bash
 repo-commit "feat(aggregate): unassigned-stroma propeller sensitivity + non-interpretable DE tag" \
-  scripts/aggregate/composition.R scripts/aggregate/assemble_results.R workflows/aggregate.smk
+  scripts/aggregate/composition.R scripts/aggregate/assemble_results.R workflows/aggregate_differential.smk
 ```
 
 ---
@@ -307,7 +303,7 @@ repo-commit "feat(aggregate): unassigned-stroma propeller sensitivity + non-inte
 **Files:**
 - Create: `config/substate_markers.yaml`
 - Create: `scripts/aggregate/substate_split.R`
-- Modify: `workflows/aggregate.smk` (new `substate_split` rule)
+- Modify: `workflows/aggregate_differential.smk` (new `substate_split` rule)
 
 **Interfaces:**
 - Consumes: `merged.rds` (counts), `full_labels.parquet` (to select Fibroblast cells).
@@ -376,7 +372,7 @@ Run the rule; `cat results/aggregate/substate_gate_report.tsv`. Expected: nonzer
 - [ ] **Step 4: Commit** (markers config already committed in Step 1; commit the script + rule).
 ```bash
 repo-commit "feat(aggregate): pre-registered fibroblast resting/activated split with SMC-specificity gate" \
-  scripts/aggregate/substate_split.R workflows/aggregate.smk
+  scripts/aggregate/substate_split.R workflows/aggregate_differential.smk
 ```
 
 ---
@@ -385,7 +381,7 @@ repo-commit "feat(aggregate): pre-registered fibroblast resting/activated split 
 
 **Files:**
 - Modify: `scripts/aggregate/composition.R` (run propeller with the fibroblast label split into resting/activated)
-- Modify: `workflows/aggregate.smk` (`composition` gains `substate` input + a sub-state test output)
+- Modify: `workflows/aggregate_differential.smk` (`composition` gains `substate` input + a sub-state test output)
 
 **Interfaces:**
 - Consumes: `fibroblast_substate.parquet` (Task 5).
@@ -402,7 +398,7 @@ cat(sprintf("sub-state adjudication: activated-fibroblast SBRT_vs_Ctrl log2FC=%.
 
 - [ ] **Step 3: Run + verify.**
 ```bash
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk \
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk \
   results/aggregate/composition_substate_test_m02day2.tsv --cores 2
 grep -E "Fibroblast_(resting|activated)" results/aggregate/composition_substate_test_m02day2.tsv | head
 ```
@@ -411,7 +407,7 @@ Expected: both `Fibroblast_resting` and `Fibroblast_activated` appear with prope
 - [ ] **Step 4: Commit.**
 ```bash
 repo-commit "feat(aggregate): sub-state propeller adjudicates SBRT fibrosis as composition vs regulation" \
-  scripts/aggregate/composition.R workflows/aggregate.smk
+  scripts/aggregate/composition.R workflows/aggregate_differential.smk
 ```
 
 ---
@@ -421,7 +417,7 @@ repo-commit "feat(aggregate): sub-state propeller adjudicates SBRT fibrosis as c
 **Files:**
 - Create: `scripts/aggregate/geneset_overlap.R`
 - Modify: `scripts/aggregate/assemble_results.R` (flag STING rows non-independent)
-- Modify: `workflows/aggregate.smk` (new `geneset_overlap` rule; add as `assemble_results` input)
+- Modify: `workflows/aggregate_differential.smk` (new `geneset_overlap` rule; add as `assemble_results` input)
 
 **Interfaces:**
 - Consumes: `results/data_model/pathway_sets.tsv` (`set, tier, source, gene`).
@@ -451,7 +447,7 @@ master[, independent := !(readout_class %in% c("gsea","ucell") & grepl("STING", 
 
 - [ ] **Step 3: Run + verify STING∩IFN.**
 ```bash
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk \
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk \
   results/aggregate/geneset_overlap.tsv --cores 1
 grep -i sting results/aggregate/geneset_overlap.tsv
 ```
@@ -460,7 +456,7 @@ Expected: STING vs an IFN set shows `shared ≥ 2` and the shared genes `Isg15`/
 - [ ] **Step 4: Commit.**
 ```bash
 repo-commit "feat(aggregate): gene-set overlap diagnostic + demote STING from independent evidence" \
-  scripts/aggregate/geneset_overlap.R scripts/aggregate/assemble_results.R workflows/aggregate.smk
+  scripts/aggregate/geneset_overlap.R scripts/aggregate/assemble_results.R workflows/aggregate_differential.smk
 ```
 
 ---
@@ -499,7 +495,7 @@ repo-commit "feat(aggregate): dose-confound flag on MBRT_vs_SBRT + reframe M01 c
 **Files:**
 - Create: `scripts/aggregate/pathway_scores.R` (UCell + AddModuleScore + the limma test + cache)
 - Create: `scripts/aggregate/pathway_plots.R` (read cache → the 3 plots)
-- Modify: `workflows/aggregate.smk` (split `pathway_summary` into `pathway_scores` + `pathway_plots`)
+- Modify: `workflows/aggregate_differential.smk` (split `pathway_summary` into `pathway_scores` + `pathway_plots`)
 
 **Interfaces:**
 - `pathway_scores.R` produces the existing tables (`pathway_scores_summary.tsv`, `pathway_test_m02day2.tsv`, `pathway_ucell_ams_concordance.tsv`) — the ~5h compute. `pathway_plots.R` consumes those tsvs and produces the three PNGs. A plot-layer failure can no longer roll back the compute.
@@ -543,7 +539,7 @@ rule pathway_plots:
 
 - [ ] **Step 3: Verify the cache survives a plot failure.** Build `pathway_scores` outputs, then temporarily break `pathway_plots.R` (e.g. reference a missing column), run `pathway_plots`, confirm it fails but the three score tsvs are untouched (mtimes unchanged), then revert the break.
 ```bash
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk \
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk \
   results/aggregate/pathway_scores_summary.tsv --cores 4
 ls -l --time-style=+%s results/aggregate/pathway_scores_summary.tsv   # note mtime; must not change on plot failure
 ```
@@ -552,7 +548,7 @@ Expected: scores tsvs exist; after a deliberate plot break the compute tsvs keep
 - [ ] **Step 4: Commit.**
 ```bash
 repo-commit "refactor(aggregate): split pathway UCell compute from plotting so a plot bug can't burn the 5h recompute" \
-  scripts/aggregate/pathway_scores.R scripts/aggregate/pathway_plots.R workflows/aggregate.smk
+  scripts/aggregate/pathway_scores.R scripts/aggregate/pathway_plots.R workflows/aggregate_differential.smk
 ```
 
 ---
@@ -561,7 +557,7 @@ repo-commit "refactor(aggregate): split pathway UCell compute from plotting so a
 
 **Files:**
 - Create: `scripts/aggregate/milo_da.py` (env `spatial-rads-scvi`, `milopy`)
-- Modify: `workflows/aggregate.smk` (rule **not** in `rule all`; run on demand)
+- Modify: `workflows/aggregate_differential.smk` (rule **not** in `rule all`; run on demand)
 
 **Interfaces:**
 - Consumes: the scVI-latent AnnData (`{FULL}/cluster_checkpoint.h5ad` or the latent in `obs.parquet` + embedding) — verify the latent's location first.
@@ -577,7 +573,7 @@ conda run -n spatial-rads-scvi python -c "import milopy; print(milopy.__version_
 - [ ] **Step 4: Commit** as optional tooling.
 ```bash
 repo-commit "feat(aggregate): optional Milo cluster-free DA (200k subsample, ~condition) as label-free cross-check" \
-  scripts/aggregate/milo_da.py workflows/aggregate.smk
+  scripts/aggregate/milo_da.py workflows/aggregate_differential.smk
 ```
 
 > Skip this task entirely if Task 6's propeller adjudication is unambiguous. It is the deferred cross-check, not on the critical path.
@@ -591,14 +587,14 @@ repo-commit "feat(aggregate): optional Milo cluster-free DA (200k subsample, ~co
 - [ ] **Step 1: Dry-run the full differential DAG.**
 ```bash
 cd /home/jeszyman/repos/spatial-rads
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk \
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk \
   results/aggregate/results_master.tsv --dry-run
 ```
 Expected: the DAG includes `pseudobulk_build → {deg_pseudobulk, detection_test}`, `composition` (+ sensitivity + substate), `pathway_scores → pathway_plots`, `geneset_overlap`, and `assemble_results`; no orphaned/typo paths.
 
 - [ ] **Step 2: Execute the rerun.** (~5h pathway_scores dominates; run with adequate cores, BLAS pinned.)
 ```bash
-TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk \
+TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk \
   results/aggregate/results_master.tsv --cores 8 2>&1 | tee logs/aggregate/rerun_$(date +%Y%m%d).log
 ```
 Run in the background and wait on completion (no polling); read the log on the completion notification.

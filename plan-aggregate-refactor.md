@@ -19,7 +19,7 @@
 |---|---|---|---|
 | 1 | Workflow-honesty target | **A2 — full re-wire now** | The locked typing is *rebuilt* as a real DAG, not quarantined. Folds in the deferred M01 raw-RDS re-base. Acceptance = re-validation, not byte-identity. |
 | 2 | Investigation stance | **Decision-forcing** | B's four questions get keep/change verdicts; a "change" that beats current scVI on the pilot harness by the pre-set margin **feeds the rebuild** (so we rebuild once, with the winning method). |
-| 3 | Literate transfer | **C1 — orchestration-only + document** | `aggregate.smk` + thin R wrappers go to org; heavy GPU-Python / tier-2 scripts are *documented* (pointer to `scripts/aggregate/`), not tangled. Keeps the mature-code exemption. |
+| 3 | Literate transfer | **C1 — orchestration-only + document** | the aggregate workflow + thin R wrappers go to org; heavy GPU-Python / tier-2 scripts are *documented* (pointer to `scripts/aggregate/`), not tangled. Keeps the mature-code exemption. *(Executed 2026-07-12 as a two-file split — see the addendum below.)* |
 
 **Why these cohere.** A2 + decision-forcing B means B's method shoot-out must complete *before*
 the integration method is committed — otherwise we rebuild twice. The harmonized sequence
@@ -29,14 +29,14 @@ existing and verifying).
 
 ---
 
-## Context — the workflow-reality gap (grounded 2026-06-22, verified against live `aggregate.smk`)
+## Context — the workflow-reality gap (grounded 2026-06-22, verified against the then-live `aggregate.smk`, since split into `aggregate_typing.smk` + `aggregate_differential.smk`)
 
-`workflows/aggregate.smk` does **not** reproduce the locked results it appears to:
+The then-monolithic aggregate workflow did **not** reproduce the locked results it appeared to (state as of 2026-06-22, before the Steps 1–5 re-wire):
 
 - **Dead chain wired.** The typing rules in the DAG are the **superseded, failed per-cell
   path**: `embed_celltype` (Harmony) → `prepare_reference` → `recover_negprobes` →
   `typing_insitutype` (InSituType) → `merged_typed.rds`. That path validated at **85%
-  mistyped tumor** and was abandoned. A clean `snakemake -s workflows/aggregate.smk` would
+  mistyped tumor** and was abandoned. A clean run of the then-current workflow would
   silently re-type with it, no error.
 - **Orphan static inputs (consumed, produced by NO rule) — there are TWO, not one:**
   - `results/aggregate/full_labels.parquet` — input to **9 rules** (`composition`,
@@ -193,9 +193,10 @@ rebuild regenerates that file, so the committed `results_master.tsv` is now stal
 - **Verify-first:** inventory the org's block types (`:tangle` target vs `jupyter-R` vs
   `:tangle no`) and confirm a plain `org-babel-tangle` over the mixed set is safe **before** moving
   any block (tangle hazard; the org file is 4284 lines).
-- Author `aggregate.smk` + thin R **wrapper** rules as org-babel blocks under a new
+- Author the aggregate workflow + thin R **wrapper** rules as org-babel blocks under a new
   `** Aggregate analysis` heading; fold each block **only after its rule runs end-to-end and
-  verifies** (the pre-req gate from `plan-aggregate.md`).
+  verifies** (the pre-req gate from `plan-aggregate.md`). *(Superseded by the 2026-07-12 addendum
+  below: executed as two headings tangling `aggregate_typing.smk` + `aggregate_differential.smk`.)*
 - **Document** the heavy scripts (GPU-Python tier-1, tier-2 R/Py) in an org Methods entry that
   *points at* `scripts/aggregate/` rather than tangling them. Keeps the guideline; literate index
   without doubling the file.
@@ -243,6 +244,6 @@ Restructured from a bundled investigate→update→transfer proposition by a bli
 panel (2 needs-rework / 2 solid-with-caveats; all four lenses confirmed the workflow-reality gap;
 shared blind spot = wire-vs-quarantine), run `wf_c66fbfa4-c5f`, 2026-06-22. Three open decisions
 resolved by the user 2026-06-22 (A2 / decision-forcing / C1) and harmonized into the seven-step
-sequence above; ground-truthed against live `aggregate.smk` + `scripts/aggregate/` + `{AGG}/full/`
+sequence above; ground-truthed against the then-live `aggregate.smk` (now split into `aggregate_typing.smk` + `aggregate_differential.smk`) + `scripts/aggregate/` + `{AGG}/full/`
 the same day, which added the `obs.parquet` second-orphan and the untracked-`scvi_latent.parquet`
 findings.

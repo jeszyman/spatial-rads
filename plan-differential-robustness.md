@@ -4,7 +4,7 @@
 **Status:** design approved (brainstorming); implementation plan pending (`-impl.md`)
 **Goal:** Close the confounding gaps a blind devils-advocate panel surfaced in the MBRT/SBRT/Control differential layer, so each reported effect is defensibly *regulation* (or *composition*, correctly labelled) and not an artifact of cell-state mixing, unlabelled cells, detection sparsity, or unrecorded dose. One consolidated rerun of the differential layer at the end.
 
-**Scope:** the differential layer only — now `workflows/aggregate_differential.smk` (split out of the former `aggregate.smk` on 2026-07-12; typing is locked and reproducible in `aggregate_typing.smk`, not touched). Inference cohort is Mutter_02 day-2, n=4/arm, balanced 3-conditions/slide. Mutter_01 stays descriptive (n=1).
+**Scope:** the differential layer only — now `workflows/aggregate_differential.smk` (split out of the former `aggregate_differential.smk` on 2026-07-12; typing is locked and reproducible in `aggregate_typing.smk`, not touched). Inference cohort is Mutter_02 day-2, n=4/arm, balanced 3-conditions/slide. Mutter_01 stays descriptive (n=1).
 
 ---
 
@@ -75,7 +75,7 @@ Each fix below is grounded in field-standard method precedent (citations in the 
 
 1. `pathway_summary.R:190` empty-facet bug — **already fixed** (`tier == "primary"`, was retired `pathway_source == "project"`).
 2. **Split UCell-score compute from plotting** — cache scored cells to a tsv so a plot-layer failure never forces the ~5h UCell recompute again. (`pathway_summary.R` → a `pathway_scores` compute rule + a separate plot rule.)
-3. One consolidated `aggregate.smk` rerun of the differential layer after all of the above → refreshed `results_master.tsv` + `detectability_summary.tsv`.
+3. One consolidated `aggregate_differential.smk` rerun of the differential layer after all of the above → refreshed `results_master.tsv` + `detectability_summary.tsv`.
 
 ---
 

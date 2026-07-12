@@ -70,7 +70,7 @@ is unanchored** (neither source has a smooth-muscle profile) — smooth-muscle c
 to the nearest stromal type (Pericyte/Fibroblast). Tumor cells do not depend on the
 Epithelial anchor; they are caught by de novo clustering + the Epcam/Krt8 overlay.
 
-**`aggregate.smk` rewiring:** added `recover_negprobes` (→ `cell_neg.tsv`) and
+**Aggregate workflow rewiring:** added `recover_negprobes` (→ `cell_neg.tsv`) and
 `typing_insitutype` rules; the `annotate` (Spearman) rule is removed. `typing_insitutype`
 depends on `merged.rds` + `ref_profiles.rds` + `cell_neg.tsv` (not the embedded object),
 producing `merged_typed.rds` + summary/validation/labels.
@@ -177,7 +177,7 @@ ambient spillover clears a per-cell bar that washes out in a cluster mean.
 
 **Decision: type the coarse tier at the CLUSTER level (integrate → joint-cluster →
 annotate clusters).** This is **not a new direction** — it is the **"Gold standard
-(`aggregate.smk`)" tier already specified in `plan-processing-pipeline.md` v2.0
+(aggregate workflow)" tier already specified in `plan-processing-pipeline.md` v2.0
 (2026-05-31)**: integrate M01+M02 into one batch-corrected embedding, joint-cluster,
 annotate clusters from the same external marker/reference knowledge. The v2.1/v2.2
 per-cell InSituType build was a **detour away from that documented gold standard**;
@@ -569,7 +569,7 @@ program scoring) — these can now proceed off the unified label table.
 ## v2.6 — Workflow refactor planned: the wired DAG does not reproduce this typing (2026-06-22)
 
 The typing locked above is an **artifact-of-record but is NOT reproducible from
-`workflows/aggregate.smk`**: the wired typing rules are the dead per-cell InSituType chain
+the aggregate workflow**: the wired typing rules are the dead per-cell InSituType chain
 (`embed_celltype`→`prepare_reference`→`typing_insitutype`, the 85%-tumor failure), and the
 labels actually used (`results/aggregate/full_labels.parquet`, 9 consumer rules) plus
 `{AGG}/full/obs.parquet` (3 consumer rules) are **orphan static inputs** produced by the
@@ -649,7 +649,8 @@ inference-bearing stratum (replicates); M01 timecourse is descriptive only.
 metadata.xlsx
   -> data_model.smk        -> data/data_model.rda + samples.tsv
   -> processing.smk        -> 23 × scored/{sample}.scored.rds        [done]
-  -> aggregate.smk         -> merged/integrated object + 3 analysis tracks  [this plan]
+  -> aggregate_typing.smk       -> merged object + unified per-cell labels    [this plan]
+  -> aggregate_differential.smk -> composition/DE/pathway/spatial tracks      [this plan]
 ```
 
 Heavy intermediates: `/mnt/data/projects/spatial-rads/aggregate/`. Small
@@ -660,7 +661,7 @@ every R rule declares `threads: 1`.
 
 ---
 
-## `aggregate.smk` stages
+## Aggregate workflow stages
 
 ### Stage 0 — Merge
 
@@ -1029,19 +1030,19 @@ Mirrors `processing.smk`'s two-phase pattern (per `feedback_dev_workflow.md`).
 
 **Per-stage cycle:**
 
-1. Sketch rule directly in `workflows/aggregate.smk` (not org).
+1. Sketch rule directly in the aggregate workflow (`workflows/aggregate_typing.smk` or `workflows/aggregate_differential.smk`), not org.
 2. Prototype `scripts/aggregate/<stage>.R` as standalone with hardcoded
    args; iterate via `conda run -n spatial-rads Rscript ...` on a 1–2
    sample subset.
 3. Generalize to `commandArgs(trailingOnly=TRUE)` matching the rule's
    positional shell.
-4. Dry-run `snakemake -s workflows/aggregate.smk --dry-run`.
+4. Dry-run `snakemake -s workflows/aggregate_differential.smk --dry-run` (or `aggregate_typing.smk`).
 5. Execute the rule; produces canonical object + small test TSV.
 6. Verify: `Read` the test TSV, inspect key metrics, view any plots via
    `Read`. Fix and loop back to (2) if wrong.
 7. **Fold to org only after the rule runs end-to-end and verifies.** Move
-   the rule into a `*** aggregate.smk` block under a new `** Aggregate
-   analysis` heading in `spatial-rads.org`; move the R script body into a
+   the rule into a workflow src block under the relevant aggregate heading
+   in `spatial-rads.org`; move the R script body into a
    `*** <stage>.R` block with `:tangle scripts/aggregate/<stage>.R`.
    Tangle. `diff` against the working files to confirm byte-identical.
 8. Add the stage's outputs to `rule all:` once folded.
@@ -1053,7 +1054,7 @@ Mirrors `processing.smk`'s two-phase pattern (per `feedback_dev_workflow.md`).
 - Every R script declared as an `input:` to its rule (so edits trigger
   reruns — per `feedback_snakemake_script_tracking`)
 - Run command:
-  `TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate.smk --cores N`
+  `TMPDIR=/mnt/data/projects/spatial-rads/tmp conda run -n basecamp snakemake -s workflows/aggregate_differential.smk --cores N`
 
 **Output discipline:**
 
@@ -1134,7 +1135,7 @@ superseded by the build log in the v2.x banners above.)
 | Sample sheet | `results/data_model/samples.tsv` |
 | Common gene panel | `results/processing/common_genes.tsv` (950) |
 | Project-priority pathway lists | `config/pathway_gene_lists.yaml` |
-| Workflow (to be written) | `workflows/aggregate.smk` |
+| Workflow | `workflows/aggregate_typing.smk` + `workflows/aggregate_differential.smk` |
 | R scripts (to be written) | `scripts/aggregate/*.R` |
 | Heavy intermediates | `/mnt/data/projects/spatial-rads/aggregate/` |
 | Tabular results | `results/aggregate/` |

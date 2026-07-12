@@ -27,7 +27,7 @@ Brainstormed and full-panel-reviewed 2026-06-02. Companion to
 > implementation checklist `plan-mbrt-vs-sbrt-impl.md` was removed once executed —
 > recoverable from git history). Single canonical output `results/aggregate/results_master.tsv`
 > (32,961 tier-tagged rows; 621 confirmatory / 32,340 exploratory), produced by
-> `workflows/aggregate.smk`. **Realized result:** the dominant day-2 signal was
+> `workflows/aggregate_differential.smk`. **Realized result:** the dominant day-2 signal was
 > SBRT-driven stromal fibrosis (collagens + Acta2; H3 = 20 of 27 SBRT_vs_Ctrl
 > confirmatory hits, padj_confirmatory to ~2e-11); MBRT was essentially null at
 > whole-compartment scale (MBRT_vs_Ctrl 2/207 confirmatory hits, all 207 below
@@ -308,7 +308,7 @@ execution; fix them before the first confirmatory run:
   `x_slide_mm`/`y_slide_mm`, so `merged.rds` has no coordinates and the spatial/
   niche track has nothing to run on. Add coords back (cheap merge re-run); they
   exist in the 20 per-sample scored.rds.
-- **Snakemake arg desync.** `aggregate.smk` (dated 2026-06-01, before typing was
+- **Snakemake arg desync.** `aggregate_differential.smk` (dated 2026-06-01, before typing was
   locked) passes wrong/off-by-one args to the rewritten scripts — the
   `pathway_summary` rule (smk:271-274) and `composition` rule (smk:192,204) pass
   a TSV where a parquet is expected. Reconcile rule args with the current script
