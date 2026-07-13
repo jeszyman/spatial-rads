@@ -3,7 +3,7 @@
 # fig_pv_composition.R
 # No cell-type composition shift between beam peak and valley zones at 4h.
 # Paired per-FOV compartment fractions (core bands), peak vs valley, 39 FOVs.
-# M01 4h block (sam0003), current QC0d counts + merged-scale atlas labels.
+# M01 4h block (sam0003), current QC'd counts + merged-scale atlas labels.
 # -----------------------------------------------------------------------------
 suppressPackageStartupMessages({library(Seurat);library(arrow);library(dplyr)
   library(readr);library(tidyr);library(ggplot2)})
@@ -47,4 +47,3 @@ p <- ggplot(comp, aes(x=zone, y=frac, fill=zone)) +
   theme_scifig() + theme(plot.title=element_text(size=12))
 
 save_plot(p, "results/aggregate/plots/pv_composition", w=10, h=4.8)
-cat("saved pv_composition\n"); print(as.data.frame(ann))

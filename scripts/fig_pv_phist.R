@@ -3,7 +3,7 @@
 # fig_pv_phist.R
 # Peak/valley group-mean DE is null (flat p-histogram) in every compartment AND
 # all-cells, while the same FOV-pseudobulk machinery detects tumor-vs-stroma
-# emphatically (spike at 0). M01 4h block (sam0003), current QC0d + atlas labels.
+# emphatically (spike at 0). M01 4h block (sam0003), current QC'd + atlas labels.
 # -----------------------------------------------------------------------------
 suppressPackageStartupMessages({library(Seurat);library(arrow);library(edgeR)
   library(limma);library(dplyr);library(readr);library(Matrix);library(ggplot2)})
@@ -18,6 +18,7 @@ z <- read_tsv("dev/peak_valley_analysis/data/mbrt4h_peak_valley.tsv",show_col_ty
 md <- md %>% left_join(a,by="cell") %>% left_join(z,by=c("cell"="cell_id"))
 md <- md[!is.na(md$compartment),]
 
+## generic paired FOV-pseudobulk voom DE; returns p-values + n sig
 pv_de <- function(sub, split_col, lvls, floor=30) {
   sub$grp <- paste0("f",sub$fov,"_",sub[[split_col]])
   ag <- t(fac2sparse(sub$grp) %*% t(cts[,sub$cell]))
@@ -31,6 +32,7 @@ pv_de <- function(sub, split_col, lvls, floor=30) {
   list(p=tt$P.Value, nsig=sum(tt$adj.P.Val<0.05), nfov=length(both), ngene=nrow(tt))
 }
 
+## peak/valley all-cells + per compartment (core bands)
 md$zone <- ifelse(md$dist_to_peak<0.10,"peak",ifelse(md$dist_to_peak>0.40,"valley",NA))
 res <- list()
 res[["Peak vs valley: all cells"]] <- pv_de(md[!is.na(md$zone),],"zone",c("valley","peak"))
@@ -38,6 +40,7 @@ for(cp in c("tumor","stroma","immune")){
   s <- md[md$compartment==cp & !is.na(md$zone),]
   res[[paste0("Peak vs valley: ",cp)]] <- pv_de(s,"zone",c("valley","peak"))
 }
+## positive control: tumor vs stroma (same machinery)
 s2 <- md[md$compartment %in% c("tumor","stroma"),]
 res[["Positive control: tumor vs stroma"]] <- pv_de(s2,"compartment",c("stroma","tumor"))
 
@@ -60,5 +63,3 @@ p <- ggplot(df, aes(x=p, fill=pos)) +
   theme(strip.text=element_text(size=10), plot.title=element_text(size=12))
 
 save_plot(p, "results/aggregate/plots/pv_phist_null", w=13, h=7)
-cat("saved pv_phist_null\n")
-for(nm in names(res)) cat(sprintf("  %-36s FOVs=%d genes=%d sig=%d\n", nm, res[[nm]]$nfov, res[[nm]]$ngene, res[[nm]]$nsig))
