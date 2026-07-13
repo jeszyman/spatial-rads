@@ -19,14 +19,26 @@ only be analyzed at arm-level; that is a constraint, not a choice.
 
 ## The correct framing of the MBRT result (this fixes the panel's circularity critique)
 
-MBRT delivers dose as ~1 mm-spaced peaks/valleys. The dev `dev/peak_valley_analysis/` work on
-**M01 4h (with H2AX ground truth)** already found a **real, peak-localized MBRT signature** — 37
-genes surviving a within-block rotation null, dominated by **MHC-I (H2-K1/H2-D1/B2m), IFN-response
-(Ifitm2), and damage/stress**. So MBRT *has* a response; it is **spatially restricted to the beam
-peaks**. Whole-compartment averaging across the ~50% valley volume therefore **cancels** it. The
-arm-level MBRT result is that cancellation — **not** a biological absence. We report the arm-level
-MBRT contrasts as **bounded / diluted**, never as a "coherence-tested null," and we cite the M01 4h
-spatial result as why.
+MBRT delivers dose as ~1 mm-spaced peaks/valleys.
+
+> **PREMISE RETRACTED 2026-07-13.** This section originally rested on a "real, peak-localized MBRT
+> signature" (37 genes: MHC-I H2-K1/H2-D1/B2m, IFN Ifitm2, damage/stress) from the within-block
+> rotation null. That signature was RESOLVED to an artifact (`plan-rotation-null-reconcile.md`,
+> Steps 0-2): it does not survive current atlas tumor labels + QC (38 survivors to 7) or FOV-level
+> replication (7 to 0), and a phase null is geometrically futile on this block. **There is no
+> established M01 4h peak signature, so the "spatial dilution of a known signal" framing below is no
+> longer supported.** What still holds: whole-compartment averaging IS the wrong scale to detect any
+> peak-restricted effect (a real one, if it existed, would cancel), so the arm-level MBRT contrasts
+> still only **bound**, they do not resolve. But absence of an arm-level effect can no longer be
+> attributed to dilution of a demonstrated signal, because none was demonstrated. Report the
+> arm-level MBRT result as **underpowered / not resolved at whole-compartment scale**, and treat a
+> dose-resolved 4h MBRT effect as an **open, currently-unsupported** question, not a known signal
+> awaiting undiluted measurement.
+
+The original framing (retained for context, now superseded by the box above): the M01 4h work "found
+a real peak-localized signature that whole-compartment averaging cancels; the arm-level MBRT result
+is that cancellation, not a biological absence." The cancellation logic is sound; its premise (a real
+signal to cancel) is not.
 
 ## What the data show (2026-06-22 audit of `results_master.tsv`, effect-size view)
 
@@ -131,7 +143,9 @@ Brainstormed 2026-06-22; reframed after a blinded devils-advocate panel (4/4 sol
 run `wf_8f641118`) — folded fixes: dropped the over-claimed "coherence-tested null," gated the dose
 language, made panel-coverage flagging symmetric + coverage-scaled, demoted M01 from a falsification
 arm, replaced the binary decision-gate with a transparent detectability table + magnitude floor,
-and reframed the MBRT arm-level result as spatial dilution of the known M01 4h peak signature. The
+and reframed the MBRT arm-level result as spatial dilution of the (then-assumed-real) M01 4h peak
+signature. NOTE: that dilution premise was RETRACTED 2026-07-13 when the signature was resolved to an
+artifact (see the box in "The correct framing" section). The
 panel's "elevate spatial to primary" recommendation is answered by the staining constraint (M02 has
 none). Consumes the reproducible typing from `plan-aggregate-refactor.md`. Companion to the executed
 `plan-mbrt-vs-sbrt.md`.

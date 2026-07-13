@@ -127,9 +127,13 @@ All in `dev/if_channel_check/` and `dev/peak_valley_analysis/`:
   architecture control (`pv_rotation_null.R`) already ran. Rewrite to: v1
   done as exploratory screen → 3 audit weaknesses → v2 = periodicity test +
   rotation-null intersection. (org-edit + sci-write skills apply.)
-- **Rotation-null is recorded-only.** `/tmp` inputs/outputs deleted; re-run
-  `pv_rotation_null.R` to re-derive the 37-gene figure before citing it as
-  fresh.
+- **Rotation-null is RESOLVED to an artifact (2026-07-13); do NOT cite the 37-gene figure.**
+  `plan-rotation-null-reconcile.md` (Steps 0-2) showed the 37 genes are a retired-`a`-bucket + old-QC
+  + per-cell-pseudoreplication artifact: rerunning the rotation-null statistic gives 38 survivors on
+  the `a` bucket, 7 on current atlas tumor + QC, and 0 at the FOV replicate unit; a phase null is
+  geometrically futile on this block. The rotation null is retired as an architecture control, and
+  this SVG escalation is only warranted if a future honest test first shows peak/valley structure
+  worth resolving (none survives as of 2026-07-13).
 
 ---
 

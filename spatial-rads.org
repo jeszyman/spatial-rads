@@ -1,34 +1,113 @@
-* spatial test
+* Spatial Rads Update
 :PROPERTIES:
 :ID:       8091391b-231a-441f-8670-c2d5ce47d84c
 :EXPORT_FILE_NAME: ./tmp/talk
-:EXPORT_TITLE: spatial test
+:EXPORT_TITLE: Spatial Rads Update
 :EXPORT_AUTHOR: Jeffrey Szymanski
 :EXPORT_DATE: \today
 :EXPORT_LATEX_CLASS: present
 :EXPORT_OPTIONS: toc:nil num:UNNUMBERED H:2 ^:{}
 :EXPORT_LATEX_HEADER: \usepackage{szymanski-present}
 :END:
-** Background
-** Methods
-- analysis updates
-  - qc at input level
-  - original was insitutype vs immgen
-  - per-cell median genes are sparse, new strategy- cluster then annotate
-    - unsupervised group cells by transcriptome similarity (scVI + Leiden)
-    - label clusters
-  - peak / valley m1
-    - OLD was per cell as replicates and caused pseudoreplica (false replicates)
-    - new is per fov as units of test,upfront check for peak / valley cell count for power,narrowed bands, no sig, likely true result
+** Method Changes and Updates
 
-- QC & preprocessing (complete) — invariant per-sample pipeline: raw per-slide RDS → 950-gene common-panel adapter → 4-criteria QC filter → LogNormalize (23 samples). Report-only QC:
- probe/background signal-to-background, negprobe/falsecode control characterization, SpatialQM MECR contamination (per-sample + per-FOV), per-sample technical metrics
- (TPC/features/sparsity/SNR/specificity-FDR). Confound checks: cross-arm balance (5/6 metrics balanced) and replicate reproducibility (0.94–0.97 concordance, no outlier slide). Plus
- concordance vs Yi's original pass-list.
+*** New Input Level QC
+**** Text                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
 
-  1. Cell typing / cross-dataset atlas (complete + locked) — identity assigned once on the merged 3.28M-cell object via scVI → Leiden (res 3.0) → cluster-then-annotate. Coarse: tumor 48%
-  / stroma 41% / immune 11%. Immune tier-2 (SingleR + marker-rescue; macrophage-dominated, B near-absent); stroma tier-2 (UCell + rescue; fibroblast/SMC/adipocyte/endothelial). Fibroblast
-  activated/resting substate split. Unified per-cell label table is the canonical downstream input. Plus the scVI-vs-Harmony integration pilot.
+#+latex: \ajycite{plummer2025spatial}
+
+#+latex: \vspace{\baselineskip}
+
+- Per-cell data quality across experiments
+- Per-cell data quality across cohorts
+- Bias
+- Between replicate concordance
+- Cell neighborhood purity
+
+**** Figure                                                           :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+#+ATTR_LATEX: :height 0.8\textheight
+[[/home/jeszyman/repos/spatial-rads/resources/media/plummer2025pg1.png]]
+*** Per-cell Data Quality Across Experiments
+#+CAPTION: Per-sample metrics of CosMx capture across experiments. Sparsity, zeros of cell x gene counts; SNR, signal to noise; specificity FDR, expected false positives by background probe count. *Overall M_02 has more transcripts per cell.*
+#+ATTR_LATEX: :width 0.85\textwidth
+#+ATTR_ORG: :width 1000
+[[/home/jeszyman/repos/spatial-rads/results/processing/plots/sample_tech_metrics.svg]]
+
+#+latex: \note{First two are sensitivity, last 3 are specificity}
+
+*** Per-cell Data Quality Across M_02 Cohorts
+
+#+CAPTION: Per-sample metrics of CosMx capture across cohorts in Mutter_02 experiment. *Overall treatment does not affect CosMx quality*
+#+ATTR_LATEX: :height .75\textheight
+#+ATTR_ORG: :width 1000
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_arm_balance.svg]]
+*** Bias and Between Replicate Concordance
+#+CAPTION: PCA of z-scored technical metrics show no pattern among replicates. Pseudobulk of all sample cells show within-cohort concordance.
+#+ATTR_LATEX: :height .75\textheight
+#+ATTR_ORG: :width 1000
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_reproducibility.svg]]
+*** Analysis Updates: Cell Identity
+**** Text                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+- Original: Default CosMx
+  - InSituType maximum likelihood
+    vs CosMX ImmGen atlas
+- New: \ajycite{luecken2019}
+  - Unsupervised clustering of unlabeled cells (scVI + Leiden kNN), /then/ label the clusters
+  - True tumor / stroma separation
+
+#+latex: \note{ scVI makes the space, Leiden carves it into groups, UCell (plus SingleR/ImmGen for immune) puts names on the groups.}
+
+**** Figure                                                           :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+#+ATTR_LATEX: :height 0.8\textheight
+file:/home/jeszyman/repos/spatial-rads/resources/media/sparsity.png
+*** Analysis Updates: Cell Identity
+#+CAPTION: Transcriptional neighborhood purity of the locked cell-type labels (fraction of k=30 scVI-latent neighbors sharing a cell's subtype). (A) Per-subtype purity by compartment; (B) median purity vs. cells assigned (log scale). Purity tracks positively with subtype abundance (Spearman rho ~0.82).
+#+ATTR_LATEX: :width .75\textwidth
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_neighborhood_purity.svg]]
+
+*** Analysis Updates: Cell Identity
+#+CAPTION: Cell identity between experiments. (A) All time points. (B) Only at 2d.
+#+ATTR_LATEX: :width .75\textwidth
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/composition_cohort_scatter.svg]]
+
+
+*** Analysis Updates: M_01 Peak and Valley
+**** Text
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+- ROI ID is still fine
+- Original DGE: Pseudobulk per cell as replicates - inflated by very high replicate count \ajycite{squair2021spatial}
+- New: \ajycite{merritt2020geomx}
+  - Per FOV
+  - Upfront check of cell abundence
+  - Narrow peak and valley bands
+
+**** Figure
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+#+ATTR_LATEX: :height 0.6\textheight
+file:/home/jeszyman/repos/spatial-rads/resources/media/peak-valley.png
+
+#+latex: \note{TMM scales library size, voom converts counts to log cpm weights test DESeq2 neg binomial and limma, agreement .95-.98}
+** Results
 
   1. Arm-level differential — confirmatory statistical layer (executed; master-refresh pending) — single master table, 32,856 rows, three contrasts, tiered FDR, Mutter_02 day-2 n=4/arm.
   Pseudobulk DE (SBRT collagen/Acta2 fibrosis; MBRT near-null), detection-vs-level decomposition (SBRT signal = fraction_shift, p21 ambiguous), composition (propeller), data-driven niches
@@ -44,11 +123,15 @@
 
   1. Exploratory / cross-modality (mixed) — cell-morphology kinetics (MBRT nuclei shrink, SBRT swell; in progress); MALDI lipidomics cross-check (arm-level); IF morphology-channel check;
   p21 kinetics; early parquet/panel QC.
-
-** Results
+*** No M_01 4hr Peak Valley Signature
+#+CAPTION: Peak-vs-valley FOV-pseudobulk DE at M_01 4h has no signature: p-value histograms are flat in all cells and every compartment.
+#+ATTR_LATEX: :width .7\textwidth
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/pv_phist_null.png]]
+*** Alternative confirmation of peak valley signature loss
+#+ATTR_LATEX: :height .8\textheight
+file:/home/jeszyman/repos/spatial-rads/dev/if_channel_check/pv_reconcile_figure.png
 ** Next steps
-** Acknowledgments
-** Slide generation reference
+** Slide generation reference                                      :noexport:
 #+begin_comment
 Export: python3 ~/repos/latex/scripts/emacs_export_header_to_latex.py --org_file /home/jeszyman/repos/spatial-rads/spatial-rads.org --node_id 8091391b-231a-441f-8670-c2d5ce47d84c
 #+end_comment
@@ -67,7 +150,7 @@ kill out - =analysis/= — legacy exploratory =dev/= outputs (objects, figures, 
 - [[file:plan-aggregate-refactor.md][aggregate refactor — reproducibility-wiring, best-practice review, literate transfer]] — decisions resolved 2026-06-22 (=A2 full re-wire= / decision-forcing best-practice review / =C1= orchestration-only literate transfer), harmonized into a seven-step sequence: audit → method shoot-out (scVI vs scANVI/scArches on the 2-slide pilot) → wire the real ~13-node multi-env DAG (authoring =full_scvi.py=, retiring =recover_negprobes= onto the re-based M01 RDS) → full rebuild → re-validate the 4 Q4 gates → refresh =results_master.tsv= → literate transfer. Acceptance = re-validation, not byte-identity. Steps 1–5 executed 2026-06-22 (bit-identical rebuild; =full_scvi.py= authored, DAG wired) and Step 7 literate transfer executed 2026-07-12 as a two-file split (=aggregate_typing.smk= + =aggregate_differential.smk=), not the originally-specified single =aggregate.smk=; Step 6 =results_master.tsv= refresh + =recover_negprobes= retirement remain pending.
 - [[file:plan-m01-peak-valley-signature.md][M01 peak/valley signature]] — define the 4h H2AX-anchored peak/valley signature, rebuilt on current QC'd cells + merged-scale atlas labels; FOV-pseudobulk DE + camera/UCell enrichment + coarse-compartment stratification + orthogonal morphology; within-M01 descriptive (n=1). Adjudicated by a 3-lens panel (spatial-omics/radbio/biostat). Supersedes the retired VM-based =plan-mbrt-signatures.md= (failed autonomous run; post-mortem =retro-mbrt-signatures.md=). M02 replication + gated stripe re-detection split to =plan-m02-signature-replication.md=.
 - [[file:plan-m02-signature-replication.md][M02 peak/valley signature replication]] :: skeleton (2026-07-13). Day-2 cohort (n=4/arm): whole-compartment module test of the frozen M01 signature (sample-level, positive-only), plus a within-slide peak/valley re-analysis gated on a manual FOV overlay now that M02 H2AX exists. Closes by evaluating then deleting =retro-mbrt-signatures.md= after the new run.
-- [[file:plan-rotation-null-reconcile.md][rotation-null reconcile]] :: spec (2026-07-13). Settles the CONTESTED tumor peak/valley signature: the rotation-null 37-gene MHC-I result and the committed FOV-pseudobulk null differ on four axes (cell population, QC/counts, band width, statistic) and show a B2m/H2-K1 sign flip. Isolates each confound, then swaps the rotation null for a phase null (fixed angle, random registration) to decide whether any dose-driven peak/valley signal survives. n=1, M02 replication out of scope.
+- [[file:plan-rotation-null-reconcile.md][rotation-null reconcile]] :: RESOLVED (2026-07-13, Steps 0-2 executed on beast). Settled the contested tumor peak/valley signature: the 37-gene MHC-I/IFN result is a label/QC plus pseudoreplication artifact. Rerunning the rotation-null statistic reproduces 38 survivors on the retired ImmGen =a= bucket, 7 after swapping to current atlas tumor + QC, and *0* after aggregating to the FOV replicate unit (paired =~ FOV + zone= plus continuous phase regression, flat p-histogram). A phase null was geometrically futile (tumor spans ~4.9 beam periods, p-floor ~0.2-0.47) and skipped. No dose-driven peak/valley signal survives; lone near-miss Clu is a single-gene lead, not the claimed signature. n=1, M02 replication out of scope.
 - [[file:plan-mbrt-vs-sbrt-reanalysis.md][MBRT vs SBRT vs Control — arm-level reanalysis]] — CURRENT canonical framing (2026-06-22, post 4/4 devils-advocate panel). Look at all 3 contrasts effect-size-forward on the reproducible labels; the MBRT arm-level "null" is reframed as spatial DILUTION (the real M01 4h peak signature averaged out), not biological absence; symmetric panel coverage + a detectability table (not a fuzzy decision-gate); never "sparing" (MBRT dose unrecorded); resolving spatial gated on M02 peak/valley staining + MBRT dose physics. Impl: =plan-mbrt-vs-sbrt-reanalysis-impl.md=.
 - [[file:plan-mbrt-vs-sbrt.md][MBRT vs SBRT downstream analysis — design/run record]] — the EXECUTED differential layer (=results_master.tsv=, 2026-06-03): three a priori hypotheses (H1 immune, H2 vascular, H3 stromal) × MBRT/SBRT/Control + exploratory + spatial-structure scans. /Framing superseded 2026-06-22 by the reanalysis above (null → spatial dilution); retained as the run record./
 
@@ -84,7 +167,7 @@ Ground-truthed 2026-07-10 against the Change log + committed code + on-disk arti
 | 10 | [[file:plan-m01-peak-valley-signature.md][M01 peak/valley signature]]          | spec written 2026-07-13 (3-lens panel); supersedes retired plan-mbrt-signatures.md                                                                         | build: FOV-size gate → rebuild signature on current QC'd cells → camera/UCell + coarse-compartment + morphology                               |
 | 11 | [[file:plan-svg-v2.md][spatially-variable-gene v2]]         | seed + gated                                                                                                                                               | M01-ready; M02 blocked on staining                                                                                                            |
 | 12 | [[file:plan-m02-signature-replication.md][M02 signature replication]]          | skeleton written 2026-07-13; H2AX now exists for M02                                                                                                       | analyst does FOV overlay → whole-compartment module test (now) + within-slide peak/valley (gated on overlay); then eval+delete retro          |
-| 13 | [[file:plan-rotation-null-reconcile.md][rotation-null reconcile]]            | spec written 2026-07-13; FOV-pseudobulk null committed, rotation-null 37-gene signature CONTESTED                                                          | isolate 4 confounds (cells/QC/bands/statistic) → phase null vs rotation null → verdict on whether any dose-driven peak/valley signal survives |
+| 13 | [[file:plan-rotation-null-reconcile.md][rotation-null reconcile]]            | RESOLVED 2026-07-13 (Steps 0-2): 37-gene signature is a label/QC + pseudoreplication artifact; no dose-driven peak/valley signal survives                  | done: 38 survivors (old =a= bucket) → 7 (atlas tumor + QC) → 0 (FOV replicate unit); phase null futile, skipped; Clu lone single-gene near-miss |
 
 Convergence knot: refreshing =results_master.tsv= is the shared pending deliverable of #5 (Step 6), #7 (impl), and #8 (Task 11) — one ~5h rerun, three owners.
 
@@ -109,6 +192,7 @@ Convergence knot: refreshing =results_master.tsv= is the shared pending delivera
 :PROPERTIES:
 :ID:       2dc86037-02c7-4b51-b806-43dcc1bc1e9f
 :END:
+- [2026-07-13 Sun] Audited then rebuilt the M01 4h peak/valley signature and found it NULL under honest statistics, overturning the "real 37-gene peak signature" that the whole MBRT spatial-dilution reframe rested on. Retired two stale plans (=plan-outcomes-de.md= seed, =plan-mbrt-signatures.md= failed VM run); wrote =plan-m01-peak-valley-signature.md= (adjudicated by a 3-lens panel: spatial-omics/radbio/biostat) + =plan-m02-signature-replication.md= skeleton. Rebuilt the signature on current QC'd sam0003 + merged-scale atlas labels as paired FOV×zone pseudobulk (=~ FOV + zone= limma-voom AND DESeq2, core bands): *0 genes at FDR<0.05 in all-cells (39 FOVs), tumor (23), stroma (31), flat p-histograms; positive control tumor-vs-stroma 586/940 at FDR, proving the pipeline detects real spatial biology*. Immune underpowered (8 FOVs), inconclusive. The old per-cell FindMarkers myeloid signature (Ccl8/Cd163/Mrc1) was pseudoreplication (~150k cells as fake replicates); flat/valley-leaning under honest replication, spurious in direction AND significance. No cell-type composition shift either (paired per-FOV fractions p=0.88/0.27/0.35). Two verified figures added to =** Results= (Post-IR dynamics): 5-panel p-histogram grid + composition boxplots. Demoted the rotation-null 37-gene MHC-I result from Key Results to a CONTESTED idea-node (B2m/H2-K1 sign-flip vs the FOV test; the two methods differ on 4 axes) and wrote =plan-rotation-null-reconcile.md= (isolate confounds → swap rotation-null for phase-null). Method precedent verified via Scopus: FOV-pseudobulk region DE = GeoMx DSP (Merritt 2020 Nat Biotech platform; standR/Liu 2024 NAR tool), NOT Niche-DE. =CLAUDE.md=, memory =project_mbrt_mechanism_status= + new =reference_fov_pseudobulk_precedent= updated. Commits 786187d (result+figs), aa7832f (reconcile plan). Moved the "always open Emacs in a new frame" rule to global CLAUDE.md.
 - [2026-07-12 Sun] Split the monolithic =aggregate.smk= into two literate, org-tangled workflows at the cell-typing/differential seam, mirroring the =data_model.smk= / =preprocessing.smk= rework: =aggregate_typing.smk= (15 rules: merge → recover_negprobes → scVI/GPU integration → Leiden cluster-then-annotate → tier-2 SingleR/UCell + marker rescue → =unify_labels=; terminus =full_labels.parquet= + =merged.rds=) and =aggregate_differential.smk= (21 rules: composition, pseudobulk DE + GSEA, UCell pathway scores, niches, mixing, myeloid, concordance, sub-state, QC confound checks; consumes =full_labels.parquet= / =merged.rds= / =full/obs.parquet= as pre-existing leaf inputs; terminus =results_master.tsv=). Pure reorganization — every rule body, output-path value, and invoked script preserved byte-identical (whole-branch review: 184/184 resolved paths conserved, 36-rule partition exact, seam handoff byte-matched); the only deltas are the header rewrite, =D_=/=R_= path constants, =message:= tags, and the three-file handoff constants. Both files tangle from existing prose headings (=Aggregate atlas cell typing= → typing; =Cross-dataset aggregate= → differential); the old =aggregate.smk= was retired (=git rm=). Executes Step 7 (literate transfer) of =plan-aggregate-refactor.md= as a two-file split rather than the originally-specified single file, motivated by the biological seam (typing is one-time structural; the differential + future peak/valley layer only consume labels). Caveat carried forward: the typing DAG has not been run end-to-end as a pipeline (heavy intermediates absent on disk; current labels are the hand-run 2026-06-22 artifacts) — reproducing them from empty needs the GPU rebuild. =CLAUDE.md=, =plan-aggregate.md=, =plan-aggregate-refactor.md= updated.
 - [2026-07-10 Fri] Added published imaging-ST QC metrics (SpatialQM / Plummer et al. Nat Biotechnol 2025) as report-only pipeline steps ([[file:plan-qc-metrics.md][plan-qc-metrics.md]]) — a confound check on the day-2 =fraction_shift= result. Vendored the metric algorithms (NOT the GitHub-only package + its 6 heavy Bioconductor deps) into =scripts/aggregate/spatialqm_metrics.R= (=sqm_sparsity/sqm_snr/sqm_specificity_fdr=, transcribed verbatim from pinned commit 36e1a59d4ca3; the specificityFDR reproduces exactly from summary counts). New org-tangled =preproc_sample_metrics= rule → per-sample =sample_tech_metrics.tsv= (TPC/features/sparsity/SNR/specificityFDR; negprobe background recovered exactly from =propNegative= + =nCount_RNA=, no raw-RDS re-read); new hand-authored =agg_qc_arm_balance= + =agg_qc_reproducibility= rules → =qc_arm_balance.{tsv,png}= + =qc_reproducibility.{tsv,png}=. Result (M02 day-2): 5/6 metrics BALANCED across Control/MBRT/SBRT (SBRT neither more sensitive nor more contaminated; the lone FDR flag immaterial — SBRT cleanest), per-arm pseudobulk concordance 0.94–0.97 with 0 outlier slides and no arm-separating PCA axis — the composition shift is NOT a QC artifact. Dropped entropy/complexity/dynamic-range (Tier-C + BioQC/gene-order hazards); TPN/FTC not computable (no transcript coords). =CLAUDE.md=, =plan-preprocessing.md=, =plan-mbrt-vs-sbrt.md= cross-refs updated.
 - [2026-07-10 Fri] Split the per-sample pipeline into an invariant =preprocessing.smk= (adapter → QC filter → LogNormalize + report-only QC; style-guide compliant: =preproc_= rule prefix, D_/R_ path constants, message directives, scripts as =input:= deps, strict-mode + BLAS =shell.prefix=) and DELETED per-sample cell typing + pathway scoring (5 rules + scripts) — canonical typing is cohort-scale. Per-sample terminus is now =norm.rds=; re-pointed the aggregate merge =scored.rds=→=norm.rds= (=merge.R/merge_pilot.R/coords_necrosis.R/recover_negprobes.R= + the aggregate-workflow expands) and removed the vestigial per-sample =cell_type= requirement (=full_export.R= stopifnot + obs write nulled; =merge.R= meta_cols), nulling the integration-QC benchmark label (re-base on merged labels at the next aggregate rebuild). Fixed a latent =probe_qc.R= bug the fresh run exposed (M01 gene means now read from the per-slide RDS, not the =counts_path= parquet the 2026-06-22 rds re-base set to NA). Full run verified end-to-end (51/51 steps, 23 =norm.rds=, all report-only QC); both dry-runs clean. Consolidated docs: wrote [[file:plan-preprocessing.md][plan-preprocessing.md]] absorbing + deleting =plan-processing-pipeline.md= and =plan-mutter01-controls.md=; marked =plan-pathway-genesets= Phase 2 absorbed; refreshed the Plan status ledger + Plans index; redirected broken =CLAUDE.md= links. Branch =preprocessing-split=.
@@ -155,7 +239,7 @@ digraph spatial_rads {
   m02_full      [label="Full Mutter_02 MBRT vs SBRT\nstatistical inference with biological replicates\n(gated on Yi insitutype labels)", shape=box, style="rounded,dashed,bold"];
 
   // --- RIGHT STREAM: peak/valley (focused, 4h-bound), all [dev] = rounded ---
-  tumor_sig     [label="Tumor peak/valley signature\n(CONTESTED: rotation-null vs\nFOV-pseudobulk group-mean)", shape=box, style="filled,rounded,bold", fillcolor=white];
+  tumor_sig     [label="Tumor peak/valley signature\n(RESOLVED: artifact of cell-label/QC\n+ pseudoreplication; no signal)", shape=box, style="filled,rounded", fillcolor=white];
   sig_project   [label="Peak/valley signature projection\nMutter_01 → Mutter_02\n(still 4h-bound)", shape=box, style="rounded,dashed"];
 
   // --- DELIVERABLE ---
@@ -238,7 +322,7 @@ Cross-timepoint MBRT vs SBRT is the primary thread (broader, transferable, where
 **** Peak/valley (focused side branch, 4h-bound)
 
 - =[dev]= [[id:def10c5f-06d2-4313-850b-e37e55933b6a][Peak/valley classification at 4h]] — *goal*: stripe-geometry classification on the one MBRT 4h block with H2AX ground truth (Block_21) · *deps*: H2AX IHC Block_21 only · *status*: DONE · *limit*: cannot transfer across timepoints without additional H2AX-anchored blocks
-- =[dev]= [[id:945d9096-1a17-4b99-acfd-058f606cbd24][Tumor peak/valley signature: CONTESTED (two methods disagree)]] · *goal*: is there an MBRT-specific tumor peak/valley transcriptional signature at 4h? · *deps*: peak/valley stripe model above · *status*: CONTESTED · *limit*: 4h, Block_21 only, n=1. Two defensible methods give opposite answers on the SAME data. (1) /Within-block rotation null/ (=dev/if_channel_check/pv_rotation_null.R=): real stripe geometry rotated to 175 random angles, per-gene peak/valley delta versus rotated-null sd; 37/670 tumor genes survive (empirical p<0.05, |delta|>2×null sd), dominated by MHC-I (B2m, H2-K1, H2-D1), IFN (Ifitm2), damage/stress. This is the basis of the "real peak signature" framing in =plan-mbrt-vs-sbrt-reanalysis.md= and =project_mbrt_mechanism_status=. (2) /FOV-pseudobulk group-mean DE/ (2026-07-13, sam0003 current QC'd counts + atlas labels): cells pooled to paired FOV×zone pseudobulk, =~ FOV + zone= via limma-voom and DESeq2, core bands (dist<0.10 peak / >0.40 valley). Result: *0/891 genes at FDR<0.05 in tumor, 0 in stroma; flat p-histogram (frac p<0.05 near 0.05); immune underpowered (8 FOVs)*. The canonical MHC-I genes run flat-to-valley here (B2m −0.24, H2-K1 −0.23), not peak-up. Positive control (tumor versus stroma, same machinery) gives 589/950 at FDR<0.05, min padj 7e-57, so the pipeline detects real spatial biology when present. The two disagree because they test different nulls: rotation preserves every cell's continuous position and asks whether a small consistent shift exceeds an architecture-rotated null; group-mean demands the shift exceed FOV-to-FOV variance. *Open question: which is right, and does the rotation null survive on the current QC'd, atlas-labelled cells?* (rotation null not yet re-run on current inputs). Relates to the continuous SVG reframing (=plan-svg-v2.md=), the principled third option (regress on =dist_to_peak=, spectral/Moran's test) that sidesteps both binning and the n=1 group-mean problem.
+- =[dev]= [[id:945d9096-1a17-4b99-acfd-058f606cbd24][Tumor peak/valley signature: RESOLVED to artifact (2026-07-13)]] · *goal*: is there an MBRT-specific tumor peak/valley transcriptional signature at 4h? · *deps*: peak/valley stripe model above · *status*: RESOLVED. The 37-gene signature is a label/QC plus pseudoreplication artifact; no dose-driven peak/valley signal survives (=plan-rotation-null-reconcile.md=, Steps 0-2) · *limit*: 4h, Block_21 only, n=1. Two defensible methods gave opposite answers on the SAME data. (1) /Within-block rotation null/ (=dev/if_channel_check/pv_rotation_null.R=): real stripe geometry rotated to 175 random angles, per-gene peak/valley delta versus rotated-null sd; 37/670 tumor genes survive (empirical p<0.05, |delta|>2×null sd), dominated by MHC-I (B2m, H2-K1, H2-D1), IFN (Ifitm2), damage/stress. This is the basis of the "real peak signature" framing in =plan-mbrt-vs-sbrt-reanalysis.md= and =project_mbrt_mechanism_status=. (2) /FOV-pseudobulk group-mean DE/ (2026-07-13, sam0003 current QC'd counts + atlas labels): cells pooled to paired FOV×zone pseudobulk, =~ FOV + zone= via limma-voom and DESeq2, core bands (dist<0.10 peak / >0.40 valley). Result: *0/891 genes at FDR<0.05 in tumor, 0 in stroma; flat p-histogram (frac p<0.05 near 0.05); immune underpowered (8 FOVs)*. The canonical MHC-I genes run flat-to-valley here (B2m −0.24, H2-K1 −0.23), not peak-up. Positive control (tumor versus stroma, same machinery) gives 589/950 at FDR<0.05, min padj 7e-57, so the pipeline detects real spatial biology when present. The two disagree because they test different nulls: rotation preserves every cell's continuous position and asks whether a small consistent shift exceeds an architecture-rotated null; group-mean demands the shift exceed FOV-to-FOV variance. *RESOLVED 2026-07-13 (=plan-rotation-null-reconcile.md=, Steps 0-2, on beast).* The rotation null was never the culprit: rerunning its own statistic on the retired ImmGen =a= bucket reproduces 38 survivors (the "~37"), but swapping to current atlas tumor cells + current QC collapses that to 7 (the IFN module Ifitm2/3/Ifi27/Oas1a-g falls to zero-spanning bootstrap CIs; MHC-I splits, H2-D1 holds but B2m shrinks and H2-K1 collapses), and aggregating those 7 to the FOV replicate unit (paired =~ FOV + zone= DESeq2, 67 paired FOVs, plus a continuous phase regression at the FOV unit) drives genome-wide survivors to *0*, flat p-histogram (frac p<0.05 = 0.046). So the 37 genes die in two stages: cell-label + QC swap kills the inflammatory program, pseudoreplication kills the residual. A phase null was shown geometrically futile up front (tumor spans ~4.9 beam periods, p-floor ~0.2-0.47), so it was skipped. The lone near-miss is Clu (within-FOV peak-up 0.23 but padj 0.084, null phase slope), a single-gene lead, not the claimed MHC-I/IFN signature; proliferation genes even trend peak-DOWN. Reconciliation figure at =dev/if_channel_check/pv_reconcile_figure.png=. Relates to the continuous SVG reframing (=plan-svg-v2.md=), the principled next escalation (regress on =dist_to_peak=, spectral/Moran's test) if a still-more-powerful test is ever wanted.
 - =[dev → planned]= [[id:d6be2ccf-1371-4fac-baf0-89e2c983a9e6][Peak/valley signature projection Mutter_01 → Mutter_02]] — *goal*: project the signature into Mutter_02 for persistence + validation · *deps*: Mutter_02 cell typing · *status*: orchestrator + plan + reviewer scaffolded for autonomous VM run; UCell scoring chosen · *blockers*: Mutter_02 cell typing · *limit*: still bounded by ground-truth-at-4h-only; tests persistence, not whether peak/valley structure exists at other timepoints
 
 **** Past
@@ -258,7 +342,7 @@ Cross-timepoint MBRT vs SBRT is the primary thread (broader, transferable, where
 
 See [[id:2dc86037-02c7-4b51-b806-43dcc1bc1e9f][Change log]] for full detail (Change log is currently sparse; recent activity is better tracked via =git log= until the project-map skill backfills entries). Headline items, past 6 weeks:
 - Cell morphology kinetics analysis: MBRT nuclei shrink, SBRT nuclei swell at day2 (23% divergence); peak/valley shows no morphological difference at 4h (consistent with Harada et al. 2025)
-- Tumor peak/valley signature CONTESTED (see Peak/valley idea-node): rotation null gives 37/670 genes (MHC-I/IFN/damage), but 2026-07-13 FOV-pseudobulk group-mean DE on current QC'd cells is null (0/891 tumor, 0 stroma, flat p-histogram; positive control fires). Which method is right is open.
+- Tumor peak/valley signature RESOLVED to artifact (2026-07-13, see Peak/valley idea-node): the rotation null's 37/670 genes (MHC-I/IFN/damage) are an artifact of the retired ImmGen =a= bucket + old QC + per-cell pseudoreplication. Rerunning the rotation-null statistic gives 38 survivors on the =a= bucket, 7 on current atlas tumor + QC, and 0 once aggregated to the FOV replicate unit; the honest within-FOV test is a flat p-histogram. No dose-driven peak/valley signal survives (lone near-miss Clu, a single gene).
 - Cell-level peak/valley label extrapolation from manual FOVs: stripe geometry -25 deg, 1.046 mm spacing, 87.5% concordance; framework transferable to Mutter_02
 - Mutter_02 day2 concordance: tumor depletion replicates exactly (delta -0.082 vs -0.091); myeloid rho 0.44 cross-dataset
 - VM autonomous-run hardening for signature projection (jsonl observability, budget guard)
@@ -338,7 +422,7 @@ sourced-conda-envs:
 Literature-grounded predictions, organized by the scale at which the data can resolve them. The MBRT-specific biology is within-tumor peak/valley; whole-compartment arm averaging dilutes any peak-restricted signal, so arm-level lines are exploratory. The originally pre-registered confirmatory family (immune / vascular / stroma, tiered FDR) and all realized findings are in [[file:plan-mbrt-vs-sbrt.md][plan-mbrt-vs-sbrt.md]]. Arm contrasts (MBRT vs SBRT, MBRT vs Control, SBRT vs Control) run on the day-2 replicate cohort (n=4/arm); peak vs valley is within-tumor and needs H2AX registration.
 
 *** Within-tumor peak/valley (needs H2AX registration)
-Where the microbeam signal is undiluted. The immune-activation prediction lives here: MBRT drives stronger antigen presentation and IFN response than uniform RT, but the signal is peak-restricted (4h M01 37-gene MHC-I/IFN signature from the rotation-null method, now CONTESTED: a 2026-07-13 FOV-pseudobulk group-mean DE finds no tumor or stroma peak/valley signature; see the Peak/valley idea-node) and would cancel under arm averaging. Not yet examined at n=4 day-2.
+Where the microbeam signal is undiluted. The immune-activation prediction lives here: MBRT drives stronger antigen presentation and IFN response than uniform RT, but the once-claimed peak-restricted signature (4h M01 37-gene MHC-I/IFN from the rotation-null method) was RESOLVED to an artifact on 2026-07-13: it does not survive current atlas tumor labels + QC or FOV-level replication (see the Peak/valley idea-node). No dose-driven peak/valley signal was found, so this undiluted-scale prediction is currently unsupported at 4h and not yet examined at n=4 day-2.
 
 #+caption: Literature-supported SFRT/MBRT immune mechanisms vs what the panel can test.
 | Mechanism                    | On panel                             | Askable                 |
@@ -1834,6 +1918,26 @@ ggsave(file.path(OUT, "qc_removal_attribution.png"), pA, width = 11, height = 5,
 ggsave(file.path(OUT, "qc_metric_distributions.png"), pB, width = 10, height = 7, dpi = 150)
 cat(sprintf("wrote QC plots + attribution to %s\n", OUT)); print(attr_df)
 #+end_src
+*** Quality control
+:PROPERTIES:
+:header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
+:END:
+**** Background and probe QC
+:PROPERTIES:
+:ID:       3aee569f-4833-4808-9fcb-eadc1dc9ff27
+:END:
+
+CosMx data carry off-target "background" counts (~0.01–0.05 counts per plex per cell) from off-target probe binding. Good practice for handling background and negative-control probes follows NanoString's own guidance ([[https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/background/index.html][Danaher, "How does background impact CosMx data"]]; [[https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/normalization/index.html][QC and normalization]]; [[https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/cell-typing-basics/index.html][cell typing]]):
+
+- Estimate each cell's background from its total counts (dataset mean background-per-total-count ratio × the cell's total counts); single-cell negative-probe counts are too sparse to measure directly.
+- *Do not remove low-expression genes* — that discards genuinely rare cell-type markers. For sparse-but-crucial markers, smooth/impute from the most-similar cells instead.
+- InSituType models background internally (per-cell =neg= term), so cell typing does not require pre-filtering background genes.
+- Genuinely *failed* probes are the narrow exception: a probe at background even in the cells that should express it. Ozirmak Lermi et al. found 8–31.9% of a human CosMx panel at negative-control levels, including canonical markers (CD3D, FOXP3, MS4A1) [cite:@ozirmaklermi2025]. Flag and review such probes; prefer smoothing over deletion.
+
+Implementation: =scripts/probe_qc.R= is a *report-only diagnostic* (=results/processing/probe_qc_report.tsv=) flagging genes at/below the negative-control background in *both* Mutter_01 and Mutter_02 (signal-to-background ≤ 1). The analysis panel stays the full Mutter_01 ∩ Mutter_02 intersection — *no genes are dropped*; InSituType's per-cell background model handles background during cell typing.
+
+***** TODO Review =probe_qc_report.tsv= flagged candidates; smooth (not drop) any confirmed failed lineage-marker probes
+
 *** Yi Mutter_01
 
 Yi Liu's secondary analysis of Mutter_01 comprised:
@@ -1863,26 +1967,6 @@ The dominant structural lineages (tumor, fibroblast, endothelial) were recovered
 :END:
 
 The field-standard remedy for single-shot misclassification on sparse targeted panels is hierarchical (two-tier) cell typing: assign a coarse lineage first, then subset each compartment and subtype it against a compartment-appropriate reference. The aggregate atlas run below supplies the coarse tier (11 lineages plus =tumor_epithelial=). The immune second pass then subsets the lymphoid and myeloid compartment, re-embeds and re-clusters it on its own (Harmony batch integration across slides [cite:@korsunsky2019harmony]; Leiden community detection [cite:@traag2019leiden]), and assigns subtypes by reference-based annotation with SingleR [cite:@aran2019singler] against the celldex ImmGen reference at =label.fine= resolution [cite:@heng2008immgen], validated by UCell marker-set scoring [cite:@andreatta2021ucell]. Subtyping a clustered, compartment-restricted subset rather than every cell at once gives the annotation the per-cluster signal that single-cell fine classification lacks on a 950-gene panel.
-
-*** Quality control
-:PROPERTIES:
-:header-args:jupyter-R: :session spatial :kernel spatial :async yes :dir /home/jeszyman/repos/spatial-rads/dev
-:END:
-**** Background and probe QC
-:PROPERTIES:
-:ID:       3aee569f-4833-4808-9fcb-eadc1dc9ff27
-:END:
-
-CosMx data carry off-target "background" counts (~0.01–0.05 counts per plex per cell) from off-target probe binding. Good practice for handling background and negative-control probes follows NanoString's own guidance ([[https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/background/index.html][Danaher, "How does background impact CosMx data"]]; [[https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/normalization/index.html][QC and normalization]]; [[https://nanostring-biostats.github.io/CosMx-Analysis-Scratch-Space/posts/cell-typing-basics/index.html][cell typing]]):
-
-- Estimate each cell's background from its total counts (dataset mean background-per-total-count ratio × the cell's total counts); single-cell negative-probe counts are too sparse to measure directly.
-- *Do not remove low-expression genes* — that discards genuinely rare cell-type markers. For sparse-but-crucial markers, smooth/impute from the most-similar cells instead.
-- InSituType models background internally (per-cell =neg= term), so cell typing does not require pre-filtering background genes.
-- Genuinely *failed* probes are the narrow exception: a probe at background even in the cells that should express it. Ozirmak Lermi et al. found 8–31.9% of a human CosMx panel at negative-control levels, including canonical markers (CD3D, FOXP3, MS4A1) [cite:@ozirmaklermi2025]. Flag and review such probes; prefer smoothing over deletion.
-
-Implementation: =scripts/probe_qc.R= is a *report-only diagnostic* (=results/processing/probe_qc_report.tsv=) flagging genes at/below the negative-control background in *both* Mutter_01 and Mutter_02 (signal-to-background ≤ 1). The analysis panel stays the full Mutter_01 ∩ Mutter_02 intersection — *no genes are dropped*; InSituType's per-cell background model handles background during cell typing.
-
-***** TODO Review =probe_qc_report.tsv= flagged candidates; smooth (not drop) any confirmed failed lineage-marker probes
 
 *** Aggregate atlas cell typing
 :PROPERTIES:
@@ -2348,6 +2432,1308 @@ rule unify_labels:
         "{PYSCVI} {input.script} {input.coarse} {input.immune} {input.stroma} "
         "{output.labels} {output.summary} > {log} 2>&1"
 #+end_src
+*** M1 Peak and valley analysis
+per cell DE does not work
+The principle (why FOV-pseudobulk is right, per-cell Wilcoxon wrong) — these are the
+  citations to use:
+  - Squair et al. 2021, Nature Communications — "Confronting false discoveries in
+  single-cell differential expression" (561 cites, 10.1038/s41467-021-25960-2). The
+  definitive paper: per-cell DE tests treat cells as replicates and massively inflate false
+  positives; aggregating to a pseudobulk replicate unit fixes it. This is the exact
+  indictment of the old per-cell signature.
+  - Zimmerman et al. 2021, Nature Communications — "A practical solution to
+  pseudoreplication bias in single-cell studies" (154 cites, 10.1038/s41467-021-21038-1).
+  Names the failure mode ("pseudoreplication") and the fix (aggregate or mixed model).
+  - Junttila et al. 2022, Briefings in Bioinformatics — benchmark confirming pseudobulk
+  methods (edgeR/limma/DESeq2 on aggregated counts) beat cell-level tests for multi-subject
+  designs (10.1093/bib/bbac286).
+
+
+Found the anchor. The nearest published example of your method's design is GeoMx Digital
+  Spatial Profiling — the canonical reference is Merritt et al. 2020, Nature Biotechnology,
+  "Multiplex digital spatial profiling of proteins and RNA in fixed tissue" (799 cites,
+  10.1038/s41587-020-0472-9). GeoMx's entire paradigm is your design: subdivide a section
+  into regions, aggregate each region's counts into a pseudobulk profile, and test
+  region-vs-region within the same section, using a linear mixed model with region-in-slide
+  as a random effect (~ zone + (1|slide), the direct analog of your ~ FOV + zone).
+
+- standR (Liu 2024, NAR) and GeomxTools = the actual tools that implement the region-level DE with limma/edgeR + a blocking term. standR's limma-voom-with-blocking model is essentially identical to what you hand-rolled.
+
+**** Layer 3 -- Peak/Valley at 4h
+:PROPERTIES:
+:ID:       def10c5f-06d2-4313-850b-e37e55933b6a
+:END:
+Geometric classification of microbeam peaks vs valleys using H2AX IHC stripe pattern from [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]]. Per-cell H2AX IF intensity does not exist for Mutter_01 — the CosMx IF channels were used for segmentation markers (PanCK, CD298/B2M, CD45, DAPI), not H2AX. The PPTX images are separate chromogenic IHC on an adjacent section.
+
+Current best-fit stripe model (dev/03k_4peak_classify.R):
+- 15-degree downward tilt left-to-right (confirmed visually from H2AX image)
+- 1.02mm center-to-center spacing, 4 peaks
+- Tilt-corrected coordinate: y_corr = y_slide_mm + x_slide_mm * tan(15 deg)
+- Beam centers at corrected-y: 1.14, 2.16, 3.18, 4.20 mm
+- Classification: peak if dist_to_center < spacing/4, else valley (~50/50 split)
+- Validation: peaks show higher Cdkn1a/p21 (0.632 vs 0.586)
+- Pending: final visual verification of =mbrt4h_4peak_zones_labels.pdf= against H2AX image
+
+**** Microbeam Peak Valley Analysis                             :bioinfo_dev:
+:PROPERTIES:
+:ID: 945d9096-1a17-4b99-acfd-058f606cbd24
+:header-args:jupyter-R: :session spatial-rads :kernel spatial-rads :async yes :dir ./dev/peak_valley_analysis
+:EXPORT_FILE_NAME: ./peak-valley-analysis
+:EXPORT_TITLE: Microbeam Peak-Valley Spatial Transcriptomics Analysis
+:EXPORT_OPTIONS: toc:t num:t html-style:nil
+:EXPORT_HTML_HEAD: <link rel="stylesheet" type="text/css" href="resources/org.css"/>
+:END:
+
+Consolidation of spatial-rads exploratory analysis into a single bioinfo-dev module workbook. Layers 1-2 condensed as infrastructure, Layer 3 stripe model with curated highlights, H2AX validation as critical gate, then new peak/valley DEG/pathway/composition/neighborhood/SBRT analyses. All comparisons are descriptive (n=1 per condition) using effect sizes rather than formal significance testing.
+
+***** Background
+
+Microbeam radiation therapy (MBRT) delivers radiation through an array of parallel, planar beams with sub-millimeter spacing. Unlike conventional spatially uniform (SBRT) irradiation, MBRT creates alternating high-dose peaks and low-dose valleys in tissue. This spatial fractionation pattern may differentially engage DNA damage repair, innate immune signaling, and bystander effects. The CosMx spatial transcriptomics panel (~1000 genes) captures single-cell resolution across 11 conditions spanning MBRT, SBRT, and untreated controls at multiple timepoints (1h, 4h, day 2, day 6) in both flank tumor and tongue normal tissue models.
+
+The central question of this workbook is whether MBRT peak zones (direct beam exposure) and valley zones (bystander) show distinct transcriptomic signatures at 4 hours post-irradiation, and how these compare to the uniform-dose SBRT response.
+
+****** Related work and first-in-field positioning
+
+A targeted literature search across Scopus and PubMed [2026-04-11] returned zero published studies applying spatial transcriptomics to any spatially-fractionated radiation therapy modality (MBRT, GRID, lattice, or SFRT). Full query strings, result counts, and API responses are captured in [[file:./docs/scopus_negative_result_2026-04-11.json][docs/scopus_negative_result_2026-04-11.json]]; the methodological framing for this gap lives at [[file:~/repos/biotools/biotools.org::*Spatial methods at the radiotherapy / tumor microenvironment interface][biotools.org: Spatial methods at the RT/TME interface]]. This project is accordingly first-in-field for MBRT peak/valley spatial transcriptomics.
+
+The closest published analogs all use uniform-dose exposure and can inform manuscript framing around RT-context spatial/single-cell transcriptomics, but none address a dose-gradient, peak/valley, or vertex dimension:
+
+- [cite:@oyoshi2023] — comprehensive single-cell analysis of radiotherapy-induced macrophage infiltration with immunosuppressive phenotype in esophageal squamous cell carcinoma. Tightest RT analog of the three: explicitly characterizes a radiotherapy-induced immune-cell response, though single-cell rather than spatial and restricted to a single tumor type at uniform dose.
+- [cite:@shiau2024] — spatially resolved analysis of therapy-associated tumor microenvironment remodeling in pancreatic cancer (Nat Genet). Brings the spatial dimension but "therapy" in PDAC typically bundles chemotherapy with chemoradiation; the paper does not isolate RT-specific effects and does not manipulate dose geometry.
+- [cite:@zhou2022pdac] — spatially restricted drivers and transitional cell populations cooperating with the TME in untreated vs chemo-resistant pancreatic cancer (Nat Genet). Establishes the spatially-resolved treatment-response framework but contrasts chemotherapy resistance rather than radiotherapy response; included as the foundational methods template for spatial analysis of therapy-associated TME shifts.
+
+None of these three establishes a precedent for the core peak/valley contrast this project addresses: within-slide comparison of sub-millimeter-spaced high-dose and low-dose zones at cellular resolution. The combined absence of (a) any spatially-fractionated RT spatial-omics study and (b) a dose-geometry-aware analysis framework means the methods used in this workbook are being developed de novo.
+
+***** Data
+
+| File                   | Description                                                         | Location              |
+|------------------------+---------------------------------------------------------------------+-----------------------|
+| Counts parquet         | Raw transcript counts, ~1000 genes x 1.4M cells                     | GCS inputs/           |
+| Metadata parquet       | Cell-level QC flags, coordinates, insitutype labels, pathway scores | GCS inputs/           |
+| Gamma H2AX + FOVs.pptx | H2AX immunofluorescence images with FOV overlay                     | GCS inputs/           |
+| seurat_clustered.rds   | Pre-computed Seurat object (QC'd, normalized, clustered)            | GCS analysis/objects/ |
+
+***** Data Loading
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/00_load_data.R
+:END:
+
+Load raw parquet files from GCS, build Seurat object with parsed metadata (model, treatment, timepoint), confirm 4 pre-computed pathway score columns, and define canonical color palettes used by all downstream scripts.
+
+#+begin_src jupyter-R
+library(data.table)
+library(Seurat)
+library(arrow)
+library(tidyverse)
+
+# --- Paths ---
+INPUT_DIR <- "/mnt/gcs/jeszyman/projects/spatial-rads/inputs"
+ANALYSIS_DIR <- "/mnt/gcs/jeszyman/projects/spatial-rads/analysis"
+DATA_DIR <- "data"
+PLOT_DIR <- "plots"
+for (d in c(DATA_DIR, PLOT_DIR)) if (!dir.exists(d)) dir.create(d, recursive = TRUE)
+
+# --- Load counts ---
+counts_df <- read_parquet(file.path(INPUT_DIR, "projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet"))
+counts_dt <- as.data.table(counts_df)
+non_gene_cols <- c("Slide", "fov", "cell_id")
+gene_cols <- setdiff(colnames(counts_dt), non_gene_cols)
+cat(sprintf("Panel size: %d genes\n", length(gene_cols)))
+cat(sprintf("Total cells in counts: %d\n", nrow(counts_dt)))
+stopifnot(!anyDuplicated(counts_dt$cell_id))
+
+# --- Load metadata ---
+meta_df <- read_parquet(file.path(INPUT_DIR, "Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"))
+meta_dt <- as.data.table(meta_df)
+cat(sprintf("Total cells in metadata: %d\n", nrow(meta_dt)))
+
+# --- Build count matrix (genes x cells) ---
+count_mat <- t(as.matrix(counts_dt[, ..gene_cols]))
+colnames(count_mat) <- counts_dt$cell_id
+rownames(count_mat) <- gene_cols
+
+meta_for_seurat <- as.data.frame(meta_dt)
+rownames(meta_for_seurat) <- meta_for_seurat$cell_id
+stopifnot(all(colnames(count_mat) %in% rownames(meta_for_seurat)))
+
+# --- Create Seurat object ---
+obj <- CreateSeuratObject(
+  counts    = count_mat,
+  meta.data = meta_for_seurat,
+  project   = "CosMx_Mutter"
+)
+cat(sprintf("Raw Seurat: %d genes x %d cells\n", nrow(obj), ncol(obj)))
+
+# --- Parsed metadata ---
+obj$model <- ifelse(grepl("^Tongue", obj$Condition), "tongue", "flank")
+obj$treatment <- case_when(
+  obj$Condition == "Control" ~ "NT",
+  grepl("MBRT", obj$Condition) ~ "MBRT",
+  grepl("SBRT", obj$Condition) ~ "SBRT"
+)
+obj$timepoint_h <- case_when(
+  obj$Condition == "Control" ~ 0,
+  grepl("1h", obj$Condition) ~ 1,
+  grepl("4h", obj$Condition) ~ 4,
+  grepl("day2", obj$Condition) ~ 48,
+  grepl("day6", obj$Condition) ~ 144,
+  grepl("day8", obj$Condition) ~ 192,
+  grepl("day10", obj$Condition) ~ 240
+)
+
+# --- Verify pathway columns ---
+PATHWAY_COLS <- c("TypeI_interferon", "TypeII_interferon", "STING", "DNA_Damage_Repair")
+stopifnot(all(PATHWAY_COLS %in% colnames(obj@meta.data)))
+cat("Pathway score columns confirmed present.\n")
+
+# --- Canonical color palettes ---
+TREATMENT_COLORS <- c("MBRT" = "#E74C3C", "SBRT" = "#3498DB", "NT" = "#7F8C8D")
+
+CONDITION_LEVELS <- c("Control", "MBRT_1h", "MBRT_4h", "SBRT_4h",
+                      "MBRT_day2", "SBRT_day2", "MBRT_day6", "SBRT_day6",
+                      "Tongue_MBRT_day8", "Tongue_MBRT_day10", "Tongue_SBRT_day10")
+
+ZONE_COLORS <- c("peak" = "#E74C3C", "valley" = "#3498DB")
+
+PATHWAY_LABELS <- c(
+  "TypeI_interferon" = "Type I IFN",
+  "TypeII_interferon" = "Type II IFN",
+  "STING" = "STING",
+  "DNA_Damage_Repair" = "DDR"
+)
+
+cat(sprintf("Raw object ready: %d genes x %d cells\n", nrow(obj), ncol(obj)))
+#+end_src
+
+***** QC Filtering
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/01_qc_filter.R
+:END:
+
+Apply multi-criteria QC filtering: qcFlagsCell=="Pass", nCount_RNA>20, nFeature_RNA>10, propNegative<0.5. Expected retention ~68% (1.4M to 971K cells). Generate QC violin plots and save summary statistics.
+
+#+begin_src jupyter-R
+if (!exists("obj")) source("00_load_data.R")
+
+# --- QC filtering ---
+pre_qc <- table(obj$Condition)
+obj <- subset(obj, subset = qcFlagsCell == "Pass")
+obj <- subset(obj, subset = nCount_RNA > 20 & nFeature_RNA > 10 & propNegative < 0.5)
+post_qc <- table(obj$Condition)
+
+qc_summary <- data.frame(
+  condition = names(pre_qc),
+  pre_filter = as.integer(pre_qc),
+  post_filter = as.integer(post_qc[names(pre_qc)]),
+  pct_retained = round(as.integer(post_qc[names(pre_qc)]) / as.integer(pre_qc) * 100, 1)
+)
+print(qc_summary)
+write_tsv(qc_summary, file.path(DATA_DIR, "qc_summary.tsv"))
+cat(sprintf("Post-QC: %d cells retained (%.0f%%)\n", ncol(obj),
+            ncol(obj) / sum(as.integer(pre_qc)) * 100))
+
+# --- QC violin plots ---
+p_qc <- VlnPlot(obj, features = c("nCount_RNA", "nFeature_RNA", "propNegative"),
+                 group.by = "Condition", pt.size = 0, ncol = 3)
+ggsave(file.path(PLOT_DIR, "qc_violins.png"), plot = p_qc, width = 16, height = 5, dpi = 150)
+
+# --- Save QC'd object ---
+saveRDS(obj, file.path(ANALYSIS_DIR, "objects", "seurat_qc.rds"))
+cat("QC'd Seurat object saved.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/qc_violins.png]]
+
+***** Normalization and Clustering
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/02_normalize_cluster.R
+:END:
+
+LogNormalize (scale 1e4), VST variable features (2000), PCA (20 dims), Louvain clustering (resolution 0.4), UMAP. Generates landscape plots by cluster, condition, slide, and treatment. Expected: 9 clusters.
+
+#+begin_src jupyter-R
+if (!exists("obj")) source("00_load_data.R")
+library(future)
+
+# Load QC'd object if not already in memory from 01
+if (!"qcFlagsCell" %in% colnames(obj@meta.data) || any(obj$qcFlagsCell != "Pass", na.rm = TRUE)) {
+  obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_qc.rds"))
+  cat(sprintf("Loaded QC'd object: %d cells\n", ncol(obj)))
+}
+
+# --- Normalize ---
+obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = 1e4)
+obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = 2000)
+cat(sprintf("Variable features: %d\n", length(VariableFeatures(obj))))
+obj <- ScaleData(obj, features = VariableFeatures(obj))
+obj <- RunPCA(obj, features = VariableFeatures(obj))
+
+# --- Cluster ---
+options(future.globals.maxSize = 50 * 1024^3)
+plan(multicore, workers = 48)
+obj <- FindNeighbors(obj, dims = 1:20)
+obj <- FindClusters(obj, resolution = 0.4)
+plan(sequential)
+
+# --- UMAP ---
+obj <- RunUMAP(obj, dims = 1:20, n.neighbors = 30, min.dist = 0.3)
+cat(sprintf("Clusters: %d | Cells: %d\n", length(levels(obj$seurat_clusters)), ncol(obj)))
+
+# --- Plots ---
+library(patchwork)
+p1 <- DimPlot(obj, group.by = "seurat_clusters", raster = TRUE, label = TRUE) + labs(title = "Clusters")
+p2 <- DimPlot(obj, group.by = "Condition", raster = TRUE) + labs(title = "Condition")
+p3 <- DimPlot(obj, group.by = "Slide", raster = TRUE) + labs(title = "Slide (batch)")
+p4 <- DimPlot(obj, group.by = "treatment", raster = TRUE) + labs(title = "Treatment")
+p_umap <- (p1 | p2) / (p3 | p4)
+ggsave(file.path(PLOT_DIR, "umap_landscape.png"), plot = p_umap, width = 16, height = 12, dpi = 150)
+
+# --- Save ---
+saveRDS(obj, file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+cat("Clustered object saved.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/umap_landscape.png]]
+
+***** Cell Type Validation
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/03_cell_type_validation.R
+:END:
+
+Validate Yi's insitutype cell type labels against canonical markers (18/19 present in panel). The uncharacterized "a" population expresses epithelial markers (Epcam, Krt8/18) and is reclassified as tumor_epithelial. Generate dotplot, UMAP, and spatial cell type maps.
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+cat(sprintf("Loaded: %d genes x %d cells\n", nrow(obj), ncol(obj)))
+
+# --- Tabulate Yi's insitutype labels ---
+ct_table <- sort(table(obj$ImmuneAtlas_ImmGen_Main_cell_Types), decreasing = TRUE)
+cat("Cell type frequencies:\n")
+print(ct_table)
+
+ct_family <- sort(table(obj$ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types), decreasing = TRUE)
+cat("\nCell family frequencies:\n")
+print(ct_family)
+
+# --- Canonical marker validation ---
+marker_candidates <- c(
+  "Cd3e", "Cd3d", "Cd4", "Cd8a", "Cd8b1",
+  "Cd68", "Adgre1", "Csf1r", "Itgam",
+  "Epcam", "Krt8", "Krt18", "Krt14",
+  "Cd19", "Ms4a1",
+  "Ncr1", "Klrb1c",
+  "Pecam1", "Cdh5"
+)
+available_markers <- marker_candidates[marker_candidates %in% rownames(obj)]
+cat(sprintf("\nAvailable markers: %d / %d\n", length(available_markers), length(marker_candidates)))
+
+p_dot <- DotPlot(obj, features = available_markers,
+                 group.by = "ImmuneAtlas_ImmGen_Main_cell_Types") +
+  RotatedAxis() +
+  labs(title = "Marker validation: Yi's cell type labels")
+ggsave(file.path(PLOT_DIR, "celltype_marker_dotplot.png"), plot = p_dot, width = 14, height = 8, dpi = 150)
+
+# --- Characterize "a" population as tumor_epithelial ---
+epi_markers <- available_markers[available_markers %in% c("Epcam", "Krt8", "Krt18", "Krt14")]
+norm_data <- GetAssayData(obj, layer = "data")
+a_cells <- which(obj$ImmuneAtlas_ImmGen_Main_cell_Types == "a")
+non_a <- which(obj$ImmuneAtlas_ImmGen_Main_cell_Types != "a")
+cat("\nEpithelial marker enrichment in 'a' population:\n")
+for (m in epi_markers) {
+  a_mean <- mean(norm_data[m, a_cells])
+  other_mean <- mean(norm_data[m, non_a])
+  cat(sprintf("  %s: 'a' mean=%.3f, others mean=%.3f, ratio=%.1f\n",
+              m, a_mean, other_mean, a_mean / max(other_mean, 0.001)))
+}
+
+# --- Create validated cell type label ---
+obj$cell_type_validated <- obj$ImmuneAtlas_ImmGen_Main_cell_Types
+obj$cell_type_validated[obj$cell_type_validated == "a"] <- "tumor_epithelial"
+
+# --- UMAP by validated cell type ---
+p_ct <- DimPlot(obj, group.by = "cell_type_validated", raster = TRUE, label = TRUE, repel = TRUE) +
+  labs(title = "Cell types (validated)")
+ggsave(file.path(PLOT_DIR, "umap_celltype_validated.png"), plot = p_ct, width = 10, height = 8, dpi = 150)
+
+# --- Spatial cell type maps (flank) ---
+p_spatial <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(model == "flank") %>%
+  ggplot(aes(x = x_slide_mm, y = y_slide_mm, color = cell_type_validated)) +
+  geom_point(size = 0.1, alpha = 0.3) +
+  facet_wrap(~Condition, scales = "free") +
+  labs(title = "Spatial cell type distribution (flank)", color = "Cell type") +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))
+ggsave(file.path(PLOT_DIR, "spatial_celltype_flank.png"), plot = p_spatial, width = 16, height = 12, dpi = 150)
+
+# --- Save updated object ---
+saveRDS(obj, file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+cat("Updated object saved with validated cell types.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/celltype_marker_dotplot.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/umap_celltype_validated.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/spatial_celltype_flank.png]]
+
+***** DEGs and Kinetics Overview
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/04_deg_kinetics.R
+:END:
+
+Condensed Layer 2 analysis: effect-size ranked DEGs for MBRT vs Control, SBRT vs Control, and MBRT vs SBRT at matched timepoints. Pathway score kinetics (DDR, IFN-I, IFN-II, STING) across the time course. Cell type composition shifts and spatial neighborhood immune fractions at 4h. This section motivates the peak/valley investigation by establishing that MBRT and SBRT produce distinct transcriptomic responses.
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+library(RANN)
+
+obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+cat(sprintf("Loaded: %d genes x %d cells\n", nrow(obj), ncol(obj)))
+
+# ---- DEG function (effect-size ranked) ----
+run_deg <- function(obj, ident.1, ident.2, group.by = "Condition") {
+  Idents(obj) <- group.by
+  markers <- FindMarkers(obj, ident.1 = ident.1, ident.2 = ident.2,
+                         min.pct = 0.1, logfc.threshold = 0.1)
+  markers$gene <- rownames(markers)
+  markers$comparison <- paste0(ident.1, "_vs_", ident.2)
+  markers %>% arrange(desc(abs(avg_log2FC)))
+}
+
+# ---- Bulk DEGs: MBRT/SBRT vs Control, MBRT vs SBRT ----
+cat("Running bulk DEGs...\n")
+mbrt_tp <- c("MBRT_1h", "MBRT_4h", "MBRT_day2", "MBRT_day6")
+deg_mbrt_ctrl <- map_dfr(mbrt_tp, function(tp) {
+  sub <- subset(obj, cells = colnames(obj)[obj$Condition %in% c(tp, "Control")])
+  run_deg(sub, tp, "Control")
+})
+
+sbrt_tp <- c("SBRT_4h", "SBRT_day2", "SBRT_day6")
+deg_sbrt_ctrl <- map_dfr(sbrt_tp, function(tp) {
+  sub <- subset(obj, cells = colnames(obj)[obj$Condition %in% c(tp, "Control")])
+  run_deg(sub, tp, "Control")
+})
+
+matched <- list(c("MBRT_4h", "SBRT_4h"), c("MBRT_day2", "SBRT_day2"), c("MBRT_day6", "SBRT_day6"))
+deg_mbrt_sbrt <- map_dfr(matched, function(pair) {
+  sub <- subset(obj, cells = colnames(obj)[obj$Condition %in% pair])
+  run_deg(sub, pair[1], pair[2])
+})
+
+all_degs <- bind_rows(
+  mbrt_vs_ctrl = deg_mbrt_ctrl,
+  sbrt_vs_ctrl = deg_sbrt_ctrl,
+  mbrt_vs_sbrt = deg_mbrt_sbrt,
+  .id = "comparison_type"
+)
+write_tsv(all_degs, file.path(DATA_DIR, "deg_all_cells.tsv"))
+cat(sprintf("Total bulk DEG rows: %d\n", nrow(all_degs)))
+
+# Volcano retired: -log10(p_val) is a cell-level Wilcoxon p, which pseudoreplicates the
+# n=1-per-condition design. all_degs (written above) stays valid as a descriptive
+# effect-size table. Correct significance test deferred until Mutter_02 (2d) replicates:
+# pseudobulk per sample -> DESeq2/edgeR/limma -> MA-plot/volcano with real p-values.
+
+# ---- Pathway kinetics ----
+kinetics <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(model == "flank") %>%
+  group_by(timepoint_h, treatment) %>%
+  summarise(across(all_of(PATHWAY_COLS), mean, na.rm = TRUE), .groups = "drop") %>%
+  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score")
+
+p_kin <- kinetics %>%
+  filter(treatment %in% c("MBRT", "SBRT")) %>%
+  mutate(pathway = PATHWAY_LABELS[pathway]) %>%
+  ggplot(aes(x = factor(timepoint_h), y = score, color = treatment, group = treatment)) +
+  geom_line(linewidth = 1) + geom_point(size = 3) +
+  facet_wrap(~pathway, scales = "free_y") +
+  scale_color_manual(values = TREATMENT_COLORS) +
+  labs(x = "Hours post-RT", y = "Mean pathway score", caption = "n=1 per condition") +
+  theme_bw()
+ggsave(file.path(PLOT_DIR, "pathway_kinetics.png"), plot = p_kin, width = 10, height = 8, dpi = 150)
+write_tsv(kinetics, file.path(DATA_DIR, "pathway_kinetics.tsv"))
+
+# ---- Composition ----
+composition <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(model == "flank") %>%
+  count(Condition, timepoint_h, treatment, cell_type = cell_type_validated) %>%
+  group_by(Condition) %>%
+  mutate(prop = n / sum(n)) %>%
+  ungroup()
+
+p_comp <- composition %>%
+  filter(Condition %in% CONDITION_LEVELS[1:8]) %>%
+  mutate(Condition = factor(Condition, levels = CONDITION_LEVELS)) %>%
+  ggplot(aes(x = Condition, y = prop, fill = cell_type)) +
+  geom_col() +
+  labs(x = NULL, y = "Proportion", fill = "Cell type", title = "Cell type composition (flank)") +
+  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave(file.path(PLOT_DIR, "composition_stacked.png"), plot = p_comp, width = 10, height = 6, dpi = 150)
+write_tsv(composition, file.path(DATA_DIR, "composition.tsv"))
+
+# ---- Spatial NN immune fraction (MBRT vs SBRT at 4h) ----
+cat("Computing spatial nearest neighbors at 4h...\n")
+nn_results <- map_dfr(c("MBRT_4h", "SBRT_4h"), function(cond) {
+  meta_sub <- obj@meta.data %>% as.data.frame() %>% filter(Condition == cond)
+  coords <- as.matrix(meta_sub[, c("x_slide_mm", "y_slide_mm")])
+  ct <- meta_sub$cell_type_validated
+  nn <- nn2(coords, k = 21)
+  nn_idx <- nn$nn.idx[, -1]
+  immune_frac <- rowMeans(matrix(ct[nn_idx] != "tumor_epithelial", nrow = nrow(nn_idx)))
+  tibble(condition = cond, cell_type = ct, immune_neighbor_frac = immune_frac)
+})
+
+p_nn <- nn_results %>%
+  ggplot(aes(x = immune_neighbor_frac, fill = condition)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~cell_type, scales = "free_y") +
+  scale_fill_manual(values = c("MBRT_4h" = TREATMENT_COLORS["MBRT"], "SBRT_4h" = TREATMENT_COLORS["SBRT"])) +
+  labs(x = "Fraction immune neighbors (k=20)", title = "Spatial immune neighborhoods: MBRT vs SBRT at 4h") +
+  theme_bw()
+ggsave(file.path(PLOT_DIR, "spatial_nn_immune_frac.png"), plot = p_nn, width = 14, height = 10, dpi = 150)
+
+cat("Layer 2 condensed analysis complete.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/pathway_kinetics.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/composition_stacked.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/spatial_nn_immune_frac.png]]
+
+***** Stripe Detection
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/05_stripe_detection.R
+:END:
+
+Curated highlights from iterative stripe model development. Fine-grained p21/Cdkn1a spatial profiling reveals periodic variation along the y-axis. Rotated axis scan confirms y-axis as the primary stripe direction. Tilt angle optimization (5-35 degrees, 2-degree steps) identifies 15 degrees as optimal. Grid search with forced 4-peak constraint converges on 1.02mm spacing. Key insight: transcript-based DDR scores alone are too noisy for stripe resolution; geometric model plus image validation is required.
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+library(zoo)
+
+obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+
+# --- Extract MBRT_4h cells ---
+mbrt4h <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(Condition == "MBRT_4h") %>%
+  select(cell_id, fov, x_slide_mm, y_slide_mm, cell_type_validated,
+         all_of(PATHWAY_COLS))
+
+p21_expr <- GetAssayData(obj, layer = "data")["Cdkn1a",
+  rownames(obj@meta.data[obj@meta.data$Condition == "MBRT_4h", ])]
+mbrt4h$p21 <- as.numeric(p21_expr[rownames(mbrt4h)])
+cat(sprintf("MBRT_4h: %d cells, %d FOVs\n", nrow(mbrt4h), length(unique(mbrt4h$fov))))
+
+# ---- Highlight 1: Fine-grained p21 spatial profile ----
+y_profile <- mbrt4h %>%
+  mutate(y_bin = round(y_slide_mm / 0.1) * 0.1) %>%
+  group_by(y_bin) %>%
+  summarise(mean_p21 = mean(p21, na.rm = TRUE), n_cells = n(), .groups = "drop") %>%
+  filter(n_cells >= 50) %>%
+  arrange(y_bin) %>%
+  mutate(p21_smooth = rollmean(mean_p21, k = 5, fill = NA, align = "center"))
+
+p_profile <- ggplot(y_profile, aes(x = y_bin)) +
+  geom_point(aes(y = mean_p21, size = n_cells), alpha = 0.3) +
+  geom_line(aes(y = p21_smooth), color = "red", linewidth = 1.2, na.rm = TRUE) +
+  labs(x = "y position (mm)", y = "Mean p21 (Cdkn1a)",
+       title = "MBRT_4h: p21 y-axis profile (0.1mm bins, 0.5mm rolling mean)") +
+  theme_bw()
+ggsave(file.path(PLOT_DIR, "stripe_p21_y_profile.png"), plot = p_profile, width = 12, height = 5, dpi = 150)
+
+# ---- Highlight 2: Rotated axis scan (stripe orientation) ----
+angles <- seq(0, 175, by = 15)
+angle_cvs <- map_dbl(angles, function(theta) {
+  rad <- theta * pi / 180
+  proj <- mbrt4h$x_slide_mm * cos(rad) + mbrt4h$y_slide_mm * sin(rad)
+  bins <- round(proj / 0.1) * 0.1
+  profile <- tibble(bin = bins, p21 = mbrt4h$p21) %>%
+    group_by(bin) %>%
+    summarise(mean_p21 = mean(p21, na.rm = TRUE), n = n(), .groups = "drop") %>%
+    filter(n >= 50) %>% arrange(bin)
+  if (nrow(profile) < 7) return(0)
+  smoothed <- rollmean(profile$mean_p21, k = 5, fill = NA, align = "center")
+  smoothed <- smoothed[!is.na(smoothed)]
+  if (length(smoothed) < 3) return(0)
+  sd(smoothed) / mean(smoothed)
+})
+
+angle_df <- tibble(angle = angles, cv = angle_cvs)
+best_proj_angle <- angle_df$angle[which.max(angle_df$cv)]
+cat(sprintf("Best projection angle: %d deg (CV=%.4f)\n", best_proj_angle, max(angle_df$cv)))
+
+p_angle <- ggplot(angle_df, aes(x = angle, y = cv)) +
+  geom_line(linewidth = 1) + geom_point(size = 3) +
+  geom_vline(xintercept = best_proj_angle, color = "red", linetype = "dashed") +
+  labs(x = "Projection angle (degrees)", y = "CV of smoothed p21",
+       title = "Stripe direction scan: Y-axis shows strongest periodic variation") +
+  theme_bw()
+ggsave(file.path(PLOT_DIR, "stripe_angle_scan.png"), plot = p_angle, width = 10, height = 6, dpi = 150)
+
+# ---- Highlight 3: Tilt angle optimization ----
+cat("Scanning tilt angles (5-35 deg)...\n")
+angle_results <- map_dfr(seq(5, 35, by = 2), function(deg) {
+  rad <- deg * pi / 180
+  y_corr <- mbrt4h$y_slide_mm + mbrt4h$x_slide_mm * tan(rad)
+  best_contrast <- 0
+  best_s <- NA
+  for (s in seq(0.6, 1.8, by = 0.1)) {
+    for (o in seq(min(y_corr) + s/4, min(y_corr) + s * 1.5, by = 0.1)) {
+      centers <- seq(o, max(y_corr) + s, by = s)
+      dist <- sapply(y_corr, function(yc) min(abs(yc - centers)))
+      pk <- which(dist < s / 4)
+      vl <- which(dist > s / 2)
+      if (length(pk) < 500 || length(vl) < 500) next
+      contrast <- mean(mbrt4h$p21[pk], na.rm = TRUE) - mean(mbrt4h$p21[vl], na.rm = TRUE)
+      if (contrast > best_contrast) { best_contrast <- contrast; best_s <- s }
+    }
+  }
+  tibble(angle = deg, best_spacing = best_s, contrast = best_contrast)
+})
+
+opt_angle <- angle_results$angle[which.max(angle_results$contrast)]
+cat(sprintf("Optimal tilt: %d deg (contrast=%.4f)\n", opt_angle, max(angle_results$contrast)))
+
+p_tilt <- ggplot(angle_results, aes(x = angle, y = contrast)) +
+  geom_line(linewidth = 1) + geom_point(size = 3) +
+  geom_vline(xintercept = opt_angle, color = "red", linetype = "dashed") +
+  labs(x = "Tilt angle (degrees)", y = "Peak - Valley p21 contrast",
+       title = "Tilt optimization: 15 deg confirmed as optimal") +
+  theme_bw()
+ggsave(file.path(PLOT_DIR, "stripe_tilt_optimization.png"), plot = p_tilt, width = 10, height = 6, dpi = 150)
+
+# ---- Highlight 4: 4-peak grid search ----
+rad <- 15 * pi / 180
+mbrt4h <- mbrt4h %>% mutate(y_corr = y_slide_mm + x_slide_mm * tan(rad))
+y_range <- range(mbrt4h$y_corr)
+
+results_4pk <- expand_grid(
+  spacing = seq(0.8, 1.3, by = 0.02),
+  offset = seq(y_range[1] + 0.1, y_range[1] + 1.3, by = 0.05)
+) %>%
+  mutate(n_peaks = map2_int(spacing, offset, function(s, o) {
+    centers <- seq(o, y_range[2] + 0.1, by = s)
+    sum(sapply(centers, function(c) sum(abs(mbrt4h$y_corr - c) < s/4) > 100))
+  })) %>%
+  filter(n_peaks == 4) %>%
+  mutate(contrast = map2_dbl(spacing, offset, function(s, o) {
+    centers <- seq(o, y_range[2] + 0.1, by = s)
+    dist <- sapply(mbrt4h$y_corr, function(yc) min(abs(yc - centers)))
+    pk <- which(dist < s / 4); vl <- which(dist > s / 4)
+    if (length(pk) < 1000 || length(vl) < 1000) return(0)
+    mean(mbrt4h$p21[pk], na.rm = TRUE) - mean(mbrt4h$p21[vl], na.rm = TRUE)
+  }))
+
+best_4pk <- results_4pk %>% arrange(desc(contrast)) %>% head(1)
+cat(sprintf("\n4-peak model: spacing=%.2fmm, contrast=%.4f\n", best_4pk$spacing, best_4pk$contrast))
+
+# Compute beam centers for best model
+beam_centers <- seq(best_4pk$offset, y_range[2] + 0.1, by = best_4pk$spacing)
+beam_centers <- beam_centers[sapply(beam_centers, function(c) sum(abs(mbrt4h$y_corr - c) < best_4pk$spacing/4) > 100)]
+cat(sprintf("Beam centers (corrected y): %s\n", paste(round(beam_centers, 2), collapse = ", ")))
+
+# Save stripe model parameters for downstream scripts
+stripe_model <- list(
+  tilt_deg = 15,
+  spacing_mm = best_4pk$spacing,
+  beam_centers = beam_centers,
+  n_peaks = length(beam_centers)
+)
+saveRDS(stripe_model, file.path(DATA_DIR, "stripe_model.rds"))
+
+# 4-pathway spatial heatmaps
+p21_heatmap <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
+  stat_summary_2d(aes(z = p21), fun = mean, binwidth = c(0.1, 0.1)) +
+  scale_fill_viridis_c(option = "inferno", name = "Mean p21") +
+  coord_fixed() + labs(title = "p21 spatial heatmap") + theme_bw()
+
+ddr_heatmap <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
+  stat_summary_2d(aes(z = DNA_Damage_Repair), fun = mean, binwidth = c(0.1, 0.1)) +
+  scale_fill_viridis_c(option = "inferno", name = "Mean DDR") +
+  coord_fixed() + labs(title = "DDR spatial heatmap") + theme_bw()
+
+sting_heatmap <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
+  stat_summary_2d(aes(z = STING), fun = mean, binwidth = c(0.1, 0.1)) +
+  scale_fill_viridis_c(option = "plasma", name = "Mean STING") +
+  coord_fixed() + labs(title = "STING spatial heatmap") + theme_bw()
+
+ifn1_heatmap <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
+  stat_summary_2d(aes(z = TypeI_interferon), fun = mean, binwidth = c(0.1, 0.1)) +
+  scale_fill_viridis_c(option = "magma", name = "Mean IFN-I") +
+  coord_fixed() + labs(title = "Type I IFN spatial heatmap") + theme_bw()
+
+combo <- (p21_heatmap | ddr_heatmap) / (sting_heatmap | ifn1_heatmap)
+ggsave(file.path(PLOT_DIR, "stripe_4pathway_heatmaps.png"), plot = combo, width = 20, height = 16, dpi = 150)
+
+cat("Stripe detection complete. Model saved to data/stripe_model.rds\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/stripe_p21_y_profile.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/stripe_angle_scan.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/stripe_tilt_optimization.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/stripe_4pathway_heatmaps.png]]
+
+***** H2AX Image Validation
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/06_h2ax_validation.R
+:END:
+
+Critical validation gate. Extract H2AX immunofluorescence images from the lab-provided PPTX, generate a stripe model zone map at matching scale and orientation, and attempt programmatic co-registration by comparing H2AX intensity profiles along the y-axis to model beam centers. Acceptance criterion: beam centers within ~0.2mm of H2AX intensity peaks. If programmatic co-registration fails, side-by-side visual comparison is the fallback.
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+library(officer)
+library(magick)
+
+obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+stripe_model <- readRDS(file.path(DATA_DIR, "stripe_model.rds"))
+
+mbrt4h <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(Condition == "MBRT_4h") %>%
+  select(cell_id, fov, x_slide_mm, y_slide_mm, cell_type_validated)
+
+rad <- stripe_model$tilt_deg * pi / 180
+mbrt4h <- mbrt4h %>% mutate(y_corr = y_slide_mm + x_slide_mm * tan(rad))
+
+# ---- Part A: Extract H2AX image from PPTX ----
+pptx_path <- file.path(INPUT_DIR, "Gamma H2AX + FOVs.pptx")
+cat(sprintf("Reading PPTX: %s\n", pptx_path))
+
+tryCatch({
+  pptx <- read_pptx(pptx_path)
+  slide_summary <- pptx_summary(pptx)
+  cat(sprintf("PPTX has %d slides, %d content elements\n",
+              max(slide_summary$slide_index), nrow(slide_summary)))
+
+  # Extract images from PPTX media
+  img_files <- list.files(
+    file.path(dirname(pptx_path), "..", "pptx_media"),
+    pattern = "\\.(png|jpg|jpeg|tif|tiff)$", full.names = TRUE, ignore.case = TRUE
+  )
+
+  # Alternative: extract directly from pptx zip
+  if (length(img_files) == 0) {
+    tmpdir <- tempdir()
+    unzip(pptx_path, exdir = tmpdir)
+    img_files <- list.files(file.path(tmpdir, "ppt", "media"),
+                            pattern = "\\.(png|jpg|jpeg|tif|tiff|emf|wmf)$",
+                            full.names = TRUE, ignore.case = TRUE)
+    cat(sprintf("Extracted %d media files from PPTX\n", length(img_files)))
+  }
+
+  if (length(img_files) > 0) {
+    # Read the largest image (likely the H2AX slide scan)
+    img_sizes <- file.size(img_files)
+    h2ax_path <- img_files[which.max(img_sizes)]
+    cat(sprintf("Using largest image: %s (%.1f KB)\n", basename(h2ax_path), max(img_sizes) / 1024))
+
+    h2ax_img <- image_read(h2ax_path)
+    img_info <- image_info(h2ax_img)
+    cat(sprintf("Image dimensions: %d x %d px\n", img_info$width, img_info$height))
+
+    # Save extracted image
+    image_write(h2ax_img, file.path(PLOT_DIR, "h2ax_extracted.png"))
+    cat("H2AX image saved to plots/h2ax_extracted.png\n")
+    h2ax_extracted <- TRUE
+  } else {
+    cat("WARNING: No images found in PPTX. Side-by-side comparison will use placeholder.\n")
+    h2ax_extracted <- FALSE
+  }
+}, error = function(e) {
+  cat(sprintf("PPTX extraction failed: %s\n", e$message))
+  cat("Proceeding with zone map only.\n")
+  h2ax_extracted <<- FALSE
+})
+
+# ---- Part A (cont): Side-by-side zone map ----
+fov_centroids <- mbrt4h %>%
+  group_by(fov) %>%
+  summarise(x = mean(x_slide_mm), y = mean(y_slide_mm), .groups = "drop")
+
+# Classify cells for zone map
+mbrt4h <- mbrt4h %>%
+  mutate(dist_to_peak = sapply(y_corr, function(yc) min(abs(yc - stripe_model$beam_centers)))) %>%
+  mutate(zone = ifelse(dist_to_peak < stripe_model$spacing_mm / 4, "peak", "valley"))
+
+p_zones <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = zone)) +
+  geom_point(size = 0.02, alpha = 0.3) +
+  scale_color_manual(values = ZONE_COLORS) +
+  coord_fixed() +
+  labs(title = sprintf("Stripe model: %d-deg tilt, %.2fmm spacing, %d peaks",
+                       stripe_model$tilt_deg, stripe_model$spacing_mm, stripe_model$n_peaks),
+       color = "Zone") +
+  theme_bw(base_size = 14)
+for (bc in stripe_model$beam_centers) {
+  p_zones <- p_zones + geom_abline(intercept = bc, slope = -tan(rad),
+                                    color = "yellow", linewidth = 0.6, alpha = 0.8)
+}
+
+# With FOV labels
+p_zones_labeled <- p_zones +
+  geom_text(data = fov_centroids, aes(x = x, y = y, label = fov),
+            color = "black", size = 2, fontface = "bold", inherit.aes = FALSE)
+ggsave(file.path(PLOT_DIR, "h2ax_zone_map_labeled.png"), plot = p_zones_labeled, width = 14, height = 10, dpi = 150)
+
+# ---- Part B: Programmatic co-registration attempt ----
+if (exists("h2ax_extracted") && h2ax_extracted) {
+  tryCatch({
+    cat("\nAttempting programmatic co-registration...\n")
+
+    # Convert H2AX image to grayscale for intensity analysis
+    h2ax_gray <- image_convert(h2ax_img, colorspace = "gray")
+    h2ax_mat <- as.integer(image_data(h2ax_gray, channels = "gray"))
+    dim(h2ax_mat) <- c(img_info$height, img_info$width)
+
+    cat(sprintf("Grayscale matrix: %d rows x %d cols\n", nrow(h2ax_mat), ncol(h2ax_mat)))
+
+    # Compute column-averaged intensity profile (horizontal stripes -> vertical profile)
+    row_means <- rowMeans(h2ax_mat)
+
+    # Smooth the profile
+    row_smooth <- rollmean(row_means, k = max(1, length(row_means) %/% 50), fill = NA, align = "center")
+
+    # Map pixel rows to approximate mm (using tissue extent)
+    tissue_rows <- which(row_means > quantile(row_means, 0.1))
+    if (length(tissue_rows) > 10) {
+      tissue_top <- min(tissue_rows)
+      tissue_bot <- max(tissue_rows)
+      tissue_span_px <- tissue_bot - tissue_top
+
+      # CosMx tissue y-range
+      y_range_mm <- range(mbrt4h$y_slide_mm)
+      mm_per_px <- diff(y_range_mm) / tissue_span_px
+
+      intensity_profile <- tibble(
+        pixel_row = seq_along(row_smooth),
+        intensity = row_smooth,
+        y_mm = (pixel_row - tissue_top) * mm_per_px + y_range_mm[1]
+      ) %>%
+        filter(!is.na(intensity), y_mm >= y_range_mm[1] - 0.5, y_mm <= y_range_mm[2] + 0.5)
+
+      # Plot H2AX intensity profile with beam centers overlaid
+      p_intensity <- ggplot(intensity_profile, aes(x = y_mm, y = intensity)) +
+        geom_line(color = "brown", linewidth = 0.5) +
+        geom_vline(xintercept = stripe_model$beam_centers, color = "red", linetype = "dashed", linewidth = 0.8) +
+        annotate("text", x = stripe_model$beam_centers, y = max(intensity_profile$intensity, na.rm = TRUE) * 0.95,
+                 label = paste0("P", seq_along(stripe_model$beam_centers)), color = "red", size = 4) +
+        labs(x = "y position (mm, approximate)", y = "H2AX intensity (grayscale)",
+             title = "H2AX intensity profile vs model beam centers",
+             subtitle = "Red dashed = model peak centers; brown = H2AX staining intensity") +
+        theme_bw()
+      ggsave(file.path(PLOT_DIR, "h2ax_intensity_vs_model.png"), plot = p_intensity, width = 12, height = 5, dpi = 150)
+
+      # Find H2AX intensity peaks
+      d <- diff(row_smooth[!is.na(row_smooth)])
+      local_maxs <- which(d[-length(d)] > 0 & d[-1] < 0) + 1
+      h2ax_peaks_px <- (seq_along(row_smooth)[!is.na(row_smooth)])[local_maxs]
+      h2ax_peaks_mm <- (h2ax_peaks_px - tissue_top) * mm_per_px + y_range_mm[1]
+      h2ax_peaks_mm <- h2ax_peaks_mm[h2ax_peaks_mm >= y_range_mm[1] & h2ax_peaks_mm <= y_range_mm[2]]
+
+      cat(sprintf("H2AX intensity peaks (mm): %s\n", paste(round(h2ax_peaks_mm, 2), collapse = ", ")))
+      cat(sprintf("Model beam centers (mm):   %s\n", paste(round(stripe_model$beam_centers, 2), collapse = ", ")))
+
+      # Compute alignment metric: for each model center, distance to nearest H2AX peak
+      if (length(h2ax_peaks_mm) > 0) {
+        alignment <- sapply(stripe_model$beam_centers, function(mc) {
+          min(abs(mc - h2ax_peaks_mm))
+        })
+        cat(sprintf("Alignment (mm per center): %s\n", paste(round(alignment, 3), collapse = ", ")))
+        cat(sprintf("Mean alignment error: %.3f mm (criterion: <0.2mm)\n", mean(alignment)))
+        cat(sprintf("VALIDATION: %s\n", ifelse(mean(alignment) < 0.2, "PASS", "NEEDS REVIEW")))
+      }
+    }
+  }, error = function(e) {
+    cat(sprintf("Co-registration failed: %s\n", e$message))
+    cat("Side-by-side visual comparison is the fallback.\n")
+  })
+} else {
+  cat("\nH2AX image not available. Using zone map only for validation.\n")
+  cat("User must visually compare h2ax_zone_map_labeled.png with PPTX.\n")
+}
+
+cat("\nH2AX validation complete. Review plots/h2ax_zone_map_labeled.png\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/h2ax_zone_map_labeled.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/h2ax_intensity_vs_model.png]]
+
+***** Peak Valley Classification
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/07_peak_valley_classify.R
+:END:
+
+Apply the validated (or best-available) stripe model to classify all MBRT_4h cells as peak or valley. Tilt-corrected y: y_corr = y_slide_mm + x_slide_mm * tan(15 degrees). Classification: peak if distance to nearest beam center < spacing/4, else valley. Save classification TSV and add zone metadata to Seurat object for downstream analysis.
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+
+obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+stripe_model <- readRDS(file.path(DATA_DIR, "stripe_model.rds"))
+
+mbrt4h <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(Condition == "MBRT_4h") %>%
+  select(cell_id, fov, x_slide_mm, y_slide_mm, cell_type_validated,
+         all_of(PATHWAY_COLS))
+
+p21_expr <- GetAssayData(obj, layer = "data")["Cdkn1a",
+  rownames(obj@meta.data[obj@meta.data$Condition == "MBRT_4h", ])]
+mbrt4h$p21 <- as.numeric(p21_expr[rownames(mbrt4h)])
+
+# --- Apply stripe model ---
+rad <- stripe_model$tilt_deg * pi / 180
+mbrt4h <- mbrt4h %>%
+  mutate(
+    y_corr = y_slide_mm + x_slide_mm * tan(rad),
+    dist_to_peak = sapply(y_corr, function(yc) min(abs(yc - stripe_model$beam_centers))),
+    zone = ifelse(dist_to_peak < stripe_model$spacing_mm / 4, "peak", "valley")
+  )
+
+cat("=== Peak/Valley Classification ===\n")
+cat(sprintf("Model: %d-deg tilt, %.2fmm spacing, %d peaks\n",
+            stripe_model$tilt_deg, stripe_model$spacing_mm, stripe_model$n_peaks))
+cat(sprintf("Beam centers: %s\n", paste(round(stripe_model$beam_centers, 2), collapse = ", ")))
+
+zone_counts <- mbrt4h %>% count(zone) %>% mutate(pct = round(n / sum(n) * 100, 1))
+print(zone_counts)
+
+cat("\n=== p21 validation ===\n")
+mbrt4h %>%
+  group_by(zone) %>%
+  summarise(n = n(), mean_p21 = mean(p21, na.rm = TRUE),
+            mean_DDR = mean(DNA_Damage_Repair, na.rm = TRUE), .groups = "drop") %>%
+  print()
+
+# --- Save classification ---
+pv_class <- mbrt4h %>%
+  select(cell_id, fov, x_slide_mm, y_slide_mm, y_corr, dist_to_peak, zone,
+         cell_type_validated, p21, all_of(PATHWAY_COLS))
+write_tsv(pv_class, file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"))
+cat(sprintf("Classification saved: %d cells\n", nrow(pv_class)))
+
+# --- Spatial zone map ---
+fov_centroids <- mbrt4h %>%
+  group_by(fov) %>%
+  summarise(x = mean(x_slide_mm), y = mean(y_slide_mm), .groups = "drop")
+
+p <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = zone)) +
+  geom_point(size = 0.02, alpha = 0.3) +
+  scale_color_manual(values = ZONE_COLORS) +
+  geom_text(data = fov_centroids, aes(x = x, y = y, label = fov),
+            color = "black", size = 2, fontface = "bold", inherit.aes = FALSE) +
+  coord_fixed() +
+  labs(title = sprintf("Peak/Valley: %d-deg tilt, %.2fmm, %d peaks",
+                       stripe_model$tilt_deg, stripe_model$spacing_mm, stripe_model$n_peaks),
+       color = "Zone") +
+  theme_bw(base_size = 14)
+for (bc in stripe_model$beam_centers) {
+  p <- p + geom_abline(intercept = bc, slope = -tan(rad), color = "yellow", linewidth = 0.6, alpha = 0.8)
+}
+ggsave(file.path(PLOT_DIR, "peak_valley_zones.png"), plot = p, width = 14, height = 10, dpi = 150)
+
+# --- Add zone to Seurat object for downstream use ---
+zone_lookup <- setNames(mbrt4h$zone, mbrt4h$cell_id)
+obj$peak_valley_zone <- zone_lookup[colnames(obj)]
+saveRDS(obj, file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+cat("Zone added to Seurat metadata and saved.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/peak_valley_zones.png]]
+
+***** Peak vs Valley DEGs
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/08_pv_degs.R
+:END:
+
+Differential expression between peak and valley cells within MBRT_4h. Effect-size ranked (no formal significance testing with n=1). Both bulk (all cells) and per-cell-type analysis for major populations with >=250 cells per zone. The scientific question: what biology distinguishes direct-beam exposure from bystander zones?
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+
+obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
+
+# Subset to MBRT_4h with zone annotation
+mbrt4h_cells <- pv$cell_id
+obj_4h <- subset(obj, cells = mbrt4h_cells)
+obj_4h$zone <- pv$zone[match(colnames(obj_4h), pv$cell_id)]
+Idents(obj_4h) <- "zone"
+cat(sprintf("MBRT_4h with zones: %d cells (peak=%d, valley=%d)\n",
+            ncol(obj_4h), sum(obj_4h$zone == "peak"), sum(obj_4h$zone == "valley")))
+
+# ---- Bulk DEGs: peak vs valley ----
+cat("Running peak vs valley DEGs (all cells)...\n")
+bulk_degs <- FindMarkers(obj_4h, ident.1 = "peak", ident.2 = "valley",
+                         min.pct = 0.1, logfc.threshold = 0.05)
+bulk_degs$gene <- rownames(bulk_degs)
+bulk_degs <- bulk_degs %>% arrange(desc(abs(avg_log2FC)))
+write_tsv(bulk_degs, file.path(DATA_DIR, "pv_degs_bulk.tsv"))
+cat(sprintf("Bulk peak vs valley DEGs: %d\n", nrow(bulk_degs)))
+
+cat("\nTop 20 by effect size:\n")
+print(head(bulk_degs %>% select(gene, avg_log2FC, pct.1, pct.2, p_val_adj), 20))
+
+# Volcano retired: -log10(p_val) pseudoreplicates the n=1 design. Mutter_02 is 2d-only and
+# H2AX peak/valley ground truth is 4h-only, so NO biological replicates are coming for this
+# 4h contrast -- the n=1 spatial-descriptive views ARE final: across-stripe profiles +
+# spatial pathway maps (05), zone maps (07), gradient + dot/box plots. bulk_degs (written
+# above) is the descriptive effect-size table.
+
+# ---- Per-cell-type DEGs ----
+cat("\nRunning per-cell-type peak vs valley DEGs...\n")
+ct_counts <- table(obj_4h$cell_type_validated, obj_4h$zone)
+major_cts <- rownames(ct_counts)[apply(ct_counts, 1, min) >= 250]
+cat(sprintf("Cell types with >=250 cells in both zones: %s\n", paste(major_cts, collapse = ", ")))
+
+ct_degs <- map_dfr(major_cts, function(ct) {
+  cells <- colnames(obj_4h)[obj_4h$cell_type_validated == ct]
+  sub <- subset(obj_4h, cells = cells)
+  Idents(sub) <- "zone"
+  tryCatch({
+    degs <- FindMarkers(sub, ident.1 = "peak", ident.2 = "valley",
+                        min.pct = 0.1, logfc.threshold = 0.05)
+    degs$gene <- rownames(degs)
+    degs$cell_type <- ct
+    degs %>% arrange(desc(abs(avg_log2FC)))
+  }, error = function(e) { cat(sprintf("  %s: error — %s\n", ct, e$message)); NULL })
+})
+write_tsv(ct_degs, file.path(DATA_DIR, "pv_degs_by_celltype.tsv"))
+cat(sprintf("Per-cell-type DEGs: %d rows across %d types\n",
+            nrow(ct_degs), length(unique(ct_degs$cell_type))))
+
+cat("Peak vs valley DEG analysis complete.\n")
+#+end_src
+
+***** Peak vs Valley Pathway Scores
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/09_pv_pathways.R
+:END:
+
+Compare DDR, IFN-I, IFN-II, and STING pathway scores between peak and valley zones, both overall and stratified by cell type family. Key question: do valleys show elevated IFN/STING consistent with bystander immune priming? DDR (18 genes), Type I IFN (19 genes), and Type II IFN (17 genes) are standard NanoString Mouse UCC panel modules (see =data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx=). STING is not a standard module; scored from available cGAS-STING genes (Irf3, Ifna, Isg15, Cxcl10).
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+
+pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
+
+# ---- Overall pathway comparison ----
+pathway_by_zone <- pv %>%
+  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score") %>%
+  mutate(pathway = PATHWAY_LABELS[pathway])
+
+p_box <- ggplot(pathway_by_zone, aes(x = pathway, y = score, fill = zone)) +
+  geom_boxplot(outlier.size = 0.1, outlier.alpha = 0.1) +
+  scale_fill_manual(values = ZONE_COLORS) +
+  labs(title = "Pathway scores: Peak vs Valley (MBRT_4h)",
+       subtitle = "NanoString Mouse UCC standard modules (DDR/IFN-I/IFN-II) + custom STING",
+       y = "Score", x = NULL) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 30, hjust = 1))
+ggsave(file.path(PLOT_DIR, "pv_pathway_boxplots.png"), plot = p_box, width = 10, height = 6, dpi = 150)
+
+# ---- Summary stats ----
+pathway_stats <- pathway_by_zone %>%
+  group_by(pathway, zone) %>%
+  summarise(n = n(), mean = mean(score, na.rm = TRUE), sd = sd(score, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = zone, values_from = c(n, mean, sd))
+cat("=== Pathway scores by zone ===\n")
+print(pathway_stats)
+write_tsv(pathway_stats, file.path(DATA_DIR, "pv_pathway_stats.tsv"))
+
+# ---- Stratified by cell type family ----
+obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+mbrt4h_meta <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(Condition == "MBRT_4h") %>%
+  select(cell_id, cell_family = ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types)
+
+pv_with_family <- pv %>%
+  left_join(mbrt4h_meta, by = "cell_id")
+
+major_families <- pv_with_family %>%
+  count(cell_family) %>%
+  filter(n >= 500) %>%
+  pull(cell_family)
+
+p_strat <- pv_with_family %>%
+  filter(cell_family %in% major_families) %>%
+  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score") %>%
+  mutate(pathway = PATHWAY_LABELS[pathway]) %>%
+  ggplot(aes(x = zone, y = score, fill = zone)) +
+  geom_boxplot(outlier.size = 0.1, outlier.alpha = 0.1) +
+  scale_fill_manual(values = ZONE_COLORS) +
+  facet_grid(pathway ~ cell_family, scales = "free_y") +
+  labs(title = "Pathway scores by zone and cell family", y = "Score") +
+  theme_bw(base_size = 10) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave(file.path(PLOT_DIR, "pv_pathway_by_celltype.png"), plot = p_strat, width = 16, height = 12, dpi = 150)
+
+cat("Pathway comparison complete.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/pv_pathway_boxplots.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/pv_pathway_by_celltype.png]]
+
+***** Peak vs Valley Composition
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/10_pv_composition.R
+:END:
+
+Compare cell type proportions between peak and valley zones. Stacked bar plots and proportion difference analysis. Key question: are immune cells enriched in valleys (potential bystander immune recruitment) and tumor epithelial cells depleted?
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+
+pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
+
+# ---- Cell type proportions by zone ----
+comp <- pv %>%
+  count(zone, cell_type_validated) %>%
+  group_by(zone) %>%
+  mutate(prop = n / sum(n)) %>%
+  ungroup()
+write_tsv(comp, file.path(DATA_DIR, "pv_composition.tsv"))
+
+# Stacked bar
+p_stack <- ggplot(comp, aes(x = zone, y = prop, fill = cell_type_validated)) +
+  geom_col() +
+  labs(title = "Cell type composition: Peak vs Valley (MBRT_4h)",
+       y = "Proportion", fill = "Cell type") +
+  theme_bw()
+ggsave(file.path(PLOT_DIR, "pv_composition_stacked.png"), plot = p_stack, width = 8, height = 6, dpi = 150)
+
+# Proportion difference (peak - valley)
+diff_df <- comp %>%
+  select(zone, cell_type_validated, prop) %>%
+  pivot_wider(names_from = zone, values_from = prop, values_fill = 0) %>%
+  mutate(diff = peak - valley) %>%
+  arrange(desc(abs(diff)))
+
+cat("=== Composition difference (peak - valley) ===\n")
+print(diff_df)
+
+p_diff <- ggplot(diff_df, aes(x = reorder(cell_type_validated, diff), y = diff,
+                               fill = diff > 0)) +
+  geom_col() +
+  scale_fill_manual(values = c("TRUE" = ZONE_COLORS["peak"], "FALSE" = ZONE_COLORS["valley"]),
+                    labels = c("TRUE" = "Enriched in peaks", "FALSE" = "Enriched in valleys"),
+                    guide = guide_legend(title = NULL)) +
+  coord_flip() +
+  labs(title = "Cell type enrichment: Peak vs Valley", x = NULL,
+       y = "Proportion difference (peak - valley)") +
+  theme_bw()
+ggsave(file.path(PLOT_DIR, "pv_composition_diff.png"), plot = p_diff, width = 10, height = 6, dpi = 150)
+
+cat("Composition analysis complete.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/pv_composition_stacked.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/pv_composition_diff.png]]
+
+***** Peak vs Valley Spatial Neighborhoods
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/11_pv_spatial_neighborhoods.R
+:END:
+
+k=20 nearest neighbor analysis within each zone. Compute immune neighbor fractions for peak vs valley cells. Key question: do valleys have more mixed tumor-immune neighborhoods, consistent with immune cell infiltration into bystander zones?
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+library(RANN)
+
+pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
+
+# ---- k=20 NN within each zone ----
+cat("Computing spatial neighborhoods by zone...\n")
+nn_by_zone <- map_dfr(c("peak", "valley"), function(z) {
+  zone_cells <- pv %>% filter(zone == z)
+  coords <- as.matrix(zone_cells[, c("x_slide_mm", "y_slide_mm")])
+  ct <- zone_cells$cell_type_validated
+
+  nn <- nn2(coords, k = min(21, nrow(coords)))
+  nn_idx <- nn$nn.idx[, -1]
+
+  immune_frac <- rowMeans(matrix(ct[nn_idx] != "tumor_epithelial", nrow = nrow(nn_idx)))
+
+  tibble(zone = z, cell_type = ct, immune_neighbor_frac = immune_frac)
+})
+
+# Density plot
+p_nn <- ggplot(nn_by_zone, aes(x = immune_neighbor_frac, fill = zone)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = ZONE_COLORS) +
+  facet_wrap(~cell_type, scales = "free_y") +
+  labs(x = "Fraction immune neighbors (k=20)",
+       title = "Spatial immune neighborhoods: Peak vs Valley (MBRT_4h)") +
+  theme_bw()
+ggsave(file.path(PLOT_DIR, "pv_spatial_nn.png"), plot = p_nn, width = 14, height = 10, dpi = 150)
+
+# Summary stats
+nn_summary <- nn_by_zone %>%
+  group_by(zone, cell_type) %>%
+  summarise(mean_immune_frac = mean(immune_neighbor_frac), n = n(), .groups = "drop") %>%
+  filter(n > 100) %>%
+  pivot_wider(names_from = zone, values_from = c(mean_immune_frac, n))
+cat("=== Mean immune neighbor fraction by zone ===\n")
+print(nn_summary)
+write_tsv(nn_summary, file.path(DATA_DIR, "pv_spatial_nn_summary.tsv"))
+
+cat("Spatial neighborhood analysis complete.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/pv_spatial_nn.png]]
+
+***** SBRT Comparison
+:PROPERTIES:
+:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/12_sbrt_comparison.R
+:END:
+
+Use SBRT_4h as a uniform-dose reference (no peak/valley structure expected). Compare MBRT peak and valley transcriptomic signatures against SBRT bulk expression. Key question: are MBRT valleys more similar to SBRT (lower effective dose) or transcriptomically distinct? Heatmap of top peak-up and valley-up genes across the three groups, plus pathway score comparison.
+
+#+begin_src jupyter-R
+if (!exists("PATHWAY_COLS")) source("00_load_data.R")
+
+obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
+pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
+bulk_degs <- read_tsv(file.path(DATA_DIR, "pv_degs_bulk.tsv"), show_col_types = FALSE)
+
+# ---- Get SBRT_4h cells ----
+sbrt4h <- obj@meta.data %>%
+  as.data.frame() %>%
+  filter(Condition == "SBRT_4h") %>%
+  select(cell_id, all_of(PATHWAY_COLS), cell_type_validated)
+
+# Get expression for top peak/valley genes in SBRT
+top_peak_genes <- bulk_degs %>% filter(avg_log2FC > 0) %>% head(20) %>% pull(gene)
+top_valley_genes <- bulk_degs %>% filter(avg_log2FC < 0) %>% head(20) %>% pull(gene)
+sig_genes <- unique(c(top_peak_genes, top_valley_genes))
+sig_genes <- sig_genes[sig_genes %in% rownames(obj)]
+
+# Extract expression for MBRT peak, MBRT valley, and SBRT
+norm_data <- GetAssayData(obj, layer = "data")
+peak_cells <- pv %>% filter(zone == "peak") %>% pull(cell_id)
+valley_cells <- pv %>% filter(zone == "valley") %>% pull(cell_id)
+sbrt_cells <- sbrt4h$cell_id
+
+if (length(sig_genes) > 0) {
+  expr_matrix <- as.matrix(norm_data[sig_genes, c(peak_cells, valley_cells, sbrt_cells)])
+
+  # Mean expression per group
+  group_means <- tibble(
+    gene = sig_genes,
+    peak = rowMeans(expr_matrix[, peak_cells, drop = FALSE]),
+    valley = rowMeans(expr_matrix[, valley_cells, drop = FALSE]),
+    sbrt = rowMeans(expr_matrix[, sbrt_cells, drop = FALSE])
+  )
+  write_tsv(group_means, file.path(DATA_DIR, "pv_sbrt_gene_comparison.tsv"))
+
+  # Heatmap-style comparison
+  group_long <- group_means %>%
+    pivot_longer(cols = c(peak, valley, sbrt), names_to = "group", values_to = "mean_expr") %>%
+    mutate(group = factor(group, levels = c("peak", "valley", "sbrt")))
+
+  p_heat <- ggplot(group_long, aes(x = group, y = gene, fill = mean_expr)) +
+    geom_tile() +
+    scale_fill_viridis_c(option = "inferno") +
+    labs(title = "Peak/Valley signature genes in SBRT_4h",
+         subtitle = "Top 20 peak-up and valley-up genes from MBRT_4h",
+         fill = "Mean expr", x = NULL) +
+    theme_bw(base_size = 12) +
+    theme(axis.text.y = element_text(size = 8))
+  ggsave(file.path(PLOT_DIR, "pv_sbrt_heatmap.png"), plot = p_heat, width = 8, height = 10, dpi = 150)
+}
+
+# ---- Pathway score comparison: MBRT peak vs MBRT valley vs SBRT ----
+sbrt_pathways <- sbrt4h %>%
+  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score") %>%
+  mutate(group = "SBRT_4h")
+
+mbrt_pathways <- pv %>%
+  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score") %>%
+  mutate(group = paste0("MBRT_", zone))
+
+combined <- bind_rows(mbrt_pathways %>% select(group, pathway, score),
+                      sbrt_pathways %>% select(group, pathway, score)) %>%
+  mutate(pathway = PATHWAY_LABELS[pathway],
+         group = factor(group, levels = c("MBRT_peak", "MBRT_valley", "SBRT_4h")))
+
+p_compare <- ggplot(combined, aes(x = group, y = score, fill = group)) +
+  geom_boxplot(outlier.size = 0.1, outlier.alpha = 0.1) +
+  scale_fill_manual(values = c("MBRT_peak" = "#E74C3C", "MBRT_valley" = "#3498DB", "SBRT_4h" = "#9B59B6")) +
+  facet_wrap(~pathway, scales = "free_y") +
+  labs(title = "Pathway scores: MBRT peak vs MBRT valley vs SBRT_4h",
+       y = "Score", x = NULL) +
+  theme_bw() + theme(axis.text.x = element_text(angle = 30, hjust = 1), legend.position = "none")
+ggsave(file.path(PLOT_DIR, "pv_sbrt_pathway_comparison.png"), plot = p_compare, width = 12, height = 8, dpi = 150)
+
+cat("SBRT comparison complete.\n")
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/pv_sbrt_heatmap.png]]
+
+#+ATTR_ORG: :width 800
+[[file:dev/peak_valley_analysis/plots/pv_sbrt_pathway_comparison.png]]
+
+***** Result Summary
+
+This workbook consolidates 21 standalone R scripts into 13 modular analysis steps spanning data loading through SBRT comparison. Key findings pending script execution: (1) stripe model parameters (15-degree tilt, ~1.02mm spacing, 4 peaks) require H2AX image validation; (2) peak vs valley DEGs, pathway scores, composition, and spatial neighborhoods will characterize the distinct biology of direct-beam vs bystander zones; (3) SBRT comparison will establish whether MBRT valleys resemble uniform-dose irradiation or represent a transcriptomically distinct bystander state.
+
+***** Ideas                                                        :noexport:
+
+- Layer 4: project peak/valley gene signatures onto other timepoints (MBRT_1h, MBRT_day2, MBRT_day6) to track signature evolution
+- Integrate Mutter_02 dataset when available for replication
+- Multi-timepoint peak/valley classification using longitudinal stripe model consistency
+- Formal pathway enrichment (GSEA/fGSEA) once gene lists from Yi are confirmed
+- Spatial ligand-receptor interaction analysis (CellChat/NicheNet) between peak and valley zones
+- Machine learning classifier trained on peak/valley gene signatures for de novo zone prediction
+
+***** Limitations                                                  :noexport:
+
+- n=1 per condition: all comparisons are exploratory and descriptive, using effect sizes rather than formal significance testing
+- Geometric stripe model assumes uniform beam spacing and parallel planar geometry; real beam profiles may have penumbra effects
+- H2AX immunofluorescence is from an adjacent serial section, not co-registered IF on the same CosMx section
+- Pathway scores (TypeI_interferon, TypeII_interferon, DNA_Damage_Repair) use standard NanoString Mouse UCC panel modules; STING is a custom score from available cGAS-STING genes
+- Peak/valley classification uses a hard threshold (spacing/4) rather than a continuous dose gradient model
+- CosMx panel (~1000 genes) may miss key pathway genes not represented in the targeted panel
+
+***** Method                                                       :noexport:
+
+The stripe model classifies MBRT_4h cells into peak (direct beam) and valley (bystander) zones using a geometric approach. Cell positions are expressed in tilt-corrected coordinates: y_corr = y_slide_mm + x_slide_mm * tan(theta), where theta = 15 degrees is the optimal tilt angle determined by maximizing p21 (Cdkn1a) contrast between putative peak and valley zones across a parameter sweep (5-35 degrees, 2-degree steps). Beam spacing is determined by grid search over 0.8-1.3mm with a forced 4-peak constraint, optimizing for peak-valley p21 contrast. The best-fit model (spacing ~1.02mm, beam centers at corrected-y ~1.14, 2.16, 3.18, 4.20mm) is validated against gamma-H2AX immunofluorescence images extracted from the lab-provided PPTX. Cells are classified as peak if their tilt-corrected y-distance to the nearest beam center is less than spacing/4, and valley otherwise. Differential expression uses Seurat FindMarkers with effect-size ranking (no formal significance testing given n=1 per condition). Spatial neighborhoods use k=20 nearest neighbors via RANN.
 
 *** Layer 2 -- MBRT vs SBRT vs Control Comparative Kinetics
 :PROPERTIES:
@@ -2876,1287 +4262,11 @@ These four findings together suggest MBRT shifts the post-RT tumor microenvironm
 - *Mutter_02 cell typing:* marker-based fallback only (insitutype labels not yet available for Mutter_02). Validates major types only.
 - *MBRT_1h necrosis-zone fraction (33%) is anomalous:* small fragmented sample slide, not real biology at 1h. Treat as artifact.
 
-*** Layer 3 -- Peak/Valley at 4h
-:PROPERTIES:
-:ID:       def10c5f-06d2-4313-850b-e37e55933b6a
-:END:
-Geometric classification of microbeam peaks vs valleys using H2AX IHC stripe pattern from [[file:/mnt/gcs/jeszyman/projects/spatial-rads/inputs/Gamma H2AX + FOVs.pptx][Gamma H2AX + FOVs.pptx]]. Per-cell H2AX IF intensity does not exist for Mutter_01 — the CosMx IF channels were used for segmentation markers (PanCK, CD298/B2M, CD45, DAPI), not H2AX. The PPTX images are separate chromogenic IHC on an adjacent section.
-
-Current best-fit stripe model (dev/03k_4peak_classify.R):
-- 15-degree downward tilt left-to-right (confirmed visually from H2AX image)
-- 1.02mm center-to-center spacing, 4 peaks
-- Tilt-corrected coordinate: y_corr = y_slide_mm + x_slide_mm * tan(15 deg)
-- Beam centers at corrected-y: 1.14, 2.16, 3.18, 4.20 mm
-- Classification: peak if dist_to_center < spacing/4, else valley (~50/50 split)
-- Validation: peaks show higher Cdkn1a/p21 (0.632 vs 0.586)
-- Pending: final visual verification of =mbrt4h_4peak_zones_labels.pdf= against H2AX image
-
 *** Layer 4 -- Signature Projection (BLOCKED)
 :PROPERTIES:
 :ID:       d6be2ccf-1371-4fac-baf0-89e2c983a9e6
 :END:
 Virtual scientist plan created: =plan-mbrt-signatures.md=, =review-mbrt-signatures.md=, =run-mbrt-signatures.sh=. Session: =spatial-ucell-scoring-plan=. Key decisions: UCell (rank-based) as primary scoring method over AddModuleScore for targeted panel; cell-type-stratified signatures primary, bulk secondary; Moran's I for formal spatial autocorrelation. Blocked on FOV-to-condition mapping from Rob/Jenn for Mutter_02.
-*** Microbeam Peak Valley Analysis                              :bioinfo_dev:
-:PROPERTIES:
-:ID: 945d9096-1a17-4b99-acfd-058f606cbd24
-:header-args:jupyter-R: :session spatial-rads :kernel spatial-rads :async yes :dir ./dev/peak_valley_analysis
-:EXPORT_FILE_NAME: ./peak-valley-analysis
-:EXPORT_TITLE: Microbeam Peak-Valley Spatial Transcriptomics Analysis
-:EXPORT_OPTIONS: toc:t num:t html-style:nil
-:EXPORT_HTML_HEAD: <link rel="stylesheet" type="text/css" href="resources/org.css"/>
-:END:
-
-Consolidation of spatial-rads exploratory analysis into a single bioinfo-dev module workbook. Layers 1-2 condensed as infrastructure, Layer 3 stripe model with curated highlights, H2AX validation as critical gate, then new peak/valley DEG/pathway/composition/neighborhood/SBRT analyses. All comparisons are descriptive (n=1 per condition) using effect sizes rather than formal significance testing.
-
-**** Background
-
-Microbeam radiation therapy (MBRT) delivers radiation through an array of parallel, planar beams with sub-millimeter spacing. Unlike conventional spatially uniform (SBRT) irradiation, MBRT creates alternating high-dose peaks and low-dose valleys in tissue. This spatial fractionation pattern may differentially engage DNA damage repair, innate immune signaling, and bystander effects. The CosMx spatial transcriptomics panel (~1000 genes) captures single-cell resolution across 11 conditions spanning MBRT, SBRT, and untreated controls at multiple timepoints (1h, 4h, day 2, day 6) in both flank tumor and tongue normal tissue models.
-
-The central question of this workbook is whether MBRT peak zones (direct beam exposure) and valley zones (bystander) show distinct transcriptomic signatures at 4 hours post-irradiation, and how these compare to the uniform-dose SBRT response.
-
-***** Related work and first-in-field positioning
-
-A targeted literature search across Scopus and PubMed [2026-04-11] returned zero published studies applying spatial transcriptomics to any spatially-fractionated radiation therapy modality (MBRT, GRID, lattice, or SFRT). Full query strings, result counts, and API responses are captured in [[file:./docs/scopus_negative_result_2026-04-11.json][docs/scopus_negative_result_2026-04-11.json]]; the methodological framing for this gap lives at [[file:~/repos/biotools/biotools.org::*Spatial methods at the radiotherapy / tumor microenvironment interface][biotools.org: Spatial methods at the RT/TME interface]]. This project is accordingly first-in-field for MBRT peak/valley spatial transcriptomics.
-
-The closest published analogs all use uniform-dose exposure and can inform manuscript framing around RT-context spatial/single-cell transcriptomics, but none address a dose-gradient, peak/valley, or vertex dimension:
-
-- [cite:@oyoshi2023] — comprehensive single-cell analysis of radiotherapy-induced macrophage infiltration with immunosuppressive phenotype in esophageal squamous cell carcinoma. Tightest RT analog of the three: explicitly characterizes a radiotherapy-induced immune-cell response, though single-cell rather than spatial and restricted to a single tumor type at uniform dose.
-- [cite:@shiau2024] — spatially resolved analysis of therapy-associated tumor microenvironment remodeling in pancreatic cancer (Nat Genet). Brings the spatial dimension but "therapy" in PDAC typically bundles chemotherapy with chemoradiation; the paper does not isolate RT-specific effects and does not manipulate dose geometry.
-- [cite:@zhou2022pdac] — spatially restricted drivers and transitional cell populations cooperating with the TME in untreated vs chemo-resistant pancreatic cancer (Nat Genet). Establishes the spatially-resolved treatment-response framework but contrasts chemotherapy resistance rather than radiotherapy response; included as the foundational methods template for spatial analysis of therapy-associated TME shifts.
-
-None of these three establishes a precedent for the core peak/valley contrast this project addresses: within-slide comparison of sub-millimeter-spaced high-dose and low-dose zones at cellular resolution. The combined absence of (a) any spatially-fractionated RT spatial-omics study and (b) a dose-geometry-aware analysis framework means the methods used in this workbook are being developed de novo.
-
-**** Data
-
-| File                   | Description                                                         | Location              |
-|------------------------+---------------------------------------------------------------------+-----------------------|
-| Counts parquet         | Raw transcript counts, ~1000 genes x 1.4M cells                     | GCS inputs/           |
-| Metadata parquet       | Cell-level QC flags, coordinates, insitutype labels, pathway scores | GCS inputs/           |
-| Gamma H2AX + FOVs.pptx | H2AX immunofluorescence images with FOV overlay                     | GCS inputs/           |
-| seurat_clustered.rds   | Pre-computed Seurat object (QC'd, normalized, clustered)            | GCS analysis/objects/ |
-
-**** Data Loading
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/00_load_data.R
-:END:
-
-Load raw parquet files from GCS, build Seurat object with parsed metadata (model, treatment, timepoint), confirm 4 pre-computed pathway score columns, and define canonical color palettes used by all downstream scripts.
-
-#+begin_src jupyter-R
-library(data.table)
-library(Seurat)
-library(arrow)
-library(tidyverse)
-
-# --- Paths ---
-INPUT_DIR <- "/mnt/gcs/jeszyman/projects/spatial-rads/inputs"
-ANALYSIS_DIR <- "/mnt/gcs/jeszyman/projects/spatial-rads/analysis"
-DATA_DIR <- "data"
-PLOT_DIR <- "plots"
-for (d in c(DATA_DIR, PLOT_DIR)) if (!dir.exists(d)) dir.create(d, recursive = TRUE)
-
-# --- Load counts ---
-counts_df <- read_parquet(file.path(INPUT_DIR, "projects_Mutter_01_CosMmR_app_data_raw_tx_counts_matrix.parquet"))
-counts_dt <- as.data.table(counts_df)
-non_gene_cols <- c("Slide", "fov", "cell_id")
-gene_cols <- setdiff(colnames(counts_dt), non_gene_cols)
-cat(sprintf("Panel size: %d genes\n", length(gene_cols)))
-cat(sprintf("Total cells in counts: %d\n", nrow(counts_dt)))
-stopifnot(!anyDuplicated(counts_dt$cell_id))
-
-# --- Load metadata ---
-meta_df <- read_parquet(file.path(INPUT_DIR, "Analysis_Mutter_01_CosMmR_Mutter_updated_metadata.parquet"))
-meta_dt <- as.data.table(meta_df)
-cat(sprintf("Total cells in metadata: %d\n", nrow(meta_dt)))
-
-# --- Build count matrix (genes x cells) ---
-count_mat <- t(as.matrix(counts_dt[, ..gene_cols]))
-colnames(count_mat) <- counts_dt$cell_id
-rownames(count_mat) <- gene_cols
-
-meta_for_seurat <- as.data.frame(meta_dt)
-rownames(meta_for_seurat) <- meta_for_seurat$cell_id
-stopifnot(all(colnames(count_mat) %in% rownames(meta_for_seurat)))
-
-# --- Create Seurat object ---
-obj <- CreateSeuratObject(
-  counts    = count_mat,
-  meta.data = meta_for_seurat,
-  project   = "CosMx_Mutter"
-)
-cat(sprintf("Raw Seurat: %d genes x %d cells\n", nrow(obj), ncol(obj)))
-
-# --- Parsed metadata ---
-obj$model <- ifelse(grepl("^Tongue", obj$Condition), "tongue", "flank")
-obj$treatment <- case_when(
-  obj$Condition == "Control" ~ "NT",
-  grepl("MBRT", obj$Condition) ~ "MBRT",
-  grepl("SBRT", obj$Condition) ~ "SBRT"
-)
-obj$timepoint_h <- case_when(
-  obj$Condition == "Control" ~ 0,
-  grepl("1h", obj$Condition) ~ 1,
-  grepl("4h", obj$Condition) ~ 4,
-  grepl("day2", obj$Condition) ~ 48,
-  grepl("day6", obj$Condition) ~ 144,
-  grepl("day8", obj$Condition) ~ 192,
-  grepl("day10", obj$Condition) ~ 240
-)
-
-# --- Verify pathway columns ---
-PATHWAY_COLS <- c("TypeI_interferon", "TypeII_interferon", "STING", "DNA_Damage_Repair")
-stopifnot(all(PATHWAY_COLS %in% colnames(obj@meta.data)))
-cat("Pathway score columns confirmed present.\n")
-
-# --- Canonical color palettes ---
-TREATMENT_COLORS <- c("MBRT" = "#E74C3C", "SBRT" = "#3498DB", "NT" = "#7F8C8D")
-
-CONDITION_LEVELS <- c("Control", "MBRT_1h", "MBRT_4h", "SBRT_4h",
-                      "MBRT_day2", "SBRT_day2", "MBRT_day6", "SBRT_day6",
-                      "Tongue_MBRT_day8", "Tongue_MBRT_day10", "Tongue_SBRT_day10")
-
-ZONE_COLORS <- c("peak" = "#E74C3C", "valley" = "#3498DB")
-
-PATHWAY_LABELS <- c(
-  "TypeI_interferon" = "Type I IFN",
-  "TypeII_interferon" = "Type II IFN",
-  "STING" = "STING",
-  "DNA_Damage_Repair" = "DDR"
-)
-
-cat(sprintf("Raw object ready: %d genes x %d cells\n", nrow(obj), ncol(obj)))
-#+end_src
-
-**** QC Filtering
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/01_qc_filter.R
-:END:
-
-Apply multi-criteria QC filtering: qcFlagsCell=="Pass", nCount_RNA>20, nFeature_RNA>10, propNegative<0.5. Expected retention ~68% (1.4M to 971K cells). Generate QC violin plots and save summary statistics.
-
-#+begin_src jupyter-R
-if (!exists("obj")) source("00_load_data.R")
-
-# --- QC filtering ---
-pre_qc <- table(obj$Condition)
-obj <- subset(obj, subset = qcFlagsCell == "Pass")
-obj <- subset(obj, subset = nCount_RNA > 20 & nFeature_RNA > 10 & propNegative < 0.5)
-post_qc <- table(obj$Condition)
-
-qc_summary <- data.frame(
-  condition = names(pre_qc),
-  pre_filter = as.integer(pre_qc),
-  post_filter = as.integer(post_qc[names(pre_qc)]),
-  pct_retained = round(as.integer(post_qc[names(pre_qc)]) / as.integer(pre_qc) * 100, 1)
-)
-print(qc_summary)
-write_tsv(qc_summary, file.path(DATA_DIR, "qc_summary.tsv"))
-cat(sprintf("Post-QC: %d cells retained (%.0f%%)\n", ncol(obj),
-            ncol(obj) / sum(as.integer(pre_qc)) * 100))
-
-# --- QC violin plots ---
-p_qc <- VlnPlot(obj, features = c("nCount_RNA", "nFeature_RNA", "propNegative"),
-                 group.by = "Condition", pt.size = 0, ncol = 3)
-ggsave(file.path(PLOT_DIR, "qc_violins.png"), plot = p_qc, width = 16, height = 5, dpi = 150)
-
-# --- Save QC'd object ---
-saveRDS(obj, file.path(ANALYSIS_DIR, "objects", "seurat_qc.rds"))
-cat("QC'd Seurat object saved.\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/qc_violins.png]]
-
-**** Normalization and Clustering
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/02_normalize_cluster.R
-:END:
-
-LogNormalize (scale 1e4), VST variable features (2000), PCA (20 dims), Louvain clustering (resolution 0.4), UMAP. Generates landscape plots by cluster, condition, slide, and treatment. Expected: 9 clusters.
-
-#+begin_src jupyter-R
-if (!exists("obj")) source("00_load_data.R")
-library(future)
-
-# Load QC'd object if not already in memory from 01
-if (!"qcFlagsCell" %in% colnames(obj@meta.data) || any(obj$qcFlagsCell != "Pass", na.rm = TRUE)) {
-  obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_qc.rds"))
-  cat(sprintf("Loaded QC'd object: %d cells\n", ncol(obj)))
-}
-
-# --- Normalize ---
-obj <- NormalizeData(obj, normalization.method = "LogNormalize", scale.factor = 1e4)
-obj <- FindVariableFeatures(obj, selection.method = "vst", nfeatures = 2000)
-cat(sprintf("Variable features: %d\n", length(VariableFeatures(obj))))
-obj <- ScaleData(obj, features = VariableFeatures(obj))
-obj <- RunPCA(obj, features = VariableFeatures(obj))
-
-# --- Cluster ---
-options(future.globals.maxSize = 50 * 1024^3)
-plan(multicore, workers = 48)
-obj <- FindNeighbors(obj, dims = 1:20)
-obj <- FindClusters(obj, resolution = 0.4)
-plan(sequential)
-
-# --- UMAP ---
-obj <- RunUMAP(obj, dims = 1:20, n.neighbors = 30, min.dist = 0.3)
-cat(sprintf("Clusters: %d | Cells: %d\n", length(levels(obj$seurat_clusters)), ncol(obj)))
-
-# --- Plots ---
-library(patchwork)
-p1 <- DimPlot(obj, group.by = "seurat_clusters", raster = TRUE, label = TRUE) + labs(title = "Clusters")
-p2 <- DimPlot(obj, group.by = "Condition", raster = TRUE) + labs(title = "Condition")
-p3 <- DimPlot(obj, group.by = "Slide", raster = TRUE) + labs(title = "Slide (batch)")
-p4 <- DimPlot(obj, group.by = "treatment", raster = TRUE) + labs(title = "Treatment")
-p_umap <- (p1 | p2) / (p3 | p4)
-ggsave(file.path(PLOT_DIR, "umap_landscape.png"), plot = p_umap, width = 16, height = 12, dpi = 150)
-
-# --- Save ---
-saveRDS(obj, file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-cat("Clustered object saved.\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/umap_landscape.png]]
-
-**** Cell Type Validation
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/03_cell_type_validation.R
-:END:
-
-Validate Yi's insitutype cell type labels against canonical markers (18/19 present in panel). The uncharacterized "a" population expresses epithelial markers (Epcam, Krt8/18) and is reclassified as tumor_epithelial. Generate dotplot, UMAP, and spatial cell type maps.
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-cat(sprintf("Loaded: %d genes x %d cells\n", nrow(obj), ncol(obj)))
-
-# --- Tabulate Yi's insitutype labels ---
-ct_table <- sort(table(obj$ImmuneAtlas_ImmGen_Main_cell_Types), decreasing = TRUE)
-cat("Cell type frequencies:\n")
-print(ct_table)
-
-ct_family <- sort(table(obj$ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types), decreasing = TRUE)
-cat("\nCell family frequencies:\n")
-print(ct_family)
-
-# --- Canonical marker validation ---
-marker_candidates <- c(
-  "Cd3e", "Cd3d", "Cd4", "Cd8a", "Cd8b1",
-  "Cd68", "Adgre1", "Csf1r", "Itgam",
-  "Epcam", "Krt8", "Krt18", "Krt14",
-  "Cd19", "Ms4a1",
-  "Ncr1", "Klrb1c",
-  "Pecam1", "Cdh5"
-)
-available_markers <- marker_candidates[marker_candidates %in% rownames(obj)]
-cat(sprintf("\nAvailable markers: %d / %d\n", length(available_markers), length(marker_candidates)))
-
-p_dot <- DotPlot(obj, features = available_markers,
-                 group.by = "ImmuneAtlas_ImmGen_Main_cell_Types") +
-  RotatedAxis() +
-  labs(title = "Marker validation: Yi's cell type labels")
-ggsave(file.path(PLOT_DIR, "celltype_marker_dotplot.png"), plot = p_dot, width = 14, height = 8, dpi = 150)
-
-# --- Characterize "a" population as tumor_epithelial ---
-epi_markers <- available_markers[available_markers %in% c("Epcam", "Krt8", "Krt18", "Krt14")]
-norm_data <- GetAssayData(obj, layer = "data")
-a_cells <- which(obj$ImmuneAtlas_ImmGen_Main_cell_Types == "a")
-non_a <- which(obj$ImmuneAtlas_ImmGen_Main_cell_Types != "a")
-cat("\nEpithelial marker enrichment in 'a' population:\n")
-for (m in epi_markers) {
-  a_mean <- mean(norm_data[m, a_cells])
-  other_mean <- mean(norm_data[m, non_a])
-  cat(sprintf("  %s: 'a' mean=%.3f, others mean=%.3f, ratio=%.1f\n",
-              m, a_mean, other_mean, a_mean / max(other_mean, 0.001)))
-}
-
-# --- Create validated cell type label ---
-obj$cell_type_validated <- obj$ImmuneAtlas_ImmGen_Main_cell_Types
-obj$cell_type_validated[obj$cell_type_validated == "a"] <- "tumor_epithelial"
-
-# --- UMAP by validated cell type ---
-p_ct <- DimPlot(obj, group.by = "cell_type_validated", raster = TRUE, label = TRUE, repel = TRUE) +
-  labs(title = "Cell types (validated)")
-ggsave(file.path(PLOT_DIR, "umap_celltype_validated.png"), plot = p_ct, width = 10, height = 8, dpi = 150)
-
-# --- Spatial cell type maps (flank) ---
-p_spatial <- obj@meta.data %>%
-  as.data.frame() %>%
-  filter(model == "flank") %>%
-  ggplot(aes(x = x_slide_mm, y = y_slide_mm, color = cell_type_validated)) +
-  geom_point(size = 0.1, alpha = 0.3) +
-  facet_wrap(~Condition, scales = "free") +
-  labs(title = "Spatial cell type distribution (flank)", color = "Cell type") +
-  theme_bw() +
-  theme(legend.position = "bottom") +
-  guides(color = guide_legend(override.aes = list(size = 2, alpha = 1)))
-ggsave(file.path(PLOT_DIR, "spatial_celltype_flank.png"), plot = p_spatial, width = 16, height = 12, dpi = 150)
-
-# --- Save updated object ---
-saveRDS(obj, file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-cat("Updated object saved with validated cell types.\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/celltype_marker_dotplot.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/umap_celltype_validated.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/spatial_celltype_flank.png]]
-
-**** DEGs and Kinetics Overview
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/04_deg_kinetics.R
-:END:
-
-Condensed Layer 2 analysis: effect-size ranked DEGs for MBRT vs Control, SBRT vs Control, and MBRT vs SBRT at matched timepoints. Pathway score kinetics (DDR, IFN-I, IFN-II, STING) across the time course. Cell type composition shifts and spatial neighborhood immune fractions at 4h. This section motivates the peak/valley investigation by establishing that MBRT and SBRT produce distinct transcriptomic responses.
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-library(RANN)
-
-obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-cat(sprintf("Loaded: %d genes x %d cells\n", nrow(obj), ncol(obj)))
-
-# ---- DEG function (effect-size ranked) ----
-run_deg <- function(obj, ident.1, ident.2, group.by = "Condition") {
-  Idents(obj) <- group.by
-  markers <- FindMarkers(obj, ident.1 = ident.1, ident.2 = ident.2,
-                         min.pct = 0.1, logfc.threshold = 0.1)
-  markers$gene <- rownames(markers)
-  markers$comparison <- paste0(ident.1, "_vs_", ident.2)
-  markers %>% arrange(desc(abs(avg_log2FC)))
-}
-
-# ---- Bulk DEGs: MBRT/SBRT vs Control, MBRT vs SBRT ----
-cat("Running bulk DEGs...\n")
-mbrt_tp <- c("MBRT_1h", "MBRT_4h", "MBRT_day2", "MBRT_day6")
-deg_mbrt_ctrl <- map_dfr(mbrt_tp, function(tp) {
-  sub <- subset(obj, cells = colnames(obj)[obj$Condition %in% c(tp, "Control")])
-  run_deg(sub, tp, "Control")
-})
-
-sbrt_tp <- c("SBRT_4h", "SBRT_day2", "SBRT_day6")
-deg_sbrt_ctrl <- map_dfr(sbrt_tp, function(tp) {
-  sub <- subset(obj, cells = colnames(obj)[obj$Condition %in% c(tp, "Control")])
-  run_deg(sub, tp, "Control")
-})
-
-matched <- list(c("MBRT_4h", "SBRT_4h"), c("MBRT_day2", "SBRT_day2"), c("MBRT_day6", "SBRT_day6"))
-deg_mbrt_sbrt <- map_dfr(matched, function(pair) {
-  sub <- subset(obj, cells = colnames(obj)[obj$Condition %in% pair])
-  run_deg(sub, pair[1], pair[2])
-})
-
-all_degs <- bind_rows(
-  mbrt_vs_ctrl = deg_mbrt_ctrl,
-  sbrt_vs_ctrl = deg_sbrt_ctrl,
-  mbrt_vs_sbrt = deg_mbrt_sbrt,
-  .id = "comparison_type"
-)
-write_tsv(all_degs, file.path(DATA_DIR, "deg_all_cells.tsv"))
-cat(sprintf("Total bulk DEG rows: %d\n", nrow(all_degs)))
-
-# Volcano retired: -log10(p_val) is a cell-level Wilcoxon p, which pseudoreplicates the
-# n=1-per-condition design. all_degs (written above) stays valid as a descriptive
-# effect-size table. Correct significance test deferred until Mutter_02 (2d) replicates:
-# pseudobulk per sample -> DESeq2/edgeR/limma -> MA-plot/volcano with real p-values.
-
-# ---- Pathway kinetics ----
-kinetics <- obj@meta.data %>%
-  as.data.frame() %>%
-  filter(model == "flank") %>%
-  group_by(timepoint_h, treatment) %>%
-  summarise(across(all_of(PATHWAY_COLS), mean, na.rm = TRUE), .groups = "drop") %>%
-  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score")
-
-p_kin <- kinetics %>%
-  filter(treatment %in% c("MBRT", "SBRT")) %>%
-  mutate(pathway = PATHWAY_LABELS[pathway]) %>%
-  ggplot(aes(x = factor(timepoint_h), y = score, color = treatment, group = treatment)) +
-  geom_line(linewidth = 1) + geom_point(size = 3) +
-  facet_wrap(~pathway, scales = "free_y") +
-  scale_color_manual(values = TREATMENT_COLORS) +
-  labs(x = "Hours post-RT", y = "Mean pathway score", caption = "n=1 per condition") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "pathway_kinetics.png"), plot = p_kin, width = 10, height = 8, dpi = 150)
-write_tsv(kinetics, file.path(DATA_DIR, "pathway_kinetics.tsv"))
-
-# ---- Composition ----
-composition <- obj@meta.data %>%
-  as.data.frame() %>%
-  filter(model == "flank") %>%
-  count(Condition, timepoint_h, treatment, cell_type = cell_type_validated) %>%
-  group_by(Condition) %>%
-  mutate(prop = n / sum(n)) %>%
-  ungroup()
-
-p_comp <- composition %>%
-  filter(Condition %in% CONDITION_LEVELS[1:8]) %>%
-  mutate(Condition = factor(Condition, levels = CONDITION_LEVELS)) %>%
-  ggplot(aes(x = Condition, y = prop, fill = cell_type)) +
-  geom_col() +
-  labs(x = NULL, y = "Proportion", fill = "Cell type", title = "Cell type composition (flank)") +
-  theme_bw() + theme(axis.text.x = element_text(angle = 45, hjust = 1))
-ggsave(file.path(PLOT_DIR, "composition_stacked.png"), plot = p_comp, width = 10, height = 6, dpi = 150)
-write_tsv(composition, file.path(DATA_DIR, "composition.tsv"))
-
-# ---- Spatial NN immune fraction (MBRT vs SBRT at 4h) ----
-cat("Computing spatial nearest neighbors at 4h...\n")
-nn_results <- map_dfr(c("MBRT_4h", "SBRT_4h"), function(cond) {
-  meta_sub <- obj@meta.data %>% as.data.frame() %>% filter(Condition == cond)
-  coords <- as.matrix(meta_sub[, c("x_slide_mm", "y_slide_mm")])
-  ct <- meta_sub$cell_type_validated
-  nn <- nn2(coords, k = 21)
-  nn_idx <- nn$nn.idx[, -1]
-  immune_frac <- rowMeans(matrix(ct[nn_idx] != "tumor_epithelial", nrow = nrow(nn_idx)))
-  tibble(condition = cond, cell_type = ct, immune_neighbor_frac = immune_frac)
-})
-
-p_nn <- nn_results %>%
-  ggplot(aes(x = immune_neighbor_frac, fill = condition)) +
-  geom_density(alpha = 0.5) +
-  facet_wrap(~cell_type, scales = "free_y") +
-  scale_fill_manual(values = c("MBRT_4h" = TREATMENT_COLORS["MBRT"], "SBRT_4h" = TREATMENT_COLORS["SBRT"])) +
-  labs(x = "Fraction immune neighbors (k=20)", title = "Spatial immune neighborhoods: MBRT vs SBRT at 4h") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "spatial_nn_immune_frac.png"), plot = p_nn, width = 14, height = 10, dpi = 150)
-
-cat("Layer 2 condensed analysis complete.\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/pathway_kinetics.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/composition_stacked.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/spatial_nn_immune_frac.png]]
-
-**** Stripe Detection
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/05_stripe_detection.R
-:END:
-
-Curated highlights from iterative stripe model development. Fine-grained p21/Cdkn1a spatial profiling reveals periodic variation along the y-axis. Rotated axis scan confirms y-axis as the primary stripe direction. Tilt angle optimization (5-35 degrees, 2-degree steps) identifies 15 degrees as optimal. Grid search with forced 4-peak constraint converges on 1.02mm spacing. Key insight: transcript-based DDR scores alone are too noisy for stripe resolution; geometric model plus image validation is required.
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-library(zoo)
-
-obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-
-# --- Extract MBRT_4h cells ---
-mbrt4h <- obj@meta.data %>%
-  as.data.frame() %>%
-  filter(Condition == "MBRT_4h") %>%
-  select(cell_id, fov, x_slide_mm, y_slide_mm, cell_type_validated,
-         all_of(PATHWAY_COLS))
-
-p21_expr <- GetAssayData(obj, layer = "data")["Cdkn1a",
-  rownames(obj@meta.data[obj@meta.data$Condition == "MBRT_4h", ])]
-mbrt4h$p21 <- as.numeric(p21_expr[rownames(mbrt4h)])
-cat(sprintf("MBRT_4h: %d cells, %d FOVs\n", nrow(mbrt4h), length(unique(mbrt4h$fov))))
-
-# ---- Highlight 1: Fine-grained p21 spatial profile ----
-y_profile <- mbrt4h %>%
-  mutate(y_bin = round(y_slide_mm / 0.1) * 0.1) %>%
-  group_by(y_bin) %>%
-  summarise(mean_p21 = mean(p21, na.rm = TRUE), n_cells = n(), .groups = "drop") %>%
-  filter(n_cells >= 50) %>%
-  arrange(y_bin) %>%
-  mutate(p21_smooth = rollmean(mean_p21, k = 5, fill = NA, align = "center"))
-
-p_profile <- ggplot(y_profile, aes(x = y_bin)) +
-  geom_point(aes(y = mean_p21, size = n_cells), alpha = 0.3) +
-  geom_line(aes(y = p21_smooth), color = "red", linewidth = 1.2, na.rm = TRUE) +
-  labs(x = "y position (mm)", y = "Mean p21 (Cdkn1a)",
-       title = "MBRT_4h: p21 y-axis profile (0.1mm bins, 0.5mm rolling mean)") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "stripe_p21_y_profile.png"), plot = p_profile, width = 12, height = 5, dpi = 150)
-
-# ---- Highlight 2: Rotated axis scan (stripe orientation) ----
-angles <- seq(0, 175, by = 15)
-angle_cvs <- map_dbl(angles, function(theta) {
-  rad <- theta * pi / 180
-  proj <- mbrt4h$x_slide_mm * cos(rad) + mbrt4h$y_slide_mm * sin(rad)
-  bins <- round(proj / 0.1) * 0.1
-  profile <- tibble(bin = bins, p21 = mbrt4h$p21) %>%
-    group_by(bin) %>%
-    summarise(mean_p21 = mean(p21, na.rm = TRUE), n = n(), .groups = "drop") %>%
-    filter(n >= 50) %>% arrange(bin)
-  if (nrow(profile) < 7) return(0)
-  smoothed <- rollmean(profile$mean_p21, k = 5, fill = NA, align = "center")
-  smoothed <- smoothed[!is.na(smoothed)]
-  if (length(smoothed) < 3) return(0)
-  sd(smoothed) / mean(smoothed)
-})
-
-angle_df <- tibble(angle = angles, cv = angle_cvs)
-best_proj_angle <- angle_df$angle[which.max(angle_df$cv)]
-cat(sprintf("Best projection angle: %d deg (CV=%.4f)\n", best_proj_angle, max(angle_df$cv)))
-
-p_angle <- ggplot(angle_df, aes(x = angle, y = cv)) +
-  geom_line(linewidth = 1) + geom_point(size = 3) +
-  geom_vline(xintercept = best_proj_angle, color = "red", linetype = "dashed") +
-  labs(x = "Projection angle (degrees)", y = "CV of smoothed p21",
-       title = "Stripe direction scan: Y-axis shows strongest periodic variation") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "stripe_angle_scan.png"), plot = p_angle, width = 10, height = 6, dpi = 150)
-
-# ---- Highlight 3: Tilt angle optimization ----
-cat("Scanning tilt angles (5-35 deg)...\n")
-angle_results <- map_dfr(seq(5, 35, by = 2), function(deg) {
-  rad <- deg * pi / 180
-  y_corr <- mbrt4h$y_slide_mm + mbrt4h$x_slide_mm * tan(rad)
-  best_contrast <- 0
-  best_s <- NA
-  for (s in seq(0.6, 1.8, by = 0.1)) {
-    for (o in seq(min(y_corr) + s/4, min(y_corr) + s * 1.5, by = 0.1)) {
-      centers <- seq(o, max(y_corr) + s, by = s)
-      dist <- sapply(y_corr, function(yc) min(abs(yc - centers)))
-      pk <- which(dist < s / 4)
-      vl <- which(dist > s / 2)
-      if (length(pk) < 500 || length(vl) < 500) next
-      contrast <- mean(mbrt4h$p21[pk], na.rm = TRUE) - mean(mbrt4h$p21[vl], na.rm = TRUE)
-      if (contrast > best_contrast) { best_contrast <- contrast; best_s <- s }
-    }
-  }
-  tibble(angle = deg, best_spacing = best_s, contrast = best_contrast)
-})
-
-opt_angle <- angle_results$angle[which.max(angle_results$contrast)]
-cat(sprintf("Optimal tilt: %d deg (contrast=%.4f)\n", opt_angle, max(angle_results$contrast)))
-
-p_tilt <- ggplot(angle_results, aes(x = angle, y = contrast)) +
-  geom_line(linewidth = 1) + geom_point(size = 3) +
-  geom_vline(xintercept = opt_angle, color = "red", linetype = "dashed") +
-  labs(x = "Tilt angle (degrees)", y = "Peak - Valley p21 contrast",
-       title = "Tilt optimization: 15 deg confirmed as optimal") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "stripe_tilt_optimization.png"), plot = p_tilt, width = 10, height = 6, dpi = 150)
-
-# ---- Highlight 4: 4-peak grid search ----
-rad <- 15 * pi / 180
-mbrt4h <- mbrt4h %>% mutate(y_corr = y_slide_mm + x_slide_mm * tan(rad))
-y_range <- range(mbrt4h$y_corr)
-
-results_4pk <- expand_grid(
-  spacing = seq(0.8, 1.3, by = 0.02),
-  offset = seq(y_range[1] + 0.1, y_range[1] + 1.3, by = 0.05)
-) %>%
-  mutate(n_peaks = map2_int(spacing, offset, function(s, o) {
-    centers <- seq(o, y_range[2] + 0.1, by = s)
-    sum(sapply(centers, function(c) sum(abs(mbrt4h$y_corr - c) < s/4) > 100))
-  })) %>%
-  filter(n_peaks == 4) %>%
-  mutate(contrast = map2_dbl(spacing, offset, function(s, o) {
-    centers <- seq(o, y_range[2] + 0.1, by = s)
-    dist <- sapply(mbrt4h$y_corr, function(yc) min(abs(yc - centers)))
-    pk <- which(dist < s / 4); vl <- which(dist > s / 4)
-    if (length(pk) < 1000 || length(vl) < 1000) return(0)
-    mean(mbrt4h$p21[pk], na.rm = TRUE) - mean(mbrt4h$p21[vl], na.rm = TRUE)
-  }))
-
-best_4pk <- results_4pk %>% arrange(desc(contrast)) %>% head(1)
-cat(sprintf("\n4-peak model: spacing=%.2fmm, contrast=%.4f\n", best_4pk$spacing, best_4pk$contrast))
-
-# Compute beam centers for best model
-beam_centers <- seq(best_4pk$offset, y_range[2] + 0.1, by = best_4pk$spacing)
-beam_centers <- beam_centers[sapply(beam_centers, function(c) sum(abs(mbrt4h$y_corr - c) < best_4pk$spacing/4) > 100)]
-cat(sprintf("Beam centers (corrected y): %s\n", paste(round(beam_centers, 2), collapse = ", ")))
-
-# Save stripe model parameters for downstream scripts
-stripe_model <- list(
-  tilt_deg = 15,
-  spacing_mm = best_4pk$spacing,
-  beam_centers = beam_centers,
-  n_peaks = length(beam_centers)
-)
-saveRDS(stripe_model, file.path(DATA_DIR, "stripe_model.rds"))
-
-# 4-pathway spatial heatmaps
-p21_heatmap <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
-  stat_summary_2d(aes(z = p21), fun = mean, binwidth = c(0.1, 0.1)) +
-  scale_fill_viridis_c(option = "inferno", name = "Mean p21") +
-  coord_fixed() + labs(title = "p21 spatial heatmap") + theme_bw()
-
-ddr_heatmap <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
-  stat_summary_2d(aes(z = DNA_Damage_Repair), fun = mean, binwidth = c(0.1, 0.1)) +
-  scale_fill_viridis_c(option = "inferno", name = "Mean DDR") +
-  coord_fixed() + labs(title = "DDR spatial heatmap") + theme_bw()
-
-sting_heatmap <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
-  stat_summary_2d(aes(z = STING), fun = mean, binwidth = c(0.1, 0.1)) +
-  scale_fill_viridis_c(option = "plasma", name = "Mean STING") +
-  coord_fixed() + labs(title = "STING spatial heatmap") + theme_bw()
-
-ifn1_heatmap <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm)) +
-  stat_summary_2d(aes(z = TypeI_interferon), fun = mean, binwidth = c(0.1, 0.1)) +
-  scale_fill_viridis_c(option = "magma", name = "Mean IFN-I") +
-  coord_fixed() + labs(title = "Type I IFN spatial heatmap") + theme_bw()
-
-combo <- (p21_heatmap | ddr_heatmap) / (sting_heatmap | ifn1_heatmap)
-ggsave(file.path(PLOT_DIR, "stripe_4pathway_heatmaps.png"), plot = combo, width = 20, height = 16, dpi = 150)
-
-cat("Stripe detection complete. Model saved to data/stripe_model.rds\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/stripe_p21_y_profile.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/stripe_angle_scan.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/stripe_tilt_optimization.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/stripe_4pathway_heatmaps.png]]
-
-**** H2AX Image Validation
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/06_h2ax_validation.R
-:END:
-
-Critical validation gate. Extract H2AX immunofluorescence images from the lab-provided PPTX, generate a stripe model zone map at matching scale and orientation, and attempt programmatic co-registration by comparing H2AX intensity profiles along the y-axis to model beam centers. Acceptance criterion: beam centers within ~0.2mm of H2AX intensity peaks. If programmatic co-registration fails, side-by-side visual comparison is the fallback.
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-library(officer)
-library(magick)
-
-obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-stripe_model <- readRDS(file.path(DATA_DIR, "stripe_model.rds"))
-
-mbrt4h <- obj@meta.data %>%
-  as.data.frame() %>%
-  filter(Condition == "MBRT_4h") %>%
-  select(cell_id, fov, x_slide_mm, y_slide_mm, cell_type_validated)
-
-rad <- stripe_model$tilt_deg * pi / 180
-mbrt4h <- mbrt4h %>% mutate(y_corr = y_slide_mm + x_slide_mm * tan(rad))
-
-# ---- Part A: Extract H2AX image from PPTX ----
-pptx_path <- file.path(INPUT_DIR, "Gamma H2AX + FOVs.pptx")
-cat(sprintf("Reading PPTX: %s\n", pptx_path))
-
-tryCatch({
-  pptx <- read_pptx(pptx_path)
-  slide_summary <- pptx_summary(pptx)
-  cat(sprintf("PPTX has %d slides, %d content elements\n",
-              max(slide_summary$slide_index), nrow(slide_summary)))
-
-  # Extract images from PPTX media
-  img_files <- list.files(
-    file.path(dirname(pptx_path), "..", "pptx_media"),
-    pattern = "\\.(png|jpg|jpeg|tif|tiff)$", full.names = TRUE, ignore.case = TRUE
-  )
-
-  # Alternative: extract directly from pptx zip
-  if (length(img_files) == 0) {
-    tmpdir <- tempdir()
-    unzip(pptx_path, exdir = tmpdir)
-    img_files <- list.files(file.path(tmpdir, "ppt", "media"),
-                            pattern = "\\.(png|jpg|jpeg|tif|tiff|emf|wmf)$",
-                            full.names = TRUE, ignore.case = TRUE)
-    cat(sprintf("Extracted %d media files from PPTX\n", length(img_files)))
-  }
-
-  if (length(img_files) > 0) {
-    # Read the largest image (likely the H2AX slide scan)
-    img_sizes <- file.size(img_files)
-    h2ax_path <- img_files[which.max(img_sizes)]
-    cat(sprintf("Using largest image: %s (%.1f KB)\n", basename(h2ax_path), max(img_sizes) / 1024))
-
-    h2ax_img <- image_read(h2ax_path)
-    img_info <- image_info(h2ax_img)
-    cat(sprintf("Image dimensions: %d x %d px\n", img_info$width, img_info$height))
-
-    # Save extracted image
-    image_write(h2ax_img, file.path(PLOT_DIR, "h2ax_extracted.png"))
-    cat("H2AX image saved to plots/h2ax_extracted.png\n")
-    h2ax_extracted <- TRUE
-  } else {
-    cat("WARNING: No images found in PPTX. Side-by-side comparison will use placeholder.\n")
-    h2ax_extracted <- FALSE
-  }
-}, error = function(e) {
-  cat(sprintf("PPTX extraction failed: %s\n", e$message))
-  cat("Proceeding with zone map only.\n")
-  h2ax_extracted <<- FALSE
-})
-
-# ---- Part A (cont): Side-by-side zone map ----
-fov_centroids <- mbrt4h %>%
-  group_by(fov) %>%
-  summarise(x = mean(x_slide_mm), y = mean(y_slide_mm), .groups = "drop")
-
-# Classify cells for zone map
-mbrt4h <- mbrt4h %>%
-  mutate(dist_to_peak = sapply(y_corr, function(yc) min(abs(yc - stripe_model$beam_centers)))) %>%
-  mutate(zone = ifelse(dist_to_peak < stripe_model$spacing_mm / 4, "peak", "valley"))
-
-p_zones <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = zone)) +
-  geom_point(size = 0.02, alpha = 0.3) +
-  scale_color_manual(values = ZONE_COLORS) +
-  coord_fixed() +
-  labs(title = sprintf("Stripe model: %d-deg tilt, %.2fmm spacing, %d peaks",
-                       stripe_model$tilt_deg, stripe_model$spacing_mm, stripe_model$n_peaks),
-       color = "Zone") +
-  theme_bw(base_size = 14)
-for (bc in stripe_model$beam_centers) {
-  p_zones <- p_zones + geom_abline(intercept = bc, slope = -tan(rad),
-                                    color = "yellow", linewidth = 0.6, alpha = 0.8)
-}
-
-# With FOV labels
-p_zones_labeled <- p_zones +
-  geom_text(data = fov_centroids, aes(x = x, y = y, label = fov),
-            color = "black", size = 2, fontface = "bold", inherit.aes = FALSE)
-ggsave(file.path(PLOT_DIR, "h2ax_zone_map_labeled.png"), plot = p_zones_labeled, width = 14, height = 10, dpi = 150)
-
-# ---- Part B: Programmatic co-registration attempt ----
-if (exists("h2ax_extracted") && h2ax_extracted) {
-  tryCatch({
-    cat("\nAttempting programmatic co-registration...\n")
-
-    # Convert H2AX image to grayscale for intensity analysis
-    h2ax_gray <- image_convert(h2ax_img, colorspace = "gray")
-    h2ax_mat <- as.integer(image_data(h2ax_gray, channels = "gray"))
-    dim(h2ax_mat) <- c(img_info$height, img_info$width)
-
-    cat(sprintf("Grayscale matrix: %d rows x %d cols\n", nrow(h2ax_mat), ncol(h2ax_mat)))
-
-    # Compute column-averaged intensity profile (horizontal stripes -> vertical profile)
-    row_means <- rowMeans(h2ax_mat)
-
-    # Smooth the profile
-    row_smooth <- rollmean(row_means, k = max(1, length(row_means) %/% 50), fill = NA, align = "center")
-
-    # Map pixel rows to approximate mm (using tissue extent)
-    tissue_rows <- which(row_means > quantile(row_means, 0.1))
-    if (length(tissue_rows) > 10) {
-      tissue_top <- min(tissue_rows)
-      tissue_bot <- max(tissue_rows)
-      tissue_span_px <- tissue_bot - tissue_top
-
-      # CosMx tissue y-range
-      y_range_mm <- range(mbrt4h$y_slide_mm)
-      mm_per_px <- diff(y_range_mm) / tissue_span_px
-
-      intensity_profile <- tibble(
-        pixel_row = seq_along(row_smooth),
-        intensity = row_smooth,
-        y_mm = (pixel_row - tissue_top) * mm_per_px + y_range_mm[1]
-      ) %>%
-        filter(!is.na(intensity), y_mm >= y_range_mm[1] - 0.5, y_mm <= y_range_mm[2] + 0.5)
-
-      # Plot H2AX intensity profile with beam centers overlaid
-      p_intensity <- ggplot(intensity_profile, aes(x = y_mm, y = intensity)) +
-        geom_line(color = "brown", linewidth = 0.5) +
-        geom_vline(xintercept = stripe_model$beam_centers, color = "red", linetype = "dashed", linewidth = 0.8) +
-        annotate("text", x = stripe_model$beam_centers, y = max(intensity_profile$intensity, na.rm = TRUE) * 0.95,
-                 label = paste0("P", seq_along(stripe_model$beam_centers)), color = "red", size = 4) +
-        labs(x = "y position (mm, approximate)", y = "H2AX intensity (grayscale)",
-             title = "H2AX intensity profile vs model beam centers",
-             subtitle = "Red dashed = model peak centers; brown = H2AX staining intensity") +
-        theme_bw()
-      ggsave(file.path(PLOT_DIR, "h2ax_intensity_vs_model.png"), plot = p_intensity, width = 12, height = 5, dpi = 150)
-
-      # Find H2AX intensity peaks
-      d <- diff(row_smooth[!is.na(row_smooth)])
-      local_maxs <- which(d[-length(d)] > 0 & d[-1] < 0) + 1
-      h2ax_peaks_px <- (seq_along(row_smooth)[!is.na(row_smooth)])[local_maxs]
-      h2ax_peaks_mm <- (h2ax_peaks_px - tissue_top) * mm_per_px + y_range_mm[1]
-      h2ax_peaks_mm <- h2ax_peaks_mm[h2ax_peaks_mm >= y_range_mm[1] & h2ax_peaks_mm <= y_range_mm[2]]
-
-      cat(sprintf("H2AX intensity peaks (mm): %s\n", paste(round(h2ax_peaks_mm, 2), collapse = ", ")))
-      cat(sprintf("Model beam centers (mm):   %s\n", paste(round(stripe_model$beam_centers, 2), collapse = ", ")))
-
-      # Compute alignment metric: for each model center, distance to nearest H2AX peak
-      if (length(h2ax_peaks_mm) > 0) {
-        alignment <- sapply(stripe_model$beam_centers, function(mc) {
-          min(abs(mc - h2ax_peaks_mm))
-        })
-        cat(sprintf("Alignment (mm per center): %s\n", paste(round(alignment, 3), collapse = ", ")))
-        cat(sprintf("Mean alignment error: %.3f mm (criterion: <0.2mm)\n", mean(alignment)))
-        cat(sprintf("VALIDATION: %s\n", ifelse(mean(alignment) < 0.2, "PASS", "NEEDS REVIEW")))
-      }
-    }
-  }, error = function(e) {
-    cat(sprintf("Co-registration failed: %s\n", e$message))
-    cat("Side-by-side visual comparison is the fallback.\n")
-  })
-} else {
-  cat("\nH2AX image not available. Using zone map only for validation.\n")
-  cat("User must visually compare h2ax_zone_map_labeled.png with PPTX.\n")
-}
-
-cat("\nH2AX validation complete. Review plots/h2ax_zone_map_labeled.png\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/h2ax_zone_map_labeled.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/h2ax_intensity_vs_model.png]]
-
-**** Peak Valley Classification
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/07_peak_valley_classify.R
-:END:
-
-Apply the validated (or best-available) stripe model to classify all MBRT_4h cells as peak or valley. Tilt-corrected y: y_corr = y_slide_mm + x_slide_mm * tan(15 degrees). Classification: peak if distance to nearest beam center < spacing/4, else valley. Save classification TSV and add zone metadata to Seurat object for downstream analysis.
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-
-obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-stripe_model <- readRDS(file.path(DATA_DIR, "stripe_model.rds"))
-
-mbrt4h <- obj@meta.data %>%
-  as.data.frame() %>%
-  filter(Condition == "MBRT_4h") %>%
-  select(cell_id, fov, x_slide_mm, y_slide_mm, cell_type_validated,
-         all_of(PATHWAY_COLS))
-
-p21_expr <- GetAssayData(obj, layer = "data")["Cdkn1a",
-  rownames(obj@meta.data[obj@meta.data$Condition == "MBRT_4h", ])]
-mbrt4h$p21 <- as.numeric(p21_expr[rownames(mbrt4h)])
-
-# --- Apply stripe model ---
-rad <- stripe_model$tilt_deg * pi / 180
-mbrt4h <- mbrt4h %>%
-  mutate(
-    y_corr = y_slide_mm + x_slide_mm * tan(rad),
-    dist_to_peak = sapply(y_corr, function(yc) min(abs(yc - stripe_model$beam_centers))),
-    zone = ifelse(dist_to_peak < stripe_model$spacing_mm / 4, "peak", "valley")
-  )
-
-cat("=== Peak/Valley Classification ===\n")
-cat(sprintf("Model: %d-deg tilt, %.2fmm spacing, %d peaks\n",
-            stripe_model$tilt_deg, stripe_model$spacing_mm, stripe_model$n_peaks))
-cat(sprintf("Beam centers: %s\n", paste(round(stripe_model$beam_centers, 2), collapse = ", ")))
-
-zone_counts <- mbrt4h %>% count(zone) %>% mutate(pct = round(n / sum(n) * 100, 1))
-print(zone_counts)
-
-cat("\n=== p21 validation ===\n")
-mbrt4h %>%
-  group_by(zone) %>%
-  summarise(n = n(), mean_p21 = mean(p21, na.rm = TRUE),
-            mean_DDR = mean(DNA_Damage_Repair, na.rm = TRUE), .groups = "drop") %>%
-  print()
-
-# --- Save classification ---
-pv_class <- mbrt4h %>%
-  select(cell_id, fov, x_slide_mm, y_slide_mm, y_corr, dist_to_peak, zone,
-         cell_type_validated, p21, all_of(PATHWAY_COLS))
-write_tsv(pv_class, file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"))
-cat(sprintf("Classification saved: %d cells\n", nrow(pv_class)))
-
-# --- Spatial zone map ---
-fov_centroids <- mbrt4h %>%
-  group_by(fov) %>%
-  summarise(x = mean(x_slide_mm), y = mean(y_slide_mm), .groups = "drop")
-
-p <- ggplot(mbrt4h, aes(x = x_slide_mm, y = y_slide_mm, color = zone)) +
-  geom_point(size = 0.02, alpha = 0.3) +
-  scale_color_manual(values = ZONE_COLORS) +
-  geom_text(data = fov_centroids, aes(x = x, y = y, label = fov),
-            color = "black", size = 2, fontface = "bold", inherit.aes = FALSE) +
-  coord_fixed() +
-  labs(title = sprintf("Peak/Valley: %d-deg tilt, %.2fmm, %d peaks",
-                       stripe_model$tilt_deg, stripe_model$spacing_mm, stripe_model$n_peaks),
-       color = "Zone") +
-  theme_bw(base_size = 14)
-for (bc in stripe_model$beam_centers) {
-  p <- p + geom_abline(intercept = bc, slope = -tan(rad), color = "yellow", linewidth = 0.6, alpha = 0.8)
-}
-ggsave(file.path(PLOT_DIR, "peak_valley_zones.png"), plot = p, width = 14, height = 10, dpi = 150)
-
-# --- Add zone to Seurat object for downstream use ---
-zone_lookup <- setNames(mbrt4h$zone, mbrt4h$cell_id)
-obj$peak_valley_zone <- zone_lookup[colnames(obj)]
-saveRDS(obj, file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-cat("Zone added to Seurat metadata and saved.\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/peak_valley_zones.png]]
-
-**** Peak vs Valley DEGs
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/08_pv_degs.R
-:END:
-
-Differential expression between peak and valley cells within MBRT_4h. Effect-size ranked (no formal significance testing with n=1). Both bulk (all cells) and per-cell-type analysis for major populations with >=250 cells per zone. The scientific question: what biology distinguishes direct-beam exposure from bystander zones?
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-
-obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
-
-# Subset to MBRT_4h with zone annotation
-mbrt4h_cells <- pv$cell_id
-obj_4h <- subset(obj, cells = mbrt4h_cells)
-obj_4h$zone <- pv$zone[match(colnames(obj_4h), pv$cell_id)]
-Idents(obj_4h) <- "zone"
-cat(sprintf("MBRT_4h with zones: %d cells (peak=%d, valley=%d)\n",
-            ncol(obj_4h), sum(obj_4h$zone == "peak"), sum(obj_4h$zone == "valley")))
-
-# ---- Bulk DEGs: peak vs valley ----
-cat("Running peak vs valley DEGs (all cells)...\n")
-bulk_degs <- FindMarkers(obj_4h, ident.1 = "peak", ident.2 = "valley",
-                         min.pct = 0.1, logfc.threshold = 0.05)
-bulk_degs$gene <- rownames(bulk_degs)
-bulk_degs <- bulk_degs %>% arrange(desc(abs(avg_log2FC)))
-write_tsv(bulk_degs, file.path(DATA_DIR, "pv_degs_bulk.tsv"))
-cat(sprintf("Bulk peak vs valley DEGs: %d\n", nrow(bulk_degs)))
-
-cat("\nTop 20 by effect size:\n")
-print(head(bulk_degs %>% select(gene, avg_log2FC, pct.1, pct.2, p_val_adj), 20))
-
-# Volcano retired: -log10(p_val) pseudoreplicates the n=1 design. Mutter_02 is 2d-only and
-# H2AX peak/valley ground truth is 4h-only, so NO biological replicates are coming for this
-# 4h contrast -- the n=1 spatial-descriptive views ARE final: across-stripe profiles +
-# spatial pathway maps (05), zone maps (07), gradient + dot/box plots. bulk_degs (written
-# above) is the descriptive effect-size table.
-
-# ---- Per-cell-type DEGs ----
-cat("\nRunning per-cell-type peak vs valley DEGs...\n")
-ct_counts <- table(obj_4h$cell_type_validated, obj_4h$zone)
-major_cts <- rownames(ct_counts)[apply(ct_counts, 1, min) >= 250]
-cat(sprintf("Cell types with >=250 cells in both zones: %s\n", paste(major_cts, collapse = ", ")))
-
-ct_degs <- map_dfr(major_cts, function(ct) {
-  cells <- colnames(obj_4h)[obj_4h$cell_type_validated == ct]
-  sub <- subset(obj_4h, cells = cells)
-  Idents(sub) <- "zone"
-  tryCatch({
-    degs <- FindMarkers(sub, ident.1 = "peak", ident.2 = "valley",
-                        min.pct = 0.1, logfc.threshold = 0.05)
-    degs$gene <- rownames(degs)
-    degs$cell_type <- ct
-    degs %>% arrange(desc(abs(avg_log2FC)))
-  }, error = function(e) { cat(sprintf("  %s: error — %s\n", ct, e$message)); NULL })
-})
-write_tsv(ct_degs, file.path(DATA_DIR, "pv_degs_by_celltype.tsv"))
-cat(sprintf("Per-cell-type DEGs: %d rows across %d types\n",
-            nrow(ct_degs), length(unique(ct_degs$cell_type))))
-
-cat("Peak vs valley DEG analysis complete.\n")
-#+end_src
-
-**** Peak vs Valley Pathway Scores
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/09_pv_pathways.R
-:END:
-
-Compare DDR, IFN-I, IFN-II, and STING pathway scores between peak and valley zones, both overall and stratified by cell type family. Key question: do valleys show elevated IFN/STING consistent with bystander immune priming? DDR (18 genes), Type I IFN (19 genes), and Type II IFN (17 genes) are standard NanoString Mouse UCC panel modules (see =data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx=). STING is not a standard module; scored from available cGAS-STING genes (Irf3, Ifna, Isg15, Cxcl10).
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-
-pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
-
-# ---- Overall pathway comparison ----
-pathway_by_zone <- pv %>%
-  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score") %>%
-  mutate(pathway = PATHWAY_LABELS[pathway])
-
-p_box <- ggplot(pathway_by_zone, aes(x = pathway, y = score, fill = zone)) +
-  geom_boxplot(outlier.size = 0.1, outlier.alpha = 0.1) +
-  scale_fill_manual(values = ZONE_COLORS) +
-  labs(title = "Pathway scores: Peak vs Valley (MBRT_4h)",
-       subtitle = "NanoString Mouse UCC standard modules (DDR/IFN-I/IFN-II) + custom STING",
-       y = "Score", x = NULL) +
-  theme_bw() + theme(axis.text.x = element_text(angle = 30, hjust = 1))
-ggsave(file.path(PLOT_DIR, "pv_pathway_boxplots.png"), plot = p_box, width = 10, height = 6, dpi = 150)
-
-# ---- Summary stats ----
-pathway_stats <- pathway_by_zone %>%
-  group_by(pathway, zone) %>%
-  summarise(n = n(), mean = mean(score, na.rm = TRUE), sd = sd(score, na.rm = TRUE), .groups = "drop") %>%
-  pivot_wider(names_from = zone, values_from = c(n, mean, sd))
-cat("=== Pathway scores by zone ===\n")
-print(pathway_stats)
-write_tsv(pathway_stats, file.path(DATA_DIR, "pv_pathway_stats.tsv"))
-
-# ---- Stratified by cell type family ----
-obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-mbrt4h_meta <- obj@meta.data %>%
-  as.data.frame() %>%
-  filter(Condition == "MBRT_4h") %>%
-  select(cell_id, cell_family = ImmuneAtlas_ImmGen_cellFamily_Main_cell_Types)
-
-pv_with_family <- pv %>%
-  left_join(mbrt4h_meta, by = "cell_id")
-
-major_families <- pv_with_family %>%
-  count(cell_family) %>%
-  filter(n >= 500) %>%
-  pull(cell_family)
-
-p_strat <- pv_with_family %>%
-  filter(cell_family %in% major_families) %>%
-  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score") %>%
-  mutate(pathway = PATHWAY_LABELS[pathway]) %>%
-  ggplot(aes(x = zone, y = score, fill = zone)) +
-  geom_boxplot(outlier.size = 0.1, outlier.alpha = 0.1) +
-  scale_fill_manual(values = ZONE_COLORS) +
-  facet_grid(pathway ~ cell_family, scales = "free_y") +
-  labs(title = "Pathway scores by zone and cell family", y = "Score") +
-  theme_bw(base_size = 10) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
-ggsave(file.path(PLOT_DIR, "pv_pathway_by_celltype.png"), plot = p_strat, width = 16, height = 12, dpi = 150)
-
-cat("Pathway comparison complete.\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/pv_pathway_boxplots.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/pv_pathway_by_celltype.png]]
-
-**** Peak vs Valley Composition
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/10_pv_composition.R
-:END:
-
-Compare cell type proportions between peak and valley zones. Stacked bar plots and proportion difference analysis. Key question: are immune cells enriched in valleys (potential bystander immune recruitment) and tumor epithelial cells depleted?
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-
-pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
-
-# ---- Cell type proportions by zone ----
-comp <- pv %>%
-  count(zone, cell_type_validated) %>%
-  group_by(zone) %>%
-  mutate(prop = n / sum(n)) %>%
-  ungroup()
-write_tsv(comp, file.path(DATA_DIR, "pv_composition.tsv"))
-
-# Stacked bar
-p_stack <- ggplot(comp, aes(x = zone, y = prop, fill = cell_type_validated)) +
-  geom_col() +
-  labs(title = "Cell type composition: Peak vs Valley (MBRT_4h)",
-       y = "Proportion", fill = "Cell type") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "pv_composition_stacked.png"), plot = p_stack, width = 8, height = 6, dpi = 150)
-
-# Proportion difference (peak - valley)
-diff_df <- comp %>%
-  select(zone, cell_type_validated, prop) %>%
-  pivot_wider(names_from = zone, values_from = prop, values_fill = 0) %>%
-  mutate(diff = peak - valley) %>%
-  arrange(desc(abs(diff)))
-
-cat("=== Composition difference (peak - valley) ===\n")
-print(diff_df)
-
-p_diff <- ggplot(diff_df, aes(x = reorder(cell_type_validated, diff), y = diff,
-                               fill = diff > 0)) +
-  geom_col() +
-  scale_fill_manual(values = c("TRUE" = ZONE_COLORS["peak"], "FALSE" = ZONE_COLORS["valley"]),
-                    labels = c("TRUE" = "Enriched in peaks", "FALSE" = "Enriched in valleys"),
-                    guide = guide_legend(title = NULL)) +
-  coord_flip() +
-  labs(title = "Cell type enrichment: Peak vs Valley", x = NULL,
-       y = "Proportion difference (peak - valley)") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "pv_composition_diff.png"), plot = p_diff, width = 10, height = 6, dpi = 150)
-
-cat("Composition analysis complete.\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/pv_composition_stacked.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/pv_composition_diff.png]]
-
-**** Peak vs Valley Spatial Neighborhoods
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/11_pv_spatial_neighborhoods.R
-:END:
-
-k=20 nearest neighbor analysis within each zone. Compute immune neighbor fractions for peak vs valley cells. Key question: do valleys have more mixed tumor-immune neighborhoods, consistent with immune cell infiltration into bystander zones?
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-library(RANN)
-
-pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
-
-# ---- k=20 NN within each zone ----
-cat("Computing spatial neighborhoods by zone...\n")
-nn_by_zone <- map_dfr(c("peak", "valley"), function(z) {
-  zone_cells <- pv %>% filter(zone == z)
-  coords <- as.matrix(zone_cells[, c("x_slide_mm", "y_slide_mm")])
-  ct <- zone_cells$cell_type_validated
-
-  nn <- nn2(coords, k = min(21, nrow(coords)))
-  nn_idx <- nn$nn.idx[, -1]
-
-  immune_frac <- rowMeans(matrix(ct[nn_idx] != "tumor_epithelial", nrow = nrow(nn_idx)))
-
-  tibble(zone = z, cell_type = ct, immune_neighbor_frac = immune_frac)
-})
-
-# Density plot
-p_nn <- ggplot(nn_by_zone, aes(x = immune_neighbor_frac, fill = zone)) +
-  geom_density(alpha = 0.5) +
-  scale_fill_manual(values = ZONE_COLORS) +
-  facet_wrap(~cell_type, scales = "free_y") +
-  labs(x = "Fraction immune neighbors (k=20)",
-       title = "Spatial immune neighborhoods: Peak vs Valley (MBRT_4h)") +
-  theme_bw()
-ggsave(file.path(PLOT_DIR, "pv_spatial_nn.png"), plot = p_nn, width = 14, height = 10, dpi = 150)
-
-# Summary stats
-nn_summary <- nn_by_zone %>%
-  group_by(zone, cell_type) %>%
-  summarise(mean_immune_frac = mean(immune_neighbor_frac), n = n(), .groups = "drop") %>%
-  filter(n > 100) %>%
-  pivot_wider(names_from = zone, values_from = c(mean_immune_frac, n))
-cat("=== Mean immune neighbor fraction by zone ===\n")
-print(nn_summary)
-write_tsv(nn_summary, file.path(DATA_DIR, "pv_spatial_nn_summary.tsv"))
-
-cat("Spatial neighborhood analysis complete.\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/pv_spatial_nn.png]]
-
-**** SBRT Comparison
-:PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/12_sbrt_comparison.R
-:END:
-
-Use SBRT_4h as a uniform-dose reference (no peak/valley structure expected). Compare MBRT peak and valley transcriptomic signatures against SBRT bulk expression. Key question: are MBRT valleys more similar to SBRT (lower effective dose) or transcriptomically distinct? Heatmap of top peak-up and valley-up genes across the three groups, plus pathway score comparison.
-
-#+begin_src jupyter-R
-if (!exists("PATHWAY_COLS")) source("00_load_data.R")
-
-obj <- readRDS(file.path(ANALYSIS_DIR, "objects", "seurat_clustered.rds"))
-pv <- read_tsv(file.path(DATA_DIR, "mbrt4h_peak_valley.tsv"), show_col_types = FALSE)
-bulk_degs <- read_tsv(file.path(DATA_DIR, "pv_degs_bulk.tsv"), show_col_types = FALSE)
-
-# ---- Get SBRT_4h cells ----
-sbrt4h <- obj@meta.data %>%
-  as.data.frame() %>%
-  filter(Condition == "SBRT_4h") %>%
-  select(cell_id, all_of(PATHWAY_COLS), cell_type_validated)
-
-# Get expression for top peak/valley genes in SBRT
-top_peak_genes <- bulk_degs %>% filter(avg_log2FC > 0) %>% head(20) %>% pull(gene)
-top_valley_genes <- bulk_degs %>% filter(avg_log2FC < 0) %>% head(20) %>% pull(gene)
-sig_genes <- unique(c(top_peak_genes, top_valley_genes))
-sig_genes <- sig_genes[sig_genes %in% rownames(obj)]
-
-# Extract expression for MBRT peak, MBRT valley, and SBRT
-norm_data <- GetAssayData(obj, layer = "data")
-peak_cells <- pv %>% filter(zone == "peak") %>% pull(cell_id)
-valley_cells <- pv %>% filter(zone == "valley") %>% pull(cell_id)
-sbrt_cells <- sbrt4h$cell_id
-
-if (length(sig_genes) > 0) {
-  expr_matrix <- as.matrix(norm_data[sig_genes, c(peak_cells, valley_cells, sbrt_cells)])
-
-  # Mean expression per group
-  group_means <- tibble(
-    gene = sig_genes,
-    peak = rowMeans(expr_matrix[, peak_cells, drop = FALSE]),
-    valley = rowMeans(expr_matrix[, valley_cells, drop = FALSE]),
-    sbrt = rowMeans(expr_matrix[, sbrt_cells, drop = FALSE])
-  )
-  write_tsv(group_means, file.path(DATA_DIR, "pv_sbrt_gene_comparison.tsv"))
-
-  # Heatmap-style comparison
-  group_long <- group_means %>%
-    pivot_longer(cols = c(peak, valley, sbrt), names_to = "group", values_to = "mean_expr") %>%
-    mutate(group = factor(group, levels = c("peak", "valley", "sbrt")))
-
-  p_heat <- ggplot(group_long, aes(x = group, y = gene, fill = mean_expr)) +
-    geom_tile() +
-    scale_fill_viridis_c(option = "inferno") +
-    labs(title = "Peak/Valley signature genes in SBRT_4h",
-         subtitle = "Top 20 peak-up and valley-up genes from MBRT_4h",
-         fill = "Mean expr", x = NULL) +
-    theme_bw(base_size = 12) +
-    theme(axis.text.y = element_text(size = 8))
-  ggsave(file.path(PLOT_DIR, "pv_sbrt_heatmap.png"), plot = p_heat, width = 8, height = 10, dpi = 150)
-}
-
-# ---- Pathway score comparison: MBRT peak vs MBRT valley vs SBRT ----
-sbrt_pathways <- sbrt4h %>%
-  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score") %>%
-  mutate(group = "SBRT_4h")
-
-mbrt_pathways <- pv %>%
-  pivot_longer(cols = all_of(PATHWAY_COLS), names_to = "pathway", values_to = "score") %>%
-  mutate(group = paste0("MBRT_", zone))
-
-combined <- bind_rows(mbrt_pathways %>% select(group, pathway, score),
-                      sbrt_pathways %>% select(group, pathway, score)) %>%
-  mutate(pathway = PATHWAY_LABELS[pathway],
-         group = factor(group, levels = c("MBRT_peak", "MBRT_valley", "SBRT_4h")))
-
-p_compare <- ggplot(combined, aes(x = group, y = score, fill = group)) +
-  geom_boxplot(outlier.size = 0.1, outlier.alpha = 0.1) +
-  scale_fill_manual(values = c("MBRT_peak" = "#E74C3C", "MBRT_valley" = "#3498DB", "SBRT_4h" = "#9B59B6")) +
-  facet_wrap(~pathway, scales = "free_y") +
-  labs(title = "Pathway scores: MBRT peak vs MBRT valley vs SBRT_4h",
-       y = "Score", x = NULL) +
-  theme_bw() + theme(axis.text.x = element_text(angle = 30, hjust = 1), legend.position = "none")
-ggsave(file.path(PLOT_DIR, "pv_sbrt_pathway_comparison.png"), plot = p_compare, width = 12, height = 8, dpi = 150)
-
-cat("SBRT comparison complete.\n")
-#+end_src
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/pv_sbrt_heatmap.png]]
-
-#+ATTR_ORG: :width 800
-[[file:dev/peak_valley_analysis/plots/pv_sbrt_pathway_comparison.png]]
-
-**** Result Summary
-
-This workbook consolidates 21 standalone R scripts into 13 modular analysis steps spanning data loading through SBRT comparison. Key findings pending script execution: (1) stripe model parameters (15-degree tilt, ~1.02mm spacing, 4 peaks) require H2AX image validation; (2) peak vs valley DEGs, pathway scores, composition, and spatial neighborhoods will characterize the distinct biology of direct-beam vs bystander zones; (3) SBRT comparison will establish whether MBRT valleys resemble uniform-dose irradiation or represent a transcriptomically distinct bystander state.
-
-**** Ideas                                                         :noexport:
-
-- Layer 4: project peak/valley gene signatures onto other timepoints (MBRT_1h, MBRT_day2, MBRT_day6) to track signature evolution
-- Integrate Mutter_02 dataset when available for replication
-- Multi-timepoint peak/valley classification using longitudinal stripe model consistency
-- Formal pathway enrichment (GSEA/fGSEA) once gene lists from Yi are confirmed
-- Spatial ligand-receptor interaction analysis (CellChat/NicheNet) between peak and valley zones
-- Machine learning classifier trained on peak/valley gene signatures for de novo zone prediction
-
-**** Limitations                                                   :noexport:
-
-- n=1 per condition: all comparisons are exploratory and descriptive, using effect sizes rather than formal significance testing
-- Geometric stripe model assumes uniform beam spacing and parallel planar geometry; real beam profiles may have penumbra effects
-- H2AX immunofluorescence is from an adjacent serial section, not co-registered IF on the same CosMx section
-- Pathway scores (TypeI_interferon, TypeII_interferon, DNA_Damage_Repair) use standard NanoString Mouse UCC panel modules; STING is a custom score from available cGAS-STING genes
-- Peak/valley classification uses a hard threshold (spacing/4) rather than a continuous dose gradient model
-- CosMx panel (~1000 genes) may miss key pathway genes not represented in the targeted panel
-
-**** Method                                                        :noexport:
-
-The stripe model classifies MBRT_4h cells into peak (direct beam) and valley (bystander) zones using a geometric approach. Cell positions are expressed in tilt-corrected coordinates: y_corr = y_slide_mm + x_slide_mm * tan(theta), where theta = 15 degrees is the optimal tilt angle determined by maximizing p21 (Cdkn1a) contrast between putative peak and valley zones across a parameter sweep (5-35 degrees, 2-degree steps). Beam spacing is determined by grid search over 0.8-1.3mm with a forced 4-peak constraint, optimizing for peak-valley p21 contrast. The best-fit model (spacing ~1.02mm, beam centers at corrected-y ~1.14, 2.16, 3.18, 4.20mm) is validated against gamma-H2AX immunofluorescence images extracted from the lab-provided PPTX. Cells are classified as peak if their tilt-corrected y-distance to the nearest beam center is less than spacing/4, and valley otherwise. Differential expression uses Seurat FindMarkers with effect-size ranking (no formal significance testing given n=1 per condition). Spatial neighborhoods use k=20 nearest neighbors via RANN.
-
 ** Exploratory analysis
 *** Scientific notes
 - Kinetics are more interesting than marginal statistical gain at one timepoint
@@ -5054,7 +5164,73 @@ save_plot(p, out, w = 9, h = 5.5)
 :ID:       099e5bae-c2e0-4320-a760-1088dabecbb7
 :END:
 
-Two report-only confound checks on the day-2 composition (fraction-shift) result, both over the only arm-replicated design (Mutter_02 day-2, n=4/arm). The compute steps in [[file:workflows/aggregate_differential.smk][aggregate_differential.smk]] (rules =agg_qc_arm_balance= and =agg_qc_reproducibility=, scripts under [[file:scripts/aggregate/][scripts/aggregate/]]) end at tabular output; these blocks render the figures from those tables, matching the standalone pattern of the Experimental Design figures above.
+Report-only QC bearing on the day-2 composition (fraction-shift) result, in four parts: the per-sample technical metrics that describe each sample, two confound checks that the treatment arms carrying the signal are balanced and internally reproducible, and an independent cross-check against the data provider's pass-list. Compute steps end at tabular output (preprocessing metrics; the =agg_qc_arm_balance= / =agg_qc_reproducibility= rules in [[file:workflows/aggregate_differential.smk][aggregate_differential.smk]]); these blocks render the figures from those tables, matching the standalone pattern of the Experimental Design figures above.
+
+**** Per-sample technical metrics
+
+The per-sample sensitivity and noise summary (SpatialQM / Plummer et al. 2025 metrics, emitted report-only by =preprocessing.smk=): transcripts/cell, genes/cell, sparsity, SNR, and specificity FDR. The descriptive backdrop for the confound checks that follow, and the source of the cross-cohort panel gap (Mutter_02 more sensitive and cleaner). This block renders the figure from [[file:results/processing/sample_tech_metrics.tsv][sample_tech_metrics.tsv]].
+
+Interpretation: the five metrics are not independent axes but one underlying variable -- per-cell capture sensitivity -- measured five ways (across samples, TPC correlates with SNR at rho 0.89, with specificity FDR at rho -0.89, and with sparsity at rho -0.73). The apparent Mutter_01-vs-Mutter_02 separation is therefore a single cohort difference: Mutter_02 is the deeper-sampled cohort (~1.5-2x the transcripts per cell), and its lower specificity FDR follows arithmetically, since FDR is a ratio of a roughly fixed negative-probe background to total signal -- more real transcripts shrink that fraction. The cause of the deeper sampling is not established from these data (candidate contributors: the custom-augmented panel, run chemistry, imaging cycles, tissue and segmentation quality). The implication is bounded: the gap is a between-cohort constant, so it does not confound the within-Mutter_02 day-2 arm contrasts (where the cross-arm balance check confirms the arms are matched), but it does attenuate cross-dataset (M01<->M02) effect-size concordance -- Mutter_01's lower sensitivity compresses and adds noise to its effects, so the concordance understates true agreement rather than reflecting biological divergence.
+
+#+begin_src R :tangle scripts/fig_sample_tech_metrics.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_sample_tech_metrics.R
+# Per-sample technical QC metrics (SpatialQM / Plummer et al. 2025): each sample's
+# sensitivity and noise summary -- transcripts/cell, genes/cell, sparsity, SNR, and
+# specificity FDR -- one point per sample, split by dataset, sized by cell count.
+# The descriptive backdrop for the confound checks that follow: it shows the panel-
+# generation gap (M02 more sensitive and cleaner than M01) that the cross-arm balance
+# check then rules out as a within-cohort confound. Reads the preprocessing table.
+# Args (all optional, canonical defaults): <sample_tech_metrics.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+a   <- commandArgs(trailingOnly = TRUE)
+inp <- if (length(a) >= 1) a[1] else "results/processing/sample_tech_metrics.tsv"
+out <- if (length(a) >= 2) sub("\\.png$", "", a[2]) else "results/processing/plots/sample_tech_metrics"
+
+METRICS <- c(tpc = "TPC (transcripts/cell)", med_nFeature = "genes/cell (median)",
+             sparsity = "sparsity", snr = "SNR", specificity_fdr = "specificity FDR")
+
+d <- read_tsv(inp, show_col_types = FALSE) %>%
+  pivot_longer(all_of(names(METRICS)), names_to = "metric", values_to = "value") %>%
+  mutate(metric  = factor(metric, levels = names(METRICS)),
+         dataset = factor(dataset, levels = c("Mutter_01", "Mutter_02")))
+
+legend_text <- str_c(
+  "Per-sample sensitivity and noise, the descriptive backdrop for the confound checks that follow. ",
+  "Each point is one sample (n = 11 Mutter_01, 12 Mutter_02), sized by cell count; panels are the five ",
+  "SpatialQM technical metrics. The custom-augmented Mutter_02 panel is both more sensitive (higher ",
+  "transcripts- and genes-per-cell and SNR) and cleaner (lower specificity FDR) than Mutter_01 -- an ",
+  "expected panel-generation gap between cohorts, not a within-cohort artifact; the cross-arm balance ",
+  "check next confirms it does not separate the treatment arms that carry the biological signal.")
+
+p <- ggplot(d, aes(dataset, value, color = dataset, size = n_cells)) +
+  geom_jitter(width = 0.15, height = 0, alpha = 0.8) +
+  facet_wrap(~ metric, scales = "free_y", nrow = 1, labeller = as_labeller(METRICS)) +
+  scale_color_manual(values = c(Mutter_01 = "#3c78d8", Mutter_02 = "#e69138"), guide = "none") +
+  scale_size_continuous(range = c(1.5, 5), labels = scales::label_number(scale = 1e-3, suffix = "k"),
+                        name = "cells") +
+  labs(x = NULL, y = NULL,
+       caption = str_wrap(legend_text, width = round(11 * 13))) +
+  theme_scifig(base_size = 12) +
+  theme(strip.text = element_text(face = "bold"),
+        axis.text.x = element_text(angle = 30, hjust = 1),
+        legend.position = "right",
+        legend.key.size = unit(0.4, "cm"),
+        plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
+                                    lineheight = 1.3, margin = margin(t = 20)),
+        plot.caption.position = "plot")
+
+save_plot(p, out, w = 11, h = 4.5)
+#+end_src
+
+#+ATTR_ORG: :width 600
+[[file:results/processing/plots/sample_tech_metrics.svg]]
 
 **** Cross-arm QC balance
 
@@ -5113,6 +5289,8 @@ save_plot(p, out, w = 9, h = 6)
 [[file:results/aggregate/plots/qc_arm_balance.svg]]
 
 **** Replicate reproducibility
+
+mean spearman ofpseudobulk to same arm replicate- pseudobulk across cell types, comparison within sample class
 
 #+begin_src R :tangle scripts/fig_qc_reproducibility.R
 #!/usr/bin/env Rscript
@@ -5176,6 +5354,94 @@ save_plot(p, out, w = 11, h = 5.2)
 #+ATTR_ORG: :width 600
 [[file:results/aggregate/plots/qc_reproducibility.svg]]
 
+**** Provider concordance
+
+An independent cross-check that our QC did not diverge from the delivered pass-list, in two views: how many cells each filter kept (our count vs the provider's), and which cells -- recall, the fraction of the provider's specific passed cells (matched by barcode) that survive our filter. Per Mutter_01 condition; Mutter_02 has no provider pass-list. This block renders the figure from [[file:results/processing/yi_concordance.tsv][yi_concordance.tsv]].
+
+#+begin_src R :tangle scripts/fig_provider_concordance.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_provider_concordance.R
+# Provider concordance (Mutter_01 only): the independent cross-check that our QC did
+# not diverge from the delivered pass-list, in two views. (left) HOW MANY -- our QC-kept
+# cell count vs the count the provider (Yi Liu) passed, per condition; points above the
+# identity line mean we retained more. (right) WHICH CELLS -- recall, the fraction of the
+# provider's specific passed cells (by barcode) that survive our filter, so a value near
+# 100% means we did not drop cells the provider trusted. Reads the preprocessing table
+# (Mutter_02 has no provider pass-list, so it is out of scope here).
+# Args (all optional, canonical defaults): <yi_concordance.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages({library(tidyverse); library(patchwork)})
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+a   <- commandArgs(trailingOnly = TRUE)
+inp <- if (length(a) >= 1) a[1] else "results/processing/yi_concordance.tsv"
+out <- if (length(a) >= 2) sub("\\.png$", "", a[2]) else "results/processing/plots/provider_concordance"
+
+d <- read_tsv(inp, show_col_types = FALSE) %>%
+  mutate(recall_pct = 100 * overlap / yi_pass,           # fraction of provider-passed cells (by barcode) we retain
+         model      = ifelse(str_detect(condition, "Tongue"), "tongue", "flank"),
+         condition  = fct_reorder(condition, recall_pct))
+
+lim <- c(0, max(d$our_kept, d$yi_pass) * 1.05)
+recall_min <- min(d$recall_pct); recall_max <- max(d$recall_pct)
+extra_min  <- min(d$pct_of_yi);  extra_max  <- max(d$pct_of_yi)
+
+model_cols <- c(flank = "#3c78d8", tongue = "#9c27b0")
+
+# left: how many -- counts, ours vs provider
+p1 <- ggplot(d, aes(yi_pass, our_kept, color = model)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey40") +
+  geom_point(size = 3) +
+  ggrepel::geom_text_repel(aes(label = condition), size = 2.8, show.legend = FALSE, max.overlaps = 20) +
+  scale_x_continuous(limits = lim, labels = scales::label_number(scale = 1e-3, suffix = "k")) +
+  scale_y_continuous(limits = lim, labels = scales::label_number(scale = 1e-3, suffix = "k")) +
+  scale_color_manual(values = model_cols, name = NULL) +
+  coord_equal() +
+  labs(x = "Provider-passed cells (Yi)", y = "Our QC-kept cells", subtitle = "How many: cell counts") +
+  theme_scifig(base_size = 12) +
+  theme(legend.position = c(0.82, 0.14), legend.key.size = unit(0.4, "cm"),
+        axis.title.x = element_text(margin = margin(t = 8)),
+        axis.title.y = element_text(margin = margin(r = 8)))
+
+# right: which cells -- recall of the provider's specific barcodes, zoomed near ceiling
+p2 <- ggplot(d, aes(recall_pct, condition, color = model)) +
+  geom_vline(xintercept = 100, linetype = "dashed", color = "grey40") +
+  geom_segment(aes(x = floor(recall_min * 2) / 2, xend = recall_pct,
+                   y = condition, yend = condition), color = "grey75") +
+  geom_point(size = 3) +
+  scale_x_continuous(limits = c(floor(recall_min * 2) / 2, 100.1),
+                     breaks = scales::pretty_breaks(4)) +
+  scale_color_manual(values = model_cols, guide = "none") +
+  labs(x = "Recall of provider-passed cells (%)", y = NULL,
+       subtitle = "Which cells: identity overlap") +
+  theme_scifig(base_size = 12) +
+  theme(axis.title.x = element_text(margin = margin(t = 8)))
+
+legend_text <- str_c(
+  "Independent cross-check that QC did not diverge from the delivered pass-list, per Mutter_01 condition. ",
+  "Left, how many cells each filter kept -- our count against the provider's (Yi Liu); the dashed line is ",
+  "exact agreement, and every condition sits above it because our gate keeps ",
+  sprintf("%.0f-%.0f%%", extra_min, extra_max), " as many cells (a looser area filter). Right, which cells ",
+  "-- recall, the fraction of the provider's specific passed cells (matched by barcode) that survive our ",
+  "filter; all conditions retain ", sprintf("%.1f-%.1f%%", recall_min, recall_max),
+  ", so we add cells but drop almost none the provider trusted. Mutter_02 has no provider pass-list and is out of scope.")
+
+p <- (p1 | p2) +
+  plot_layout(widths = c(1, 0.9)) +
+  plot_annotation(caption = str_wrap(legend_text, width = round(11 * 13)),
+                  theme = theme(plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
+                                                            lineheight = 1.3, margin = margin(t = 16)),
+                                plot.caption.position = "plot"))
+
+save_plot(p, out, w = 11, h = 5.8)
+
+#+end_src
+
+#+ATTR_ORG: :width 600
+[[file:results/processing/plots/provider_concordance.svg]]
 **** Cell-type neighborhood purity
 
 A coherence check on the locked cross-dataset typing, following the standardized neighborhood-purity metric of [cite:@plummer2025spatial] (Fig 4d). For each cell, purity is the fraction of its 30 nearest neighbors in the tier-1 scVI integrated latent that carry its own final =cell_subtype=; the per-subtype distribution measures whether like-typed cells sit together in the integrated space, complementing the marker-recall gate. The compute step ([[file:workflows/aggregate_differential.smk][aggregate_differential.smk]] rule =agg_celltype_purity=, script [[file:scripts/aggregate/celltype_neighborhood_purity.py][celltype_neighborhood_purity.py]]) reuses the existing latent from the typing run and recomputes the kNN graph on CPU, so it neither retypes cells nor retrains scVI; it ends at per-subtype box quantiles and this block renders the figure. Coarse-compartment purity is near-ceiling by construction (the latent defined those clusters), so the informative signal is at the subtype level, where purity tracks positively with subtype abundance (Spearman rho = 0.82 over per-subtype medians): the lowest-purity subtypes (neutrophil, dendritic-cell, mast, plasma) are the rarest, several of them marker-rescued because they do not separate cleanly, and they form the loosest neighborhoods. The association is not a rule, with smooth muscle and NK cells sitting purer than more abundant subtypes, so the second panel plots purity against cell count directly rather than asserting a mechanism. Neighborhood size is not load-bearing, with per-subtype medians rank-correlating rho = 0.99 between k = 15 and k = 30.

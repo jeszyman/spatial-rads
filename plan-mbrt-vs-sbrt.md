@@ -14,13 +14,17 @@ Brainstormed and full-panel-reviewed 2026-06-02. Companion to
 `plan-aggregate.md` (the upstream cell-typing this consumes) and
 `plan-processing-pipeline.md` (the per-sample pipeline beneath that).
 
-> **FRAMING SUPERSEDED 2026-06-22 by `plan-mbrt-vs-sbrt-reanalysis.md`.** The "MBRT
-> essentially null" reading below is **reframed**: MBRT's response is **spatially localized to
-> the beam peaks** (the M01 4h peak/valley work already found a 37-gene MHC-I/IFN/damage
-> signature) and is *averaged out* at whole-compartment scale — a **dilution, not a biological
-> null**. The reanalysis keeps all three contrasts effect-size-forward, makes panel coverage
-> symmetric, and gates the resolving spatial analysis on M02 peak/valley staining (absent). This
-> doc remains the run-record of the executed layer.
+> **FRAMING SUPERSEDED 2026-06-22 by `plan-mbrt-vs-sbrt-reanalysis.md`, then its PREMISE RETRACTED
+> 2026-07-13.** The reanalysis reframed the "MBRT essentially null" reading below as spatial
+> *dilution* of a real M01 4h peak signature (37-gene MHC-I/IFN/damage from the rotation null). That
+> peak signature was subsequently RESOLVED to an artifact (`plan-rotation-null-reconcile.md`, Steps
+> 0-2): it does not survive current atlas tumor labels + QC or FOV-level replication, and a phase
+> null is geometrically futile here. So there is no established peak signal to have been diluted. The
+> still-valid part: whole-compartment averaging is the wrong scale to detect any peak-restricted
+> effect, so the arm-level MBRT contrasts **bound, they do not resolve**. Read the arm-level MBRT
+> result as **underpowered / unresolved at whole-compartment scale**, and a dose-resolved 4h MBRT
+> effect as an **open, currently-unsupported** question. This doc remains the run-record of the
+> executed layer.
 >
 > **STATUS — EXECUTED (2026-06-03).** The full layer ran and is committed on
 > `main` (the 15-task build; commits `ce660ca`..`b8be903`. The spent
