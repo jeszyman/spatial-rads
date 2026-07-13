@@ -1,9 +1,0 @@
-set	source
-TypeI_interferon	NanoString Mouse UCC panel module annotation (Annotations sheet)
-TypeII_interferon	NanoString Mouse UCC panel module annotation (Annotations sheet)
-DNA_Damage_Repair	NanoString Mouse UCC panel module annotation (Annotations sheet)
-STING	hand-curated cGAS-STING (panel-available genes)
-Angiogenesis	hand-curated (Hallmark/canonical)
-Hypoxia	hand-curated (Hallmark/canonical)
-Fibrosis_remodeling	hand-curated (Hallmark/canonical)
-Stromal_stress_senescence	hand-curated (Hallmark/canonical)

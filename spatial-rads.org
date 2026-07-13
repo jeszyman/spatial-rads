@@ -11,6 +11,40 @@
 :END:
 ** Background
 ** Methods
+- analysis updates
+  - qc at input level
+  - original was insitutype vs immgen
+  - per-cell median genes are sparse, new strategy- cluster then annotate
+    - unsupervised group cells by transcriptome similarity (scVI + Leiden)
+    - label clusters
+  - peak / valley m1
+    - OLD was per cell as replicates and caused pseudoreplica
+    - new is per fov as units of test,upfront check for peak / valley cell count for power,narrowed bands, no sig, likely true result
+
+- QC & preprocessing (complete) — invariant per-sample pipeline: raw per-slide RDS → 950-gene common-panel adapter → 4-criteria QC filter → LogNormalize (23 samples). Report-only QC:
+ probe/background signal-to-background, negprobe/falsecode control characterization, SpatialQM MECR contamination (per-sample + per-FOV), per-sample technical metrics
+ (TPC/features/sparsity/SNR/specificity-FDR). Confound checks: cross-arm balance (5/6 metrics balanced) and replicate reproducibility (0.94–0.97 concordance, no outlier slide). Plus
+ concordance vs Yi's original pass-list.
+
+  1. Cell typing / cross-dataset atlas (complete + locked) — identity assigned once on the merged 3.28M-cell object via scVI → Leiden (res 3.0) → cluster-then-annotate. Coarse: tumor 48%
+  / stroma 41% / immune 11%. Immune tier-2 (SingleR + marker-rescue; macrophage-dominated, B near-absent); stroma tier-2 (UCell + rescue; fibroblast/SMC/adipocyte/endothelial). Fibroblast
+  activated/resting substate split. Unified per-cell label table is the canonical downstream input. Plus the scVI-vs-Harmony integration pilot.
+
+  1. Arm-level differential — confirmatory statistical layer (executed; master-refresh pending) — single master table, 32,856 rows, three contrasts, tiered FDR, Mutter_02 day-2 n=4/arm.
+  Pseudobulk DE (SBRT collagen/Acta2 fibrosis; MBRT near-null), detection-vs-level decomposition (SBRT signal = fraction_shift, p21 ambiguous), composition (propeller), data-driven niches
+  (k-means), tumor–immune mixing (Keren), myeloid M1/M2, pathway scoring (UCell/AMS) + GSEA. Engine modularization built + validated (two experiment-agnostic engines + producers + single
+  correction site; master byte-identical).
+
+  1. Arm-level kinetics — Mutter_01 descriptive, n=1 (in progress) — flank time-course (1h→6d): DEG kinetics, pathway kinetics, composition trajectories, kNN immune-neighbor kinetics,
+  spatial CellChat, cell death/senescence, necrosis quantification (SBRT 2.6× MBRT at day-2, day-6 cross-over). Cross-dataset M01↔M02 concordance (myeloid rho 0.44). One retracted
+  immune-mixing finding here.
+
+  1. Design & sample-quality characterization (complete) — machine-readable comparison registry + marker/panel provenance & coverage tables; figures: design grid, panel provenance,
+  gene-set coverage, and (new this chat) per-cell panel detection.
+
+  1. Exploratory / cross-modality (mixed) — cell-morphology kinetics (MBRT nuclei shrink, SBRT swell; in progress); MALDI lipidomics cross-check (arm-level); IF morphology-channel check;
+  p21 kinetics; early parquet/panel QC.
+
 ** Results
 ** Next steps
 ** Acknowledgments
@@ -31,23 +65,24 @@ kill out - =analysis/= — legacy exploratory =dev/= outputs (objects, figures, 
 ** Plans
 - [[file:plan-aggregate.md][aggregate workflow — design, decisions, status]] — cross-sample/cross-dataset workflow. /Cell typing executed and locked (2026-06-02): scVI integration + coarse cluster-then-annotate (res=3.0, all four Q4 gates passed; tumor 48.1% / stroma 40.6% / immune 11.2%), tier-2 immune SingleR/ImmGen with marker rescue (macrophage-dominated; B cells near-absent), and tier-2 stroma UCell with marker rescue (fibroblast-dominated; endothelium and adipocytes recovered). All three tiers joined into the unified per-cell table =results/aggregate/full_labels.parquet=. See v2.5 banner. Split 2026-07-12 into two literate, org-tangled workflows at the typing/differential seam: =aggregate_typing.smk= (merge → scVI typing → =full_labels.parquet= + =merged.rds=) and =aggregate_differential.smk= (MBRT-vs-SBRT differential layer → =results_master.tsv=, consuming the typing outputs as leaf inputs); reproducibility-wiring history in =plan-aggregate-refactor.md=./
 - [[file:plan-aggregate-refactor.md][aggregate refactor — reproducibility-wiring, best-practice review, literate transfer]] — decisions resolved 2026-06-22 (=A2 full re-wire= / decision-forcing best-practice review / =C1= orchestration-only literate transfer), harmonized into a seven-step sequence: audit → method shoot-out (scVI vs scANVI/scArches on the 2-slide pilot) → wire the real ~13-node multi-env DAG (authoring =full_scvi.py=, retiring =recover_negprobes= onto the re-based M01 RDS) → full rebuild → re-validate the 4 Q4 gates → refresh =results_master.tsv= → literate transfer. Acceptance = re-validation, not byte-identity. Steps 1–5 executed 2026-06-22 (bit-identical rebuild; =full_scvi.py= authored, DAG wired) and Step 7 literate transfer executed 2026-07-12 as a two-file split (=aggregate_typing.smk= + =aggregate_differential.smk=), not the originally-specified single =aggregate.smk=; Step 6 =results_master.tsv= refresh + =recover_negprobes= retirement remain pending.
-- [[file:plan-mbrt-signatures.md][MBRT signatures plan]] — autonomous VM Layer-4 run.
+- [[file:plan-m01-peak-valley-signature.md][M01 peak/valley signature]] — define the 4h H2AX-anchored peak/valley signature, rebuilt on current QC'd cells + merged-scale atlas labels; FOV-pseudobulk DE + camera/UCell enrichment + coarse-compartment stratification + orthogonal morphology; within-M01 descriptive (n=1). Adjudicated by a 3-lens panel (spatial-omics/radbio/biostat). Supersedes the retired VM-based =plan-mbrt-signatures.md= (failed autonomous run; post-mortem =retro-mbrt-signatures.md=). M02 replication + gated stripe re-detection split to =plan-m02-signature-replication.md=.
+- [[file:plan-m02-signature-replication.md][M02 peak/valley signature replication]] :: skeleton (2026-07-13). Day-2 cohort (n=4/arm): whole-compartment module test of the frozen M01 signature (sample-level, positive-only), plus a within-slide peak/valley re-analysis gated on a manual FOV overlay now that M02 H2AX exists. Closes by evaluating then deleting =retro-mbrt-signatures.md= after the new run.
 - [[file:plan-mbrt-vs-sbrt-reanalysis.md][MBRT vs SBRT vs Control — arm-level reanalysis]] — CURRENT canonical framing (2026-06-22, post 4/4 devils-advocate panel). Look at all 3 contrasts effect-size-forward on the reproducible labels; the MBRT arm-level "null" is reframed as spatial DILUTION (the real M01 4h peak signature averaged out), not biological absence; symmetric panel coverage + a detectability table (not a fuzzy decision-gate); never "sparing" (MBRT dose unrecorded); resolving spatial gated on M02 peak/valley staining + MBRT dose physics. Impl: =plan-mbrt-vs-sbrt-reanalysis-impl.md=.
 - [[file:plan-mbrt-vs-sbrt.md][MBRT vs SBRT downstream analysis — design/run record]] — the EXECUTED differential layer (=results_master.tsv=, 2026-06-03): three a priori hypotheses (H1 immune, H2 vascular, H3 stromal) × MBRT/SBRT/Control + exploratory + spatial-structure scans. /Framing superseded 2026-06-22 by the reanalysis above (null → spatial dilution); retained as the run record./
 
 *** Plan status ledger
 Ground-truthed 2026-07-10 against the Change log + committed code + on-disk artifacts, NOT the =Status:= banner in each plan file (those drift). The authoritative record of what actually ran is the Change log timeline, committed code, and produced artifacts.
 
-|  # | Plan                               | State                                                                                                                                                      | Remaining                                                                                                        |
-|----+------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------|
-|  4 | [[file:plan-aggregate.md][cross-dataset typing]]               | executed + locked 2026-06-02; reproducible (bit-identical rebuild 2026-06-22); merge now reads norm.rds; typing split into aggregate_typing.smk 2026-07-12 | —                                                                                                                |
-|  5 | [[file:plan-aggregate-refactor.md][aggregate reproducibility refactor]] | Steps 1-5 done 2026-06-22; Step 7 literate transfer done 2026-07-12 (two-file split: aggregate_typing.smk + aggregate_differential.smk)                    | Step 6 refresh results_master.tsv; negprobe retirement; re-base integration-QC benchmark label off merged labels |
-|  6 | [[file:plan-mbrt-vs-sbrt.md][MBRT/SBRT/Control differential]]     | executed 2026-06-03                                                                                                                                        | framing superseded by #7; kept as run record                                                                     |
-|  7 | [[file:plan-mbrt-vs-sbrt-reanalysis.md][arm-level reanalysis]]               | spec + impl written 2026-06-22                                                                                                                             | NOT executed (detectability_summary.tsv missing; master not refreshed)                                           |
-|  8 | [[file:plan-differential-robustness.md][differential robustness]]            | code Tasks 1-9 committed; sidecars on disk 2026-06-23                                                                                                      | consolidation rerun (Task 11); master lacks the new columns                                                      |
-|  9 | [[file:plan-outcomes-de.md][outcomes / clinical-relevance DE]]   | seed (uncommitted plan-of-plan)                                                                                                                            | brainstorm -> committed plan                                                                                     |
-| 10 | [[file:plan-mbrt-signatures.md][MBRT signature projection]]          | gated                                                                                                                                                      | blocked on M02 peak/valley staining                                                                              |
-| 11 | [[file:plan-svg-v2.md][spatially-variable-gene v2]]         | seed + gated                                                                                                                                               | M01-ready; M02 blocked on staining                                                                               |
+|  # | Plan                               | State                                                                                                                                                      | Remaining                                                                                                                            |
+|----+------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------|
+|  4 | [[file:plan-aggregate.md][cross-dataset typing]]               | executed + locked 2026-06-02; reproducible (bit-identical rebuild 2026-06-22); merge now reads norm.rds; typing split into aggregate_typing.smk 2026-07-12 | —                                                                                                                                    |
+|  5 | [[file:plan-aggregate-refactor.md][aggregate reproducibility refactor]] | Steps 1-5 done 2026-06-22; Step 7 literate transfer done 2026-07-12 (two-file split: aggregate_typing.smk + aggregate_differential.smk)                    | Step 6 refresh results_master.tsv; negprobe retirement; re-base integration-QC benchmark label off merged labels                     |
+|  6 | [[file:plan-mbrt-vs-sbrt.md][MBRT/SBRT/Control differential]]     | executed 2026-06-03                                                                                                                                        | framing superseded by #7; kept as run record                                                                                         |
+|  7 | [[file:plan-mbrt-vs-sbrt-reanalysis.md][arm-level reanalysis]]               | spec + impl written 2026-06-22                                                                                                                             | NOT executed (detectability_summary.tsv missing; master not refreshed)                                                               |
+|  8 | [[file:plan-differential-robustness.md][differential robustness]]            | code Tasks 1-9 committed; sidecars on disk 2026-06-23                                                                                                      | consolidation rerun (Task 11); master lacks the new columns                                                                          |
+| 10 | [[file:plan-m01-peak-valley-signature.md][M01 peak/valley signature]]          | spec written 2026-07-13 (3-lens panel); supersedes retired plan-mbrt-signatures.md                                                                         | build: FOV-size gate → rebuild signature on current QC'd cells → camera/UCell + coarse-compartment + morphology                      |
+| 11 | [[file:plan-svg-v2.md][spatially-variable-gene v2]]         | seed + gated                                                                                                                                               | M01-ready; M02 blocked on staining                                                                                                   |
+| 12 | [[file:plan-m02-signature-replication.md][M02 signature replication]]          | skeleton written 2026-07-13; H2AX now exists for M02                                                                                                       | analyst does FOV overlay → whole-compartment module test (now) + within-slide peak/valley (gated on overlay); then eval+delete retro |
 
 Convergence knot: refreshing =results_master.tsv= is the shared pending deliverable of #5 (Step 6), #7 (impl), and #8 (Task 11) — one ~5h rerun, three owners.
 
@@ -58,7 +93,6 @@ Convergence knot: refreshing =results_master.tsv= is the shared pending delivera
 - [[file:dev/peak_valley_analysis/plots/morphology_nuc_kinetics.png][Nuclear area kinetics diverge: MBRT shrinks, SBRT swells]] — CosMx cell-segmentation morphology metrics across all flank timepoints. MBRT nuclei progressively shrink from baseline (3192→2568→2412 px median) while SBRT nuclei enlarge at day2 (3460 px) then partially recover (2968 px at day6), yielding 23% MBRT-vs-SBRT nuclear area divergence at day2. Cell area shows the expected SBRT day2 swelling (median 105 vs 82 µm² control) consistent with G2/M arrest-driven hypertrophy at 48h; MBRT cell area is modestly elevated but flat across timepoints. Peak/valley comparison at 4h shows no morphological difference (median 87.6 vs 87.3 µm²), consistent with Harada et al. (J Radiat Res 2025) finding no morphological stripe pattern until 12-16h in minibeam time-lapse imaging. Nuclear condensation in MBRT may reflect apoptosis/pyknosis predominating over arrest-driven swelling — a qualitatively different damage response than SBRT.
 - [[file:dev/if_channel_check/cdkn1a_kinetics_mean.png][p21 / Cdkn1a kinetics per cell class, MBRT vs SBRT]] — log-normalized mean Cdkn1a across 0 Gy control, MBRT (1h, 4h, 2d, 6d), and SBRT (4h, 2d, 6d) in six radiobiology-defined cell classes (tumor, macrophages, monocytes/DC, T cells, B cells, stroma). MBRT peak and valley subsets at 4h overlaid as star and cross. Myeloid cells show the largest MBRT-vs-SBRT and peak-vs-valley separation; tumor cells show minimal peak/valley p21 difference despite strong bulk induction.
 - [[file:dev/if_channel_check/block21_extrapolated_pv.png][Cell-level peak/valley label extrapolation, Block_21 (MBRT 4h)]] — stripe geometry fit empirically from manual peak FOV centroids: −25° angle from horizontal, 1.046 mm spacing, 0.27 mm beam half-width. Cells labeled by perpendicular distance to nearest peak centerline. 87.5% concordance with manual FOV labels on the labeled subset. Yields 3765 peak + 4235 valley cells across the full tumor, ~5× more than manual FOV labeling. Framework transferable to Mutter_02.
-- [[file:dev/if_channel_check/tumor_pv_rotation_null.png][Tumor peak/valley MBRT-specific signature, validated with within-block rotation null]] — rigorous control for spatial architecture confounding: the real stripe geometry (−25° angle, 1.04 mm spacing, 0.27 mm half-width) is rotated to 175 random angles on the same MBRT Block_21 tumor, and peak-valley deltas are recomputed at each angle. This preserves all of the tumor's own spatial biology (core vs edge, stromal infiltrate, TLS) while scrambling the dose labels. Rotation-null sd = 0.027, ~1.7× wider than the SBRT-block null (0.016), confirming that using SBRT on a *different* tumor under-estimated the architecture floor. Top density panel: three overlaid distributions across all 670 tumor-expressed genes — SBRT null (grey, narrowest), MBRT rotation null (green, wider, centered at 0), MBRT real (red, widest, shifted right). MBRT real clearly exceeds the rotation null, establishing that real zonation exists above and beyond architecture. Bottom scatter: real MBRT peak-valley delta vs per-gene rotation-null sd. Genes outside ±2 × per-gene null sd (dashed cones) survive the rotation null (red); those inside do not (grey). 37 of 670 genes survive (empirical p<0.05 AND |delta|>2 × overall null sd). Surviving peak-enriched tumor genes at 4h: Clu, Tpt1, Uba52, B2m, H2-D1, H2-K1 (MHC class I), Ifitm2 (IFN response), Gpx1, Ppia, Itm2b, Fau, Tpm1, Gstp1/2. Rejected as architecture artifacts (large MBRT delta but also large rotation-null sd): S100a6, S100a10, S100a4, Lgals1, Vim, Hsp90ab1, Naca. The surviving signature is dominated by MHC class I induction, IFN-response, damage/stress response, and translation-machinery genes, consistent with direct DNA damage at beam peaks. The S100 calcium-binding cluster, initially flagged as peak-enriched, was core-vs-edge tumor architecture contaminating the peak label. No valley-enriched genes survive at this threshold. Descriptive (n=1 per arm); replication pending in Mutter_02.
 - *MBRT beam geometry dilutes whole-sample DE (method caveat).* Pseudobulk DE understated the MBRT response relative to SBRT in Mutter_02 day2. MBRT delivers dose through ~1 mm-spaced peaks separated by spared valleys, so summing counts across a whole cell type averages directly irradiated peak cells with largely spared valley cells and dilutes the MBRT-vs-Control contrast. In the tumor compartment (ImmGen "a"), MBRT vs Control yielded 5 genes at padj < 0.05 against 127 for SBRT vs Control (DESeq2 ~slide_id+condition with apeglm shrinkage, n=4/condition), even though spatially-resolved 4h analysis recovered a clear MBRT peak/valley zonation signature. The weak bulk MBRT signal reflects beam-geometry dilution, not an absence of response, and argues for spatially-stratified peak/valley DE over whole-sample pseudobulk in the MBRT arms. See [[file:results/aggregate/degs_pseudobulk_m02day2.tsv][degs_pseudobulk_m02day2.tsv]].
 - *Spatially-variable-gene reframing of the dilution problem (proposed).* The fix for whole-sample dilution is to treat dose position as a continuous spatial covariate rather than a binary peak/valley label. =07_peak_valley_classify.R= already computes a per-cell =dist_to_peak=, the phase within the ~1 mm beam period from the tilt-corrected stripe geometry, then discards it by thresholding to peak versus valley at one quarter of the beam spacing; the binary =FindMarkers= peak-vs-valley test in =08_pv_degs.R= recovered little. Posing the same data as a spatially-variable-gene problem regresses each gene on =dist_to_peak=, or tests spectral power at the known beam frequency by Lomb-Scargle or Fourier analysis along the beam-perpendicular axis, with SpatialDE, SPARK, or Moran's I as model-free checks. This formulation retains every cell's continuous position, so no signal is lost to boundary mis-assignment, it exploits the known ~1 mm period as a prior, and it admits a within-sample permutation null from shuffling cell coordinates, which sidesteps the n=1 biological-replication problem that a group-mean differential test cannot. A null periodicity result is then interpretable as the absence of transcriptional structure at the beam frequency, in contrast to the binary peak-vs-valley null, which conflates absent signal with threshold-induced dilution. See [[file:dev/peak_valley_analysis/07_peak_valley_classify.R][07_peak_valley_classify.R]] and [[file:dev/peak_valley_analysis/08_pv_degs.R][08_pv_degs.R]].
 - *MBRT immunostimulation and immature-vascular targeting remain unestablished by current data (mechanism status).* In Mutter_02 day2, whole-sample immune differential expression for MBRT versus Control was near zero across all immune cell types, a consequence of the same beam-geometry dilution, and the MBRT-specific contrast (MBRT versus SBRT) was dominated by Cdkn1a/p21, a cell-cycle-arrest and stress readout rather than immune activation. Canonical activation markers (Cxcl9, Cxcl10, H2-K1, H2-D1, B2m, Tap1, Cd74, Gzmb, Cd80, Cd86, Il12b) are present on the 950-gene panel but largely silent in the MBRT contrasts; an earlier reading that myeloid cells led the MBRT response reflected p21 arrest, not activation. Immature-vascular targeting registered as a weak, non-specific trend only: whole-sample endothelial MBRT versus Control was zero, and on the spatially-resolved Mutter_01 4h peak/valley run (effect size, n=1, not adjusted p) endothelial pan-markers (Pecam1 -0.30, Cdh5 -0.18) and proliferation genes (Ccnd1, Pcna) were modestly lower in peak, compatible with vessel damage at beam peaks but small (|log2FC| <= 0.3), confounded with generic irradiated-cell stress, and uninformative on the diagnostic immature-vessel markers (Dll4, Angpt2, Notch3, Kdr), which fell below detection in the 4h endothelial subset. Both hypotheses are spatial and dose-resolved, so whole-sample pseudobulk is structurally blind to them: averaging peak and valley cells collapses the MBRT versus Control signal toward zero. Panel coverage is adequate for both; the blocker is analysis design, namely per-cell-type un-diluted and peak/valley differential expression, together with improved cell typing, not gene-panel content. See [[file:results/aggregate/degs_pseudobulk_m02day2.tsv][degs_pseudobulk_m02day2.tsv]].
@@ -119,7 +153,7 @@ digraph spatial_rads {
   m02_full      [label="Full Mutter_02 MBRT vs SBRT\nstatistical inference with biological replicates\n(gated on Yi insitutype labels)", shape=box, style="rounded,dashed,bold"];
 
   // --- RIGHT STREAM: peak/valley (focused, 4h-bound), all [dev] = rounded ---
-  tumor_sig     [label="Tumor peak/valley signature\n(rotation-null validated;\nper-gene gradients)", shape=box, style="filled,rounded,bold", fillcolor=white];
+  tumor_sig     [label="Tumor peak/valley signature\n(CONTESTED: rotation-null vs\nFOV-pseudobulk group-mean)", shape=box, style="filled,rounded,bold", fillcolor=white];
   sig_project   [label="Peak/valley signature projection\nMutter_01 → Mutter_02\n(still 4h-bound)", shape=box, style="rounded,dashed"];
 
   // --- DELIVERABLE ---
@@ -202,7 +236,7 @@ Cross-timepoint MBRT vs SBRT is the primary thread (broader, transferable, where
 **** Peak/valley (focused side branch, 4h-bound)
 
 - =[dev]= [[id:def10c5f-06d2-4313-850b-e37e55933b6a][Peak/valley classification at 4h]] — *goal*: stripe-geometry classification on the one MBRT 4h block with H2AX ground truth (Block_21) · *deps*: H2AX IHC Block_21 only · *status*: DONE · *limit*: cannot transfer across timepoints without additional H2AX-anchored blocks
-- =[dev]= [[id:945d9096-1a17-4b99-acfd-058f606cbd24][Tumor peak/valley signature with architecture-controlled validation]] — *goal*: MBRT-specific tumor signature controlled for tumor architecture via within-block rotation null · *deps*: peak/valley stripe model above · *status*: IN PROGRESS · *limit*: 4h, Block_21 only
+- =[dev]= [[id:945d9096-1a17-4b99-acfd-058f606cbd24][Tumor peak/valley signature: CONTESTED (two methods disagree)]] · *goal*: is there an MBRT-specific tumor peak/valley transcriptional signature at 4h? · *deps*: peak/valley stripe model above · *status*: CONTESTED · *limit*: 4h, Block_21 only, n=1. Two defensible methods give opposite answers on the SAME data. (1) /Within-block rotation null/ (=dev/if_channel_check/pv_rotation_null.R=): real stripe geometry rotated to 175 random angles, per-gene peak/valley delta versus rotated-null sd; 37/670 tumor genes survive (empirical p<0.05, |delta|>2×null sd), dominated by MHC-I (B2m, H2-K1, H2-D1), IFN (Ifitm2), damage/stress. This is the basis of the "real peak signature" framing in =plan-mbrt-vs-sbrt-reanalysis.md= and =project_mbrt_mechanism_status=. (2) /FOV-pseudobulk group-mean DE/ (2026-07-13, sam0003 current QC'd counts + atlas labels): cells pooled to paired FOV×zone pseudobulk, =~ FOV + zone= via limma-voom and DESeq2, core bands (dist<0.10 peak / >0.40 valley). Result: *0/891 genes at FDR<0.05 in tumor, 0 in stroma; flat p-histogram (frac p<0.05 near 0.05); immune underpowered (8 FOVs)*. The canonical MHC-I genes run flat-to-valley here (B2m −0.24, H2-K1 −0.23), not peak-up. Positive control (tumor versus stroma, same machinery) gives 589/950 at FDR<0.05, min padj 7e-57, so the pipeline detects real spatial biology when present. The two disagree because they test different nulls: rotation preserves every cell's continuous position and asks whether a small consistent shift exceeds an architecture-rotated null; group-mean demands the shift exceed FOV-to-FOV variance. *Open question: which is right, and does the rotation null survive on the current QC'd, atlas-labelled cells?* (rotation null not yet re-run on current inputs). Relates to the continuous SVG reframing (=plan-svg-v2.md=), the principled third option (regress on =dist_to_peak=, spectral/Moran's test) that sidesteps both binning and the n=1 group-mean problem.
 - =[dev → planned]= [[id:d6be2ccf-1371-4fac-baf0-89e2c983a9e6][Peak/valley signature projection Mutter_01 → Mutter_02]] — *goal*: project the signature into Mutter_02 for persistence + validation · *deps*: Mutter_02 cell typing · *status*: orchestrator + plan + reviewer scaffolded for autonomous VM run; UCell scoring chosen · *blockers*: Mutter_02 cell typing · *limit*: still bounded by ground-truth-at-4h-only; tests persistence, not whether peak/valley structure exists at other timepoints
 
 **** Past
@@ -222,7 +256,7 @@ Cross-timepoint MBRT vs SBRT is the primary thread (broader, transferable, where
 
 See [[id:2dc86037-02c7-4b51-b806-43dcc1bc1e9f][Change log]] for full detail (Change log is currently sparse; recent activity is better tracked via =git log= until the project-map skill backfills entries). Headline items, past 6 weeks:
 - Cell morphology kinetics analysis: MBRT nuclei shrink, SBRT nuclei swell at day2 (23% divergence); peak/valley shows no morphological difference at 4h (consistent with Harada et al. 2025)
-- Tumor peak/valley signature validated with within-block rotation null: 37 of 670 genes survive empirical p<0.05 + |delta|>2*null sd; MHC class I + IFN-response + damage/stress dominant
+- Tumor peak/valley signature CONTESTED (see Peak/valley idea-node): rotation null gives 37/670 genes (MHC-I/IFN/damage), but 2026-07-13 FOV-pseudobulk group-mean DE on current QC'd cells is null (0/891 tumor, 0 stroma, flat p-histogram; positive control fires). Which method is right is open.
 - Cell-level peak/valley label extrapolation from manual FOVs: stripe geometry -25 deg, 1.046 mm spacing, 87.5% concordance; framework transferable to Mutter_02
 - Mutter_02 day2 concordance: tumor depletion replicates exactly (delta -0.082 vs -0.091); myeloid rho 0.44 cross-dataset
 - VM autonomous-run hardening for signature projection (jsonl observability, budget guard)
@@ -302,7 +336,7 @@ sourced-conda-envs:
 Literature-grounded predictions, organized by the scale at which the data can resolve them. The MBRT-specific biology is within-tumor peak/valley; whole-compartment arm averaging dilutes any peak-restricted signal, so arm-level lines are exploratory. The originally pre-registered confirmatory family (immune / vascular / stroma, tiered FDR) and all realized findings are in [[file:plan-mbrt-vs-sbrt.md][plan-mbrt-vs-sbrt.md]]. Arm contrasts (MBRT vs SBRT, MBRT vs Control, SBRT vs Control) run on the day-2 replicate cohort (n=4/arm); peak vs valley is within-tumor and needs H2AX registration.
 
 *** Within-tumor peak/valley (needs H2AX registration)
-Where the microbeam signal is undiluted. The immune-activation prediction lives here: MBRT drives stronger antigen presentation and IFN response than uniform RT, but the signal is peak-restricted (validated 4h M01 37-gene MHC-I/IFN signature) and cancels under arm averaging. Not yet examined at n=4 day-2.
+Where the microbeam signal is undiluted. The immune-activation prediction lives here: MBRT drives stronger antigen presentation and IFN response than uniform RT, but the signal is peak-restricted (4h M01 37-gene MHC-I/IFN signature from the rotation-null method, now CONTESTED: a 2026-07-13 FOV-pseudobulk group-mean DE finds no tumor or stroma peak/valley signature; see the Peak/valley idea-node) and would cancel under arm averaging. Not yet examined at n=4 day-2.
 
 #+caption: Literature-supported SFRT/MBRT immune mechanisms vs what the panel can test.
 | Mechanism                    | On panel                             | Askable                 |
@@ -646,9 +680,6 @@ rule all:
         "results/data_model/pathway_sets.tsv",
         "results/data_model/gene_set_panel_coverage.tsv",
         "results/data_model/panel_provenance.tsv",
-        "results/data_model/plots/design_grid.png",
-        "results/data_model/plots/panel_provenance.png",
-        "results/data_model/plots/geneset_coverage.png",
 #+end_src
 **** Make data model                                               :smk_rule:
 - Snakemake
@@ -795,14 +826,31 @@ dir.create(dirname(OUT), recursive = TRUE, showWarnings = FALSE)
 writeLines(common, OUT)
 #+end_src
 **** Gene sets                                                     :smk_rule:
+
+Pathway sets are defined by a concept registry ([[file:config/pathway_concept_registry.tsv][pathway_concept_registry.tsv]]): one row per (concept, source), where =source= is =nanostring= (genes tagged in the vendor Annotations module column(s)), =hallmark= (mouse-native msigdbr MH collection), or =custom= (hand-curated in [[file:config/pathway_gene_lists.yaml][pathway_gene_lists.yaml]], citation required). Members are derived at build time so they are never hand-duplicated; =source_id= may name several modules/sets joined by =;= (union). Per concept the highest panel-*coverage* set is confirmatory (the panel-designed NanoString module wins all seven dual-source concepts at 83-97%; genome-wide Hallmark twins are diluted off the 950-gene panel and stay exploratory). Tiered FDR keeps the exploratory sweep isolated: the confirmatory family is pooled-BH over the seven pre-registered concepts only, so widening the exploratory tier cannot dilute H1/H2/H3.
+
+Confirmatory concepts (target, 7): Type I IFN, Type II IFN, DNA Damage Repair, Angiogenesis, Hypoxia, Fibrosis remodeling, Stromal stress/senescence. Exploratory (target): all mouse Hallmark sets clearing the panel-gene floor, plus SASP (senescence-associated secretory phenotype, custom-cited).
+
+*Build status (2026-07-13):* the registry, builder, and coverage figure are built and reproduce the confirmatory NanoString-module selection above. The three revisions below are decided but land with the pathway rescore (they change locked UCell/AddModuleScore scores + the pre-registered family, so they are gated on re-running =pathway_scores.R= and re-validating =results_master.tsv=): (1) retire STING from the confirmatory family; (2) widen the exploratory Hallmark tier from the seven concept twins to every gate-passing mouse Hallmark set; (3) add SASP. Until then the built registry still carries STING and the seven twins.
+
+STING retirement rationale: its module has only 2 of 3 genes on panel, both shared with the IFN sets (already flagged weak in the 2026-06-23 robustness pass). The cytosolic-DNA-sensing biology it aimed at is a genuine panel blind spot (see the two dropped RT signatures below), not a suppressible signal.
+
+Two radiotherapy-response signatures were evaluated as custom-cited exploratory sets and *dropped* after panel-coverage and method checks; recorded here so they are not re-proposed:
+- *RSI (radiosensitivity index)* [cite:@eschrich2009] (doi:10.1016/j.ijrobp.2009.06.014). Dropped for two reasons. (1) RSI is a rank-based weighted linear predictor of SF2, not a co-expression module, so scoring it with UCell/AddModuleScore (which assume set coherence) is methodologically wrong. (2) Only 6/10 genes are on the common panel and the algorithm's per-gene weights are undefined for the missing four, so even a linear reconstruction cannot reproduce the published index. (The 10th hub is a single dual-annotated probeset, PAK2/CDK1, in the primary table; moot given the drop.)
+- *ICD / cGAS-STING (immunogenic cell death)* [cite:@vanpouille-box2017] (doi:10.1038/ncomms15618). Dropped for panel coverage: only 3/12 genes on panel, and the three core sensors (=Cgas=, =Sting1=, =Tbk1=) are all off-panel. What remains (=Irf3=, =Cxcl10=, =Ifit1=) is generic IFN-response already captured by the Type I/II IFN modules, so the set would score IFN signal under an ICD label rather than measure cytosolic-DNA sensing. The 950-gene panel cannot observe the cGAS-STING axis.
+
 #+begin_src snakemake
-# --- tiered pathway gene-set artifact + panel coverage (single source of truth) ---
+# --- pathway gene-set artifact + panel coverage from the concept registry ---
+# Each (concept,source) set is derived at build: nanostring from the vendor Annotations
+# sheet, hallmark from msigdbr, custom from the yaml. Registry is the single provenance
+# surface; per concept the most on-panel set is confirmatory.
 rule build_gene_sets:
     input:
-        script = "scripts/build_gene_sets.R",
-        yaml   = config["pathway"]["gene_lists"],
-        prov   = "config/pathway_sets_provenance.tsv",
-        panel  = "results/data_model/common_genes.tsv",
+        script   = "scripts/build_gene_sets.R",
+        registry = "config/pathway_concept_registry.tsv",
+        yaml     = config["pathway"]["gene_lists"],
+        vendor   = "data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx",
+        panel    = "results/data_model/common_genes.tsv",
     output:
         sets     = "results/data_model/pathway_sets.tsv",
         coverage = "results/data_model/gene_set_panel_coverage.tsv",
@@ -811,8 +859,8 @@ rule build_gene_sets:
     threads: 1
     log: "logs/build_gene_sets.log",
     shell:
-        "{RSCRIPT} {input.script} {input.yaml} {input.prov} {input.panel} {params.minpg} "
-        "{output.sets} {output.coverage} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.registry} {input.yaml} {input.vendor} {input.panel} "
+        "{params.minpg} {output.sets} {output.coverage} > {log} 2>&1"
 #+end_src
 **** Panel provenance                                              :smk_rule:
 - Snakemake
@@ -911,195 +959,6 @@ cat(sprintf("panel_provenance: UCC standard %d | M01 %d (custom %d) | M02 %d (cu
             length(g02), sum(mem$mutter_02 & mem$custom), length(intersect(g01, g02))))
 #+end_src
 
-**** Design grid                                                   :smk_rule:
-- Snakemake
-#+begin_src snakemake
-rule fig_design_grid:
-    input:
-        script = "scripts/fig_design_grid.R",
-        ss = config["samplesheet"],
-    output:
-        "results/data_model/plots/design_grid.png",
-    threads: 1
-    log: "logs/fig_design_grid.log",
-    shell:
-        "{RSCRIPT} {input.script} {input.ss} {output} > {log} 2>&1"
-#+end_src
-- R
-#+begin_src R :tangle scripts/fig_design_grid.R
-#!/usr/bin/env Rscript
-
-# -----------------------------------------------------------------------------
-# fig_design_grid.R
-# Study-design grid: samples per treatment arm x timepoint, faceted by dataset x
-# model. Empty cells (grey) expose the design gaps; the fill/label is n. Reads the
-# master sample sheet only.
-# Args: <samples.tsv> <out.png>
-# -----------------------------------------------------------------------------
-
-suppressPackageStartupMessages(library(tidyverse))
-
-args <- commandArgs(trailingOnly = TRUE)
-ss  <- args[1]
-out <- args[2]
-
-tp_lab <- c("0" = "0h", "1" = "1h", "4" = "4h", "48" = "2d",
-            "144" = "6d", "192" = "8d", "240" = "10d")
-tp_lvl <- c("0h", "1h", "4h", "2d", "6d", "8d", "10d")
-
-d <- read_tsv(ss, show_col_types = FALSE) %>%
-  mutate(
-    treatment = recode(treatment, NT = "Control"),
-    treatment = factor(treatment, levels = c("Control", "MBRT", "SBRT")),
-    tp        = factor(tp_lab[as.character(timepoint_h)], levels = tp_lvl),
-    panel     = paste0(name, " (", model, ")"))
-
-grid <- d %>%
-  count(panel, tp, treatment, name = "n") %>%
-  group_by(panel) %>%
-  complete(tp, treatment) %>%    # keep observed timepoints x all arms -> gaps show as NA
-  ungroup() %>%
-  mutate(nlab = ifelse(is.na(n), "", as.character(n)))
-
-p <- ggplot(grid, aes(treatment, fct_rev(tp), fill = n)) +
-  geom_tile(color = "white", linewidth = 0.7) +
-  geom_text(aes(label = nlab), color = "white", fontface = "bold", size = 4.2) +
-  facet_wrap(~ panel, scales = "free_y") +
-  scale_fill_viridis_c(option = "D", begin = 0.25, end = 0.9,
-                       na.value = "grey92", breaks = 1:4) +
-  labs(x = "Treatment arm", y = "Timepoint", fill = "n samples",
-       title = "Experimental design: samples per arm x timepoint",
-       subtitle = "Mutter_01 flank kinetic series (n=1) + tongue; Mutter_02 day-2 cohort (n=4/arm). Grey = no sample.") +
-  theme_bw(base_size = 12) +
-  theme(panel.grid = element_blank(), strip.text = element_text(face = "bold"))
-
-ggsave(out, p, width = 9, height = 4.5, dpi = 300)
-cat("wrote", out, "\n")
-#+end_src
-**** Panel provenance figure                                       :smk_rule:
-- Snakemake
-#+begin_src snakemake
-rule fig_panel_provenance:
-    input:
-        script = "scripts/fig_panel_provenance.R",
-        pv = "results/data_model/panel_provenance.tsv",
-    output:
-        "results/data_model/plots/panel_provenance.png",
-    threads: 1
-    log: "logs/fig_panel_provenance.log",
-    shell:
-        "{RSCRIPT} {input.script} {input.pv} {output} > {log} 2>&1"
-#+end_src
-- R
-#+begin_src R :tangle scripts/fig_panel_provenance.R
-#!/usr/bin/env Rscript
-
-# -----------------------------------------------------------------------------
-# fig_panel_provenance.R
-# Panel provenance: per-dataset decomposition of the delivered gene panel into
-# shared-stock / dataset-only-stock / custom, against the UCC stock reference.
-# Reads the data-derived panel_provenance membership table.
-# Args: <panel_provenance.tsv> <out.png>
-# -----------------------------------------------------------------------------
-
-suppressPackageStartupMessages(library(tidyverse))
-
-args <- commandArgs(trailingOnly = TRUE)
-pv  <- args[1]
-out <- args[2]
-
-d <- read_tsv(pv, show_col_types = FALSE)
-
-shared     <- sum(d$mutter_01 & d$mutter_02)          # 950 shared stock
-m01_only   <- sum(d$mutter_01 & !d$mutter_02)          # stock genes only in M01
-m02_custom <- sum(d$mutter_02 & d$custom)              # M02 non-stock custom
-ucc        <- sum(d$ucc_standard)                      # UCC stock size
-
-df <- tribble(
-  ~dataset,    ~category,          ~n,
-  "Mutter_01", "Shared stock",     shared,
-  "Mutter_01", "M01-only stock",   m01_only,
-  "Mutter_02", "Shared stock",     shared,
-  "Mutter_02", "M02 custom",       m02_custom) %>%
-  mutate(category = factor(category,
-                           levels = c("Shared stock", "M01-only stock", "M02 custom")))
-
-p <- ggplot(df, aes(n, fct_rev(dataset), fill = category)) +
-  geom_col(width = 0.6, color = "white") +
-  geom_vline(xintercept = ucc, linetype = "dashed", color = "grey30") +
-  annotate("text", x = ucc, y = 1.5, label = paste0("UCC stock = ", ucc),
-           hjust = 1.1, size = 3.4, color = "grey30") +
-  geom_text(aes(label = n), position = position_stack(vjust = 0.5),
-            color = "white", fontface = "bold", size = 4) +
-  scale_fill_manual(values = c("Shared stock" = "#3c78d8",
-                               "M01-only stock" = "#8e8e8e",
-                               "M02 custom" = "#e06666")) +
-  labs(x = "Genes", y = NULL, fill = NULL,
-       title = "Panel provenance: stock vs custom composition",
-       subtitle = "M01 = full 1000-gene UCC stock; M02 = 950 shared stock + 21 custom (~50 stock dropped)") +
-  theme_bw(base_size = 12) +
-  theme(panel.grid.major.y = element_blank(), legend.position = "bottom")
-
-ggsave(out, p, width = 8, height = 3.3, dpi = 300)
-cat("wrote", out, "\n")
-#+end_src
-**** Gene-set coverage                                             :smk_rule:
-- Snakemake
-#+begin_src snakemake
-rule fig_geneset_coverage:
-    input:
-        script = "scripts/fig_geneset_coverage.R",
-        cov = "results/data_model/gene_set_panel_coverage.tsv",
-    output:
-        "results/data_model/plots/geneset_coverage.png",
-    threads: 1
-    log: "logs/fig_geneset_coverage.log",
-    shell:
-        "{RSCRIPT} {input.script} {input.cov} {output} > {log} 2>&1"
-#+end_src
-- R
-#+begin_src R :tangle scripts/fig_geneset_coverage.R
-#!/usr/bin/env Rscript
-
-# -----------------------------------------------------------------------------
-# fig_geneset_coverage.R
-# Pathway-set panel coverage: fraction of each curated confirmatory set's genes
-# present on the common panel, flagged when below the usability floor. Reads the
-# gene-set panel-coverage table. Interpretation aid: low coverage means a null in
-# that set is a panel blind spot, not necessarily biology.
-# Args: <gene_set_panel_coverage.tsv> <out.png>
-# -----------------------------------------------------------------------------
-
-suppressPackageStartupMessages(library(tidyverse))
-
-args <- commandArgs(trailingOnly = TRUE)
-cov <- args[1]
-out <- args[2]
-
-d <- read_tsv(cov, show_col_types = FALSE, comment = "#") %>%   # drop msigdbr_version line
-  filter(tier == "primary") %>%
-  mutate(coverage = n_panel / n_total) %>%
-  arrange(coverage)
-d$set <- factor(d$set, levels = d$set)
-
-p <- ggplot(d, aes(coverage, set)) +
-  geom_segment(aes(x = 0, xend = coverage, y = set, yend = set), color = "grey70") +
-  geom_point(aes(color = thin), size = 4.5) +
-  geom_text(aes(label = sprintf("%d/%d", n_panel, n_total)), hjust = -0.35, size = 3.4) +
-  scale_x_continuous(labels = scales::percent, limits = c(0, 1.12),
-                     breaks = seq(0, 1, 0.25)) +
-  scale_color_manual(values = c("FALSE" = "#2a9d8f", "TRUE" = "#e76f51"),
-                     labels = c("FALSE" = "usable", "TRUE" = "thin (below floor)"),
-                     name = NULL) +
-  labs(x = "Fraction of set genes on the common 950-gene panel", y = NULL,
-       title = "Pathway-set panel coverage (curated confirmatory sets)",
-       subtitle = "Low coverage = a null there is a panel blind spot, not necessarily biology") +
-  theme_bw(base_size = 12) +
-  theme(panel.grid.minor = element_blank(), legend.position = "bottom")
-
-ggsave(out, p, width = 8, height = 4, dpi = 300)
-cat("wrote", out, "\n")
-#+end_src
 ** Methods
 
 - when analyzing, where is the tumor per section? should we subset?
@@ -1154,7 +1013,6 @@ Secondary analysis through cell typing was performed by Yi Liu at the Mayo Spati
 A cross-platform FFPE benchmark of CosMx, MERFISH, and Xenium documented that CosMx human panels can carry target gene probes that express at negative-control levels — including canonical immune markers like CD3D, FOXP3, MS4A1 (8-31.9% of panel depending on TMA). For the Mouse UCC panel used here, an analogous probe-vs-negative-control QC should be run before relying on InsituType cell typing, since failed probes for lineage markers will collapse cell types into "unknown" clusters [cite:@ozirmaklermi2025].
 
 ** Bioinformatics
-sparse CosMx cluster-then-annotate typing (not per-cell markers)
 MAD-based morphology gate
 
 
@@ -4298,10 +4156,6 @@ This workbook consolidates 21 standalone R scripts into 13 modular analysis step
 The stripe model classifies MBRT_4h cells into peak (direct beam) and valley (bystander) zones using a geometric approach. Cell positions are expressed in tilt-corrected coordinates: y_corr = y_slide_mm + x_slide_mm * tan(theta), where theta = 15 degrees is the optimal tilt angle determined by maximizing p21 (Cdkn1a) contrast between putative peak and valley zones across a parameter sweep (5-35 degrees, 2-degree steps). Beam spacing is determined by grid search over 0.8-1.3mm with a forced 4-peak constraint, optimizing for peak-valley p21 contrast. The best-fit model (spacing ~1.02mm, beam centers at corrected-y ~1.14, 2.16, 3.18, 4.20mm) is validated against gamma-H2AX immunofluorescence images extracted from the lab-provided PPTX. Cells are classified as peak if their tilt-corrected y-distance to the nearest beam center is less than spacing/4, and valley otherwise. Differential expression uses Seurat FindMarkers with effect-size ranking (no formal significance testing given n=1 per condition). Spatial neighborhoods use k=20 nearest neighbors via RANN.
 
 ** Exploratory analysis
-- https://jef.works/blog/2024/08/29/the-many-ways-to-detect-svgs-using-moransI/
-- peak valley id
-  - near section gh2ax overlayed by FOV grid. mostly h2ax pos vs negative sets.
-
 *** Scientific notes
 - Kinetics are more interesting than marginal statistical gain at one timepoint
 - Spatial ecotype for microbeam
@@ -4883,12 +4737,517 @@ str(meta)
 #+end_src
 
 ** Results
+*** Experimental Design
+:PROPERTIES:
+:ID:       95b433bd-d449-4999-b0c3-ce1052988a08
+:END:
+
+**** Design grid
+
+#+begin_src R :tangle scripts/fig_design_grid.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_design_grid.R
+# Study-design grid: samples per treatment arm x timepoint, faceted by dataset x
+# model. Empty cells (grey) expose the design gaps; the fill/label is n. Reads the
+# master sample sheet only.
+# Args (all optional, canonical defaults): <samples.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+a   <- commandArgs(trailingOnly = TRUE)
+ss  <- if (length(a) >= 1) a[1] else "results/data_model/samples.tsv"
+out <- if (length(a) >= 2) sub("\\.png$", "", a[2]) else "results/data_model/plots/design_grid"
+
+tp_lab <- c("0" = "0h", "1" = "1h", "4" = "4h", "48" = "2d",
+            "144" = "6d", "192" = "8d", "240" = "10d")
+tp_lvl <- c("0h", "1h", "4h", "2d", "6d", "8d", "10d")
+
+d <- read_tsv(ss, show_col_types = FALSE) %>%
+  mutate(
+    treatment = recode(treatment, NT = "Control"),
+    treatment = factor(treatment, levels = c("Control", "MBRT", "SBRT")),
+    tp        = factor(tp_lab[as.character(timepoint_h)], levels = tp_lvl),
+    panel     = paste0(name, " (", model, ")"))
+
+grid <- d %>%
+  count(panel, tp, treatment, name = "n") %>%
+  group_by(panel) %>%
+  complete(tp, treatment) %>%    # keep observed timepoints x all arms -> gaps show as NA
+  ungroup() %>%
+  mutate(nlab = ifelse(is.na(n), "", as.character(n)))
+
+legend_text <- str_c(
+  "Study design: replication is concentrated in the Mutter_02 day-2 cohort ",
+  "(n = 4 per arm), while the Mutter_01 kinetic series is single-tumour (n = 1) at each ",
+  "arm x timepoint. Cell fill and label give the number of samples; grey cells are ",
+  "design gaps (no sample). Faceted by dataset and tumour model; arms are ",
+  "Control (0 Gy), MBRT, and SBRT.")
+
+p <- ggplot(grid, aes(treatment, fct_rev(tp), fill = n)) +
+  geom_tile(color = "white", linewidth = 0.7) +
+  geom_text(aes(label = nlab), color = "white", fontface = "bold", size = 4.2) +
+  facet_wrap(~ panel, scales = "free_y") +
+  scale_fill_viridis_c(option = "D", begin = 0.25, end = 0.9,
+                       na.value = "grey92", breaks = 1:4) +
+  labs(x = "Treatment Arm", y = "Timepoint", fill = "Samples (n)",
+       caption = str_wrap(legend_text, width = round(9 * 15))) +
+  theme_scifig(base_size = 12) +
+  theme(strip.text = element_text(face = "bold"),
+        legend.position = "bottom",
+        legend.key.height = unit(0.4, "cm"),
+        axis.title.x = element_text(margin = margin(t = 8)),
+        axis.title.y = element_text(margin = margin(r = 8)),
+        plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
+                                    lineheight = 1.3, margin = margin(t = 20)),
+        plot.caption.position = "plot")
+
+save_plot(p, out, w = 9, h = 5.5)
+#+end_src
+
+#+ATTR_ORG: :width 600
+[[file:results/data_model/plots/design_grid.svg]]
+
+**** Panel provenance figure
+
+#+begin_src R :tangle scripts/fig_panel_provenance.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_panel_provenance.R
+# Panel provenance: per-dataset decomposition of the delivered gene panel into
+# shared-stock / dataset-only-stock / custom, against the UCC stock reference.
+# Reads the data-derived panel_provenance membership table.
+# Args (all optional, canonical defaults): <panel_provenance.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+a   <- commandArgs(trailingOnly = TRUE)
+pv  <- if (length(a) >= 1) a[1] else "results/data_model/panel_provenance.tsv"
+out <- if (length(a) >= 2) sub("\\.png$", "", a[2]) else "results/data_model/plots/panel_provenance"
+
+d <- read_tsv(pv, show_col_types = FALSE)
+
+shared     <- sum(d$mutter_01 & d$mutter_02)          # 950 shared stock
+m01_only   <- sum(d$mutter_01 & !d$mutter_02)          # stock genes only in M01
+m02_custom <- sum(d$mutter_02 & d$custom)              # M02 non-stock custom
+ucc        <- sum(d$ucc_standard)                      # UCC stock size
+
+df <- tribble(
+  ~dataset,    ~category,          ~n,
+  "Mutter_01", "Shared Stock",     shared,
+  "Mutter_01", "M01-Only Stock",   m01_only,
+  "Mutter_02", "Shared Stock",     shared,
+  "Mutter_02", "M02 Custom",       m02_custom) %>%
+  mutate(category = factor(category,
+                           levels = c("Shared Stock", "M01-Only Stock", "M02 Custom")))
+
+legend_text <- str_c(
+  "The two cohorts share a 950-gene common panel, so cross-dataset differential analysis ",
+  "rests on a matched feature space. Mutter_01 carries the full 1000-gene UCC stock panel; ",
+  "Mutter_02 drops ~50 stock genes and adds 21 custom genes (Fields add-on). Bars decompose ",
+  "each cohort's delivered panel into shared stock, cohort-only stock, and custom; the dashed ",
+  "line marks the 1000-gene UCC stock reference.")
+
+# shared-stock (950) label centred in its wide segment; the thin M01-only / M02-custom
+# slivers cannot hold a centred label, so those counts read just past the sliver edge.
+shared_lab <- df %>% filter(category == "Shared Stock") %>%
+  mutate(lab_x = ifelse(dataset == "Mutter_01", m01_only, m02_custom) + shared / 2)
+thin_lab <- df %>% filter(category != "Shared Stock") %>% mutate(lab_x = n + 10)
+
+p <- ggplot(df, aes(n, fct_rev(dataset), fill = category)) +
+  geom_col(width = 0.6, color = "white") +
+  geom_vline(xintercept = ucc, linetype = "dashed", color = "grey30") +
+  geom_text(data = shared_lab, aes(x = lab_x, label = n),
+            color = "white", fontface = "bold", size = 4) +
+  geom_text(data = thin_lab, aes(x = lab_x, label = n), hjust = 0,
+            color = "white", fontface = "bold", size = 4) +
+  scale_x_continuous(breaks = seq(0, 1000, 250),
+                     sec.axis = dup_axis(breaks = ucc, labels = "UCC stock", name = NULL)) +
+  scale_fill_manual(values = c("Shared Stock" = "#3c78d8",
+                               "M01-Only Stock" = "#8e8e8e",
+                               "M02 Custom" = "#e06666")) +
+  labs(x = "Genes (n)", y = NULL, fill = NULL,
+       caption = str_wrap(legend_text, width = round(8 * 15))) +
+  theme_scifig(base_size = 12) +
+  theme(legend.position = "bottom",
+        legend.key.size = unit(0.4, "cm"),
+        axis.title.x = element_text(margin = margin(t = 8)),
+        plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
+                                    lineheight = 1.3, margin = margin(t = 20)),
+        plot.caption.position = "plot")
+
+save_plot(p, out, w = 8, h = 4.2)
+#+end_src
+
+#+ATTR_ORG: :width 600
+[[file:results/data_model/plots/panel_provenance.svg]]
+
+**** Gene-set coverage
+
+#+begin_src R :tangle scripts/fig_geneset_coverage.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_geneset_coverage.R
+# Pathway-set panel coverage by provenance: for each study concept, the fraction of
+# its genes present on the common 950-gene panel, shown per source (NanoString module,
+# MSigDB Hallmark, custom). Concepts with both computational sources get two rows so
+# the panel-designed module and the genome-wide Hallmark set are compared directly.
+# The confirmatory set per concept (highest coverage) is marked; the rest are scored
+# exploratory. Interpretation aid: a null in a low-coverage set is a panel blind spot,
+# not necessarily biology. Reads the coverage table from build_gene_sets.R.
+# Args (all optional, canonical defaults): <gene_set_panel_coverage.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+a   <- commandArgs(trailingOnly = TRUE)
+cov <- if (length(a) >= 1) a[1] else "results/data_model/gene_set_panel_coverage.tsv"
+out <- if (length(a) >= 2) sub("\\.png$", "", a[2]) else "results/data_model/plots/geneset_coverage"
+
+prov_lab <- c(nanostring = "NanoString module", hallmark = "MSigDB Hallmark", custom = "Custom (cited)")
+prov_col <- c("NanoString module" = "#3c78d8", "MSigDB Hallmark" = "#e6a817", "Custom (cited)" = "#c0504d")
+
+# concept id -> display label (fix the run-together TypeI/TypeII, strip underscores)
+nice_concept <- function(x) x %>%
+  str_replace("^TypeI_", "Type I ") %>% str_replace("^TypeII_", "Type II ") %>%
+  str_replace_all("_", " ")
+
+d <- read_tsv(cov, show_col_types = FALSE, comment = "#") %>%   # drop msigdbr_version line
+  mutate(provenance  = factor(prov_lab[source], levels = prov_lab),
+         concept_lab = nice_concept(concept)) %>%
+  # order rows: group by concept (confirmatory coverage descending), source within concept
+  group_by(concept) %>% mutate(concept_cov = max(coverage)) %>% ungroup() %>%
+  arrange(concept_cov, desc(source == "nanostring")) %>%
+  mutate(row_lab = paste0(concept_lab, "  [", recode(source, nanostring = "NS", hallmark = "HM", custom = "cu"), "]"),
+         band    = as.integer(factor(concept, levels = unique(concept))) %% 2)  # alternating concept shade
+d$row_lab <- factor(d$row_lab, levels = d$row_lab)
+d$ri <- as.integer(d$row_lab)
+# full-width shading spanning every other concept's row pair (baked alpha; no scale to wash it out)
+bands <- d %>% filter(band == 1) %>%
+  summarise(ymin = min(ri) - 0.5, ymax = max(ri) + 0.5, .by = concept)
+
+legend_text <- str_c(
+  "Every confirmatory pathway signature is a panel-designed NanoString module with near-complete ",
+  "coverage (83-97%); the genome-wide MSigDB Hallmark sets, shown for comparison, are diluted off ",
+  "the 950-gene panel and stay exploratory. A null in a low-coverage set is a panel blind spot, ",
+  "not evidence of absent biology. Position gives the on-panel gene fraction per concept and source; dot ",
+  "size is the number of on-panel genes (small = statistically thin even at high coverage, e.g. ",
+  "STING 2/3). Ring marks the confirmatory set (highest coverage) per concept; STING has no ",
+  "computational source and is a cited custom set.")
+
+p <- ggplot(d, aes(coverage, row_lab)) +
+  geom_rect(data = bands, inherit.aes = FALSE,
+            aes(xmin = -Inf, xmax = Inf, ymin = ymin, ymax = ymax),
+            fill = "grey90", alpha = 0.6) +
+  geom_segment(aes(x = 0, xend = coverage, yend = row_lab), color = "grey75") +
+  geom_point(aes(fill = provenance, size = n_panel), shape = 21, stroke = 0.4, color = "white") +
+  geom_point(data = filter(d, confirmatory), aes(size = n_panel),
+             shape = 21, stroke = 1.6, color = "grey20", fill = NA) +
+  geom_text(aes(label = sprintf("%d/%d", n_panel, n_total)), hjust = -0.5, size = 3.2) +
+  scale_x_continuous(labels = scales::percent, limits = c(0, 1.1), breaks = seq(0, 1, 0.25)) +
+  scale_size_area(max_size = 8, limits = c(0, max(d$n_panel)),
+                  breaks = c(5, 50, 100), name = "On-panel genes (n)") +
+  scale_fill_manual(values = prov_col, name = NULL, drop = FALSE) +
+  guides(fill = guide_legend(override.aes = list(size = 4.5), order = 1),
+         size = guide_legend(order = 2)) +
+  labs(x = "Fraction of Set Genes on the Common 950-Gene Panel", y = NULL,
+       caption = str_wrap(legend_text, width = round(9 * 15))) +
+  theme_scifig(base_size = 12) +
+  theme(legend.position = "bottom",
+        legend.box = "vertical",
+        legend.box.just = "left",
+        legend.key.size = unit(0.4, "cm"),
+        axis.title.x = element_text(margin = margin(t = 8)),
+        plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
+                                    lineheight = 1.3, margin = margin(t = 20)),
+        plot.caption.position = "plot")
+
+save_plot(p, out, w = 9, h = 6.5)
+#+end_src
+
+#+ATTR_ORG: :width 600
+[[file:results/data_model/plots/geneset_coverage.svg]]
+
+
+*** Per-cell panel detection
+
+The platform-sparsity fact behind the cluster-then-annotate typing design: per-cell InSituType is unreachable because each cell detects only ~6% of the panel (median 58/950). The compute step ([[file:workflows/aggregate_differential.smk][aggregate_differential.smk]] rule =agg_qc_panel_sparsity=, script [[file:scripts/aggregate/qc_panel_sparsity.R][qc_panel_sparsity.R]]) joins per-cell detection to the unified compartment labels and arm/dataset design and ends at box quantiles; this block renders the figure.
+
+#+begin_src R :tangle scripts/fig_qc_panel_sparsity.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_qc_panel_sparsity.R
+# Per-cell panel detection: genes detected per cell out of the 950-gene common panel,
+# by coarse compartment (tumor/stroma/immune), faceted by dataset and dodged by treatment
+# arm. Precomputed box quantiles (5/25/50/75/95th percentile) from qc_panel_sparsity.R.
+# The point of the figure: the boxes sit near the panel floor with the bulk of the panel
+# undetected in every compartment, dataset, and arm -- the platform sparsity that makes
+# per-cell typing unreachable and motivates cluster-then-annotate.
+# Args (all optional, canonical defaults): <qc_panel_sparsity.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+a   <- commandArgs(trailingOnly = TRUE)
+inp <- if (length(a) >= 1) a[1] else "results/aggregate/qc_panel_sparsity.tsv"
+out <- if (length(a) >= 2) sub("\\.png$", "", a[2]) else "results/aggregate/plots/qc_panel_sparsity"
+
+d <- read_tsv(inp, show_col_types = FALSE) %>%
+  mutate(dataset     = factor(dataset, levels = c("Mutter_01", "Mutter_02")),
+         compartment = factor(compartment, levels = c("tumor", "stroma", "immune")),
+         arm         = factor(arm, levels = c("Control", "MBRT", "SBRT")))
+
+n_panel <- d$n_panel[1]
+med_all <- d$overall_median[1]                        # true pooled per-cell median, carried from compute
+
+legend_text <- str_c(
+  "Every cell detects only a small fraction of the ", n_panel, "-gene common panel, so the per-cell ",
+  "unit of inference is too sparse for per-cell cell typing -- the reason identity is assigned by ",
+  "cluster-then-annotate rather than per cell. Boxes are the per-cell distribution of genes detected ",
+  "(5/25/50/75/95th percentile) by coarse compartment, split by dataset and treatment arm; the dashed ",
+  "line marks the full ", n_panel, "-gene panel. Median detection is ~", med_all, " genes per cell ",
+  "(about ", round(100 * med_all / n_panel), "% of the panel) and is uniformly sparse across every ",
+  "compartment, dataset, and arm.")
+
+arm_cols <- c(Control = "#4a86e8", MBRT = "#e69138", SBRT = "#cc0000")
+
+p <- ggplot(d, aes(compartment, group = interaction(compartment, arm), fill = arm)) +
+  geom_boxplot(aes(ymin = ymin, lower = lower, middle = middle, upper = upper, ymax = ymax),
+               stat = "identity", position = position_dodge(width = 0.8),
+               width = 0.7, linewidth = 0.3, outlier.shape = NA) +
+  geom_hline(yintercept = n_panel, linetype = "dashed", color = "grey30") +
+  facet_wrap(~ dataset) +
+  scale_y_continuous(limits = c(0, n_panel),
+                     sec.axis = dup_axis(breaks = n_panel,
+                                         labels = paste0(n_panel, "-gene panel"), name = NULL)) +
+  scale_fill_manual(values = arm_cols, name = NULL) +
+  labs(x = NULL, y = "Genes detected per cell",
+       caption = str_wrap(legend_text, width = round(9 * 15))) +
+  theme_scifig(base_size = 12) +
+  theme(strip.text = element_text(face = "bold"),
+        legend.position = "bottom",
+        legend.key.size = unit(0.4, "cm"),
+        axis.title.y = element_text(margin = margin(r = 8)),
+        plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
+                                    lineheight = 1.3, margin = margin(t = 20)),
+        plot.caption.position = "plot")
+
+save_plot(p, out, w = 9, h = 5.5)
+#+end_src
+
+#+ATTR_ORG: :width 600
+[[file:results/aggregate/plots/qc_panel_sparsity.svg]]
 *** Sample quality
-*** Exploratory post IR dynamics
-**** Descriptive
+:PROPERTIES:
+:ID:       099e5bae-c2e0-4320-a760-1088dabecbb7
+:END:
+
+Two report-only confound checks on the day-2 composition (fraction-shift) result, both over the only arm-replicated design (Mutter_02 day-2, n=4/arm). The compute steps in [[file:workflows/aggregate_differential.smk][aggregate_differential.smk]] (rules =agg_qc_arm_balance= and =agg_qc_reproducibility=, scripts under [[file:scripts/aggregate/][scripts/aggregate/]]) end at tabular output; these blocks render the figures from those tables, matching the standalone pattern of the Experimental Design figures above.
+
+**** Cross-arm QC balance
+
+#+begin_src R :tangle scripts/fig_qc_arm_balance.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_qc_arm_balance.R
+# Cross-arm QC balance: each per-sample technical/contamination metric by treatment
+# arm (M02 day-2, n=4/arm), the four samples/arm as points with an arm-mean crossbar.
+# Confound check on the day-2 composition (fraction-shift) result -- arms overlapping
+# means the "more cells expressing collagen/Acta2" signal is not a sensitivity or
+# contamination artifact. Reads the per-sample table from qc_arm_balance.R.
+# Args (all optional, canonical defaults): <qc_arm_balance_samples.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+a   <- commandArgs(trailingOnly = TRUE)
+inp <- if (length(a) >= 1) a[1] else "results/aggregate/qc_arm_balance_samples.tsv"
+out <- if (length(a) >= 2) sub("\\.png$", "", a[2]) else "results/aggregate/plots/qc_arm_balance"
+
+METRIC_LVL <- c("TPC (transcripts/cell)", "genes/cell (median)", "sparsity",
+                "SNR (log10)", "specificity FDR", "MECR (contamination)")
+
+d <- read_tsv(inp, show_col_types = FALSE) %>%
+  mutate(arm          = factor(arm, levels = c("Control", "MBRT", "SBRT")),
+         metric_label = factor(metric_label, levels = METRIC_LVL))
+
+legend_text <- str_c(
+  "Confound check on the day-2 composition result: if the treatment arms overlap on every ",
+  "sensitivity and contamination metric, the fraction shift toward collagen/Acta2-expressing ",
+  "cells reflects biology rather than a QC artifact. Each point is one sample (n = 4 per arm, ",
+  "Mutter_02 day-2); the crossbar is the arm mean. Arms overlap on 5 of 6 metrics; the lone ",
+  "specificity-FDR gap is immaterial because SBRT, the arm carrying the signal, is the cleanest.")
+
+p <- ggplot(d, aes(arm, value, color = arm)) +
+  geom_jitter(width = 0.12, height = 0, size = 2.4, alpha = 0.85) +
+  stat_summary(fun = mean, geom = "crossbar", width = 0.5, linewidth = 0.4, color = "grey25") +
+  facet_wrap(~ metric_label, scales = "free_y") +
+  scale_color_manual(values = c(Control = "#4a86e8", MBRT = "#e69138", SBRT = "#cc0000"),
+                     guide = "none") +
+  labs(x = NULL, y = NULL,
+       caption = str_wrap(legend_text, width = round(9 * 15))) +
+  theme_scifig(base_size = 12) +
+  theme(strip.text = element_text(face = "bold"),
+        plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
+                                    lineheight = 1.3, margin = margin(t = 20)),
+        plot.caption.position = "plot")
+
+save_plot(p, out, w = 9, h = 6)
+#+end_src
+
+#+ATTR_ORG: :width 600
+[[file:results/aggregate/plots/qc_arm_balance.svg]]
+
+**** Replicate reproducibility
+
+#+begin_src R :tangle scripts/fig_qc_reproducibility.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_qc_reproducibility.R
+# Replicate reproducibility (M02 day-2, n=4/arm): (left) PCA of the scaled per-sample
+# technical metrics, (right) each sample's mean pseudobulk Spearman concordance to its
+# arm-mates. Outlier check on the composition inference -- a sample sitting apart in
+# PCA or poorly concordant with its arm-mates could drive an arm effect. Reads the
+# per-sample table from qc_reproducibility.R.
+# Args (all optional, canonical defaults): <qc_reproducibility.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages({library(tidyverse); library(patchwork)})
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+a   <- commandArgs(trailingOnly = TRUE)
+inp <- if (length(a) >= 1) a[1] else "results/aggregate/qc_reproducibility.tsv"
+out <- if (length(a) >= 2) sub("\\.png$", "", a[2]) else "results/aggregate/plots/qc_reproducibility"
+
+d <- read_tsv(inp, show_col_types = FALSE) %>%
+  mutate(arm = factor(arm, levels = c("Control", "MBRT", "SBRT")))
+
+# PC variance-explained travels in the table; fall back to bare labels if absent.
+pc1_lab <- if ("pc1_ve" %in% names(d)) sprintf("PC1 (%.0f%%)", d$pc1_ve[1]) else "PC1"
+pc2_lab <- if ("pc2_ve" %in% names(d)) sprintf("PC2 (%.0f%%)", d$pc2_ve[1]) else "PC2"
+
+arm_cols <- c(Control = "#4a86e8", MBRT = "#e69138", SBRT = "#cc0000")
+
+p1 <- ggplot(d, aes(PC1, PC2, color = arm)) +
+  geom_point(size = 3) +
+  ggrepel::geom_text_repel(aes(label = slide_id), size = 3, show.legend = FALSE, max.overlaps = 20) +
+  scale_color_manual(values = arm_cols) +
+  labs(x = pc1_lab, y = pc2_lab, subtitle = "Technical-metric PCA", color = NULL) +
+  theme_scifig(base_size = 12)
+
+p2 <- ggplot(d, aes(arm, mean_r_armmates, color = arm)) +
+  geom_jitter(width = 0.12, height = 0, size = 3) +
+  scale_color_manual(values = arm_cols, guide = "none") +
+  labs(x = NULL, y = "mean Spearman r to arm-mates",
+       subtitle = "Pseudobulk replicate concordance") +
+  theme_scifig(base_size = 12)
+
+legend_text <- str_c(
+  "Outlier check on the day-2 composition inference: no single slide drives an arm's effect. ",
+  "Left, principal-component analysis of the scaled per-sample technical metrics; right, each ",
+  "sample's mean pseudobulk Spearman concordance to its same-arm replicates (n = 4 per arm, ",
+  "Mutter_02 day-2). Concordance is 0.93-0.97 with no arm-mate outlier flagged, and no arm ",
+  "separates on the PCA -- the composition shift is not a batch or replicate artifact.")
+
+p <- (p1 | p2) +
+  plot_annotation(caption = str_wrap(legend_text, width = round(11 * 13)),
+                  theme = theme(plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
+                                                            lineheight = 1.3, margin = margin(t = 16)),
+                                plot.caption.position = "plot"))
+
+save_plot(p, out, w = 11, h = 5.2)
+#+end_src
+
+#+ATTR_ORG: :width 600
+[[file:results/aggregate/plots/qc_reproducibility.svg]]
+
+**** Cell-type neighborhood purity
+
+A coherence check on the locked cross-dataset typing, following the standardized neighborhood-purity metric of [cite:@plummer2025spatial] (Fig 4d). For each cell, purity is the fraction of its 30 nearest neighbors in the tier-1 scVI integrated latent that carry its own final =cell_subtype=; the per-subtype distribution measures whether like-typed cells sit together in the integrated space, complementing the marker-recall gate. The compute step ([[file:workflows/aggregate_differential.smk][aggregate_differential.smk]] rule =agg_celltype_purity=, script [[file:scripts/aggregate/celltype_neighborhood_purity.py][celltype_neighborhood_purity.py]]) reuses the existing latent from the typing run and recomputes the kNN graph on CPU, so it neither retypes cells nor retrains scVI; it ends at per-subtype box quantiles and this block renders the figure. Coarse-compartment purity is near-ceiling by construction (the latent defined those clusters), so the informative signal is the low purity of the sparse immune lineages (neutrophil, dendritic-cell, mast, plasma, T) that CosMx resolves least well and that the tier-2 marker-rescue step had to recover; neighborhood size is not load-bearing, with per-subtype medians rank-correlating rho = 0.99 between k = 15 and k = 30.
+
+#+begin_src R :tangle scripts/fig_qc_neighborhood_purity.R
+#!/usr/bin/env Rscript
+
+# -----------------------------------------------------------------------------
+# fig_qc_neighborhood_purity.R
+# Transcriptional neighborhood purity by final cell subtype (Plummer et al., Nat
+# Biotechnol 2025, Fig 4d): a typing-QC view of whether the locked cross-dataset
+# labels are transcriptionally coherent. Per subtype, the distribution of per-cell
+# purity (fraction of k=30 scVI-latent neighbors sharing the label), one box per
+# subtype, faceted by compartment, ordered by median. Reads the per-subtype box
+# quantiles from celltype_neighborhood_purity.py.
+# Args (all optional, canonical defaults): <celltype_neighborhood_purity.tsv> <out.png>
+# -----------------------------------------------------------------------------
+
+suppressPackageStartupMessages(library(tidyverse))
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+a   <- commandArgs(trailingOnly = TRUE)
+inp <- if (length(a) >= 1) a[1] else "results/aggregate/celltype_neighborhood_purity.tsv"
+out <- if (length(a) >= 2) sub("\\.png$", "", a[2]) else "results/aggregate/plots/qc_neighborhood_purity"
+
+# facet_grid(space = "free_x") shows only each compartment's own subtypes per panel, so a single
+# factor ordered by (compartment, descending median) renders correctly ordered within every facet
+# without a tidytext reorder_within dependency.
+d <- read_tsv(inp, show_col_types = FALSE) %>%
+  mutate(compartment = factor(compartment, levels = c("tumor", "stroma", "immune"))) %>%
+  arrange(compartment, desc(middle)) %>%
+  mutate(cell_subtype = fct_inorder(cell_subtype))
+
+rho <- signif(d$k_robust_spearman[1], 3)
+
+legend_text <- str_c(
+  "Transcriptional neighborhood purity (Plummer et al., Nat Biotechnol 2025): for each cell, ",
+  "the fraction of its 30 nearest neighbors in the scVI integrated latent that share its final ",
+  "cell-subtype label; a coherence check on the locked cross-dataset typing, complementary to ",
+  "marker recall. Each box is one subtype (5/25/50/75/95th percentile over its cells), the same ",
+  "latent the labels were built in. Coarse-compartment purity is near-ceiling by construction; ",
+  "the informative signal is the low purity of sparse immune lineages, which CosMx resolves ",
+  "least well. Neighborhood size is not load-bearing: per-subtype medians rank-correlate ",
+  sprintf("rho = %s between k = 15 and k = 30.", rho))
+
+p <- ggplot(d, aes(cell_subtype, middle, fill = compartment)) +
+  geom_boxplot(aes(ymin = ymin, lower = lower, middle = middle, upper = upper, ymax = ymax),
+               stat = "identity", width = 0.7, linewidth = 0.3, alpha = 0.9,
+               outlier.shape = NA) +
+  facet_grid(~ compartment, scales = "free_x", space = "free_x") +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, 0.25)) +
+  scale_fill_manual(values = c(tumor = "#cc0000", stroma = "#4a86e8", immune = "#e69138"),
+                    guide = "none") +
+  labs(x = NULL, y = "neighborhood purity (k = 30)",
+       caption = str_wrap(legend_text, width = round(9 * 15))) +
+  theme_scifig(base_size = 12) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.text = element_text(face = "bold"),
+        plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
+                                    lineheight = 1.3, margin = margin(t = 20)),
+        plot.caption.position = "plot")
+
+save_plot(p, out, w = 10, h = 6)
+#+end_src
+
+#+ATTR_ORG: :width 700
+[[file:results/aggregate/plots/qc_neighborhood_purity.svg]]
+
+*** Post-IR dynamics
+**** Peak and valley signature kinetics
 
 
-Peak/valley signature kinetics rebuilt on the canonical merged-scale labels (coarse compartment + tier-2 subtypes at [[file:results/aggregate/full_labels.parquet]]), replacing the retired Yi ImmGen buckets. For each cell class with at least 30 peak and 30 valley cells at MBRT 4h (the H2AX-ground-truthed FOVs), a 10-gene peak-up and 10-gene valley-up signature is derived by Wilcoxon peak-vs-valley differential expression, scored as mean LogNormalize expression across all flank cells, and standardized to z within the class so panels are magnitude-comparable on a shared y axis. Lines track Control/MBRT/SBRT over 0 Gy to 6 d; the MBRT 4h peak and valley split is overlaid at a 4h guide. Because the signatures are defined at MBRT 4h peak vs valley, the 4h separation is partly by construction: the interpretable signal is the cross-timepoint decay and the SBRT curve, not the 4h gap itself. Descriptive, n=1 per arm; eight classes clear the 30-cell-per-side floor (tumor; the fibroblast, endothelial, smooth-muscle, and adipocyte stroma; and the macrophage, DC, and ILC immune subsets); the sparser immune lineages (T, NK, plasma, mast, neutrophil; B absent) fall below it and drop out. [[file:dev/if_channel_check/class_region_signatures_kinetics.png]]
+Peak/valley signature kinetics rebuilt on the canonical merged-scale labels (coarse compartment + tier-2 subtypes at [[file:results/aggregate/full_labels.parquet]]), replacing the retired Yi ImmGen buckets. For each cell class with at least 30 peak and 30 valley cells at MBRT 4h (the H2AX-ground-truthed FOVs), a 10-gene peak-up and 10-gene valley-up signature is derived by Wilcoxon peak-vs-valley differential expression, scored as mean LogNormalize expression across all flank cells, and standardized to z within the class so panels are magnitude-comparable on a shared y axis. Lines track Control/MBRT/SBRT over 0 Gy to 6 d; the MBRT 4h peak and valley split is overlaid at a 4h guide. Because the signatures are defined at MBRT 4h peak vs valley, the 4h separation is partly by construction: the interpretable signal is the cross-timepoint decay and the SBRT curve, not the 4h gap itself. Descriptive, n=1 per arm; eight classes clear the 30-cell-per-side floor (tumor; the fibroblast, endothelial, smooth-muscle, and adipocyte stroma; and the macrophage, DC, and ILC immune subsets); the sparser immune lineages (T, NK, plasma, mast, neutrophil; B absent) fall below it and drop out.
+[[file:dev/if_channel_check/class_region_signatures_kinetics.png]]
 
 #+name: class-region-signatures
 #+begin_src R :tangle dev/if_channel_check/class_region_signatures.R
@@ -5053,6 +5412,82 @@ fwrite(rbindlist(lapply(names(signatures), function(s)
        file.path(OUT, "class_region_signature_members.tsv"), sep = "\t")
 cat("Saved class_region_signatures_kinetics.png + score/member TSVs\n")
 #+end_src
+
+**** Peak/valley group-mean DE: no whole-compartment signature at 4h
+
+At 4h, the one timepoint with H2AX ground truth, there is no whole-compartment peak-versus-valley transcriptional signature in tumor or stroma once the FOV, not the cell, is the replicate unit. Cells were pooled to paired FOV-by-zone pseudobulk on the current QC'd sam0003 counts with merged-scale atlas labels, and tested with =~ FOV + zone= (limma-voom, core bands: perpendicular distance to beam centerline below 0.10 mm for peak, above 0.40 mm for valley). Zero genes clear FDR in tumor (23 paired FOVs, 881 genes) or stroma (31 FOVs, 895 genes), and the p-value histograms are flat, the shape a genuinely null contrast produces. The immune panel is right-skewed rather than flat (8 FOVs, 157 genes): underpowered, so inconclusive, not a clean null. The same machinery run on tumor-versus-stroma (the positive control) returns 586/940 genes at FDR<0.05 with a hard spike at p near 0, confirming the pipeline detects real spatial biology emphatically when it is present. The earlier per-cell FindMarkers signatures owed their significance to pseudoreplication (roughly 150,000 cells scored as independent replicates, turning sub-0.3 log2FC ripples into tiny p-values); under honest FOV-level replication the whole-compartment contrast is null. This does not settle the within-block rotation-null result, which tests a different null and remains contested (see the Peak/valley idea-node in the Project Map).
+
+#+begin_src R :tangle scripts/fig_pv_phist.R
+#!/usr/bin/env Rscript
+# -----------------------------------------------------------------------------
+# fig_pv_phist.R
+# Peak/valley group-mean DE is a true null (flat p-histogram) while the same
+# FOV-pseudobulk machinery detects tumor-vs-stroma emphatically (spike at 0).
+# 4 panels: peak/valley in tumor / stroma / immune, + tumor-vs-stroma pos control.
+# M01 4h block (sam0003), current QC'd counts + merged-scale atlas labels.
+# -----------------------------------------------------------------------------
+suppressPackageStartupMessages({library(Seurat);library(arrow);library(edgeR)
+  library(limma);library(dplyr);library(readr);library(Matrix);library(ggplot2)})
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+DDR <- c("Cdkn1a","Gadd45a","Gadd45b","Mdm2","Bax","Pmaip1","Bbc3","Ddit3","Atm","Atr","Chek1","Chek2","Rad51","Brca1","Brca2","Xrcc5","Xrcc6","Parp1")
+
+o <- readRDS("/mnt/data/projects/spatial-rads/processing/norm/sam0003.norm.rds")
+cts <- GetAssayData(o,assay="RNA",layer="counts"); md <- o@meta.data; md$cell <- rownames(md)
+a <- read_parquet("results/aggregate/full_labels.parquet")
+a <- a[grepl("^sam0003_",a$cell),c("cell","compartment")]; a$cell<-sub("^sam0003_","",a$cell)
+z <- read_tsv("dev/peak_valley_analysis/data/mbrt4h_peak_valley.tsv",show_col_types=FALSE)[,c("cell_id","dist_to_peak")]
+md <- md %>% left_join(a,by="cell") %>% left_join(z,by=c("cell"="cell_id"))
+md <- md[!is.na(md$compartment),]
+
+## generic paired FOV-pseudobulk voom DE; returns p-values + n sig
+pv_de <- function(sub, split_col, lvls, floor=30) {
+  sub$grp <- paste0("f",sub$fov,"_",sub[[split_col]])
+  ag <- t(fac2sparse(sub$grp) %*% t(cts[,sub$cell]))
+  g <- data.frame(grp=colnames(ag)); g$fov<-sub("_.*","",g$grp); g$k<-sub(".*_","",g$grp)
+  nc<-table(sub$grp); g$ncell<-as.integer(nc[g$grp]); g<-g[g$ncell>=floor,]
+  both<-names(which(tapply(g$k,g$fov,function(x)length(unique(x)))==2)); g<-g[g$fov%in%both,]
+  ag<-ag[,g$grp]; g$fov<-factor(g$fov); g$k<-factor(g$k,levels=lvls)
+  y<-DGEList(ag); des<-model.matrix(~fov+k,g); kg<-filterByExpr(y,des); y<-y[kg,,keep.lib.sizes=FALSE]
+  y<-calcNormFactors(y); v<-voom(y,des); fit<-eBayes(lmFit(v,des))
+  tt<-topTable(fit,coef=paste0("k",lvls[2]),number=Inf,sort.by="none"); tt<-tt[!rownames(tt)%in%DDR,]
+  list(p=tt$P.Value, nsig=sum(tt$adj.P.Val<0.05), nfov=length(both), ngene=nrow(tt))
+}
+
+## peak/valley per compartment (core bands)
+md$zone <- ifelse(md$dist_to_peak<0.10,"peak",ifelse(md$dist_to_peak>0.40,"valley",NA))
+res <- list()
+for(cp in c("tumor","stroma","immune")){
+  s <- md[md$compartment==cp & !is.na(md$zone),]
+  res[[paste0("Peak vs valley: ",cp)]] <- pv_de(s,"zone",c("valley","peak"))
+}
+## positive control: tumor vs stroma (same machinery)
+s2 <- md[md$compartment %in% c("tumor","stroma"),]
+res[["Positive control: tumor vs stroma"]] <- pv_de(s2,"compartment",c("stroma","tumor"))
+
+df <- do.call(rbind, lapply(names(res), function(nm){
+  r<-res[[nm]]
+  lab <- sprintf("%s\n(%d FOVs, %d genes; %d at FDR<0.05)", nm, r$nfov, r$ngene, r$nsig)
+  data.frame(panel=lab, p=r$p, pos=grepl("Positive",nm))
+}))
+ord <- unique(df$panel); ord <- c(ord[!grepl("Positive",ord)], ord[grepl("Positive",ord)])
+df$panel <- factor(df$panel, levels=ord)
+
+p <- ggplot(df, aes(x=p, fill=pos)) +
+  geom_histogram(breaks=seq(0,1,0.05), color="grey30", linewidth=0.2) +
+  geom_hline(yintercept=0, linewidth=0.3) +
+  facet_wrap(~panel, scales="free_y", nrow=2) +
+  scale_fill_manual(values=c("FALSE"="grey65","TRUE"="#0072B2"), guide="none") +
+  labs(x="p-value", y="genes",
+       title="Peak/valley DE is null; same machinery detects tumor vs stroma") +
+  theme_scifig() +
+  theme(strip.text=element_text(size=11), plot.title=element_text(size=13))
+
+save_plot(p, "results/aggregate/plots/pv_phist_null", w=10, h=7)
+#+end_src
+
+#+ATTR_ORG: :width 700
+[[file:results/aggregate/plots/pv_phist_null.png]]
+
 *** Cross-dataset aggregate: MBRT vs SBRT vs Control differential analysis
 :PROPERTIES:
 :header-args:snakemake: :tangle workflows/aggregate_differential.smk
@@ -5106,10 +5541,14 @@ R_SCRIPTS = "scripts/aggregate"
 
 MASTER = config["samplesheet"]                     # results/data_model/samples.tsv
 
-# --- typing handoff: three pre-existing leaf inputs from aggregate_typing.smk ---
+# --- typing handoff: leaf inputs from aggregate_typing.smk ---
 LABELS = "results/aggregate/full_labels.parquet"
 MERGED = f"{D_AGG}/merged.rds"
 OBS    = f"{D_FULL}/obs.parquet"
+LATENT = f"{D_FULL}/scvi_latent.parquet"           # tier-1 scVI latent, reused for neighborhood-purity QC
+
+# --- GPU-env Python interpreter (neighborhood-purity QC recomputes kNN on the latent) ---
+PYSCVI = "conda run -n spatial-rads-scvi python"
 
 # --- cohort: flank only ---
 _s    = pd.read_csv(MASTER, sep="\t")
@@ -5162,9 +5601,10 @@ rule all:
         "results/aggregate/detectability_summary.tsv",
         "results/aggregate/results_master.tsv",
         "results/aggregate/qc_arm_balance.tsv",
-        "results/aggregate/plots/qc_arm_balance.png",
+        "results/aggregate/qc_arm_balance_samples.tsv",
         "results/aggregate/qc_reproducibility.tsv",
-        "results/aggregate/plots/qc_reproducibility.png",
+        "results/aggregate/qc_panel_sparsity.tsv",
+        "results/aggregate/celltype_neighborhood_purity.tsv",
 #+end_src
 
 #+name: aggregate-differential-composition
@@ -5688,14 +6128,14 @@ rule agg_qc_arm_balance:
         contam  = "results/processing/contamination_qc.tsv",
         samples = MASTER,
     output:
-        tsv = "results/aggregate/qc_arm_balance.tsv",
-        png = "results/aggregate/plots/qc_arm_balance.png",
+        tsv     = "results/aggregate/qc_arm_balance.tsv",
+        samples = "results/aggregate/qc_arm_balance_samples.tsv",
     threads: 1
     log:
         f"{D_LOGS}/qc_arm_balance.log",
     shell:
         "{RSCRIPT} {input.script} {input.tech} {input.contam} {input.samples} "
-        "{output.tsv} {output.png} > {log} 2>&1"
+        "{output.tsv} {output.samples} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-agg-qc-reproducibility
@@ -5710,12 +6150,51 @@ rule agg_qc_reproducibility:
         tech   = "results/processing/sample_tech_metrics.tsv",
     output:
         tsv = "results/aggregate/qc_reproducibility.tsv",
-        png = "results/aggregate/plots/qc_reproducibility.png",
     threads: 1
     log:
         f"{D_LOGS}/qc_reproducibility.log",
     shell:
-        "{RSCRIPT} {input.script} {input.se} {input.tech} {output.tsv} {output.png} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.se} {input.tech} {output.tsv} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-agg-qc-panel-sparsity
+#+begin_src snakemake
+# --- QC: per-cell panel detection -- the platform-sparsity fact motivating cluster-then-annotate
+# typing (per-cell InSituType unreachable at ~6% panel detection). Joins per-cell nFeature (merged.rds)
+# to the unified compartment labels + arm/dataset design -> box quantiles by compartment. ---
+rule agg_qc_panel_sparsity:
+    message: "agg_qc_panel_sparsity: per-cell panel detection by compartment/dataset/arm"
+    input:
+        script = f"{R_SCRIPTS}/qc_panel_sparsity.R",
+        merged = MERGED,
+        labels = LABELS,
+        samples = MASTER,
+    output:
+        tsv = "results/aggregate/qc_panel_sparsity.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/qc_panel_sparsity.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.merged} {input.labels} {input.samples} "
+        "{output.tsv} > {log} 2>&1"
+
+# --- QC: transcriptional neighborhood purity (Plummer et al. Nat Biotechnol 2025, Fig 4d) --
+# report-only coherence check on the locked typing. Recomputes kNN on the reused tier-1 scVI
+# latent (no retyping, no GPU training) and scores per-cell purity by final cell_subtype. Runs
+# in the scVI env for scanpy; plotting is the standalone fig_qc_neighborhood_purity.R block.
+rule agg_celltype_purity:
+    message: "agg_celltype_purity: transcriptional neighborhood purity by cell subtype (typing coherence QC)"
+    input:
+        script = f"{R_SCRIPTS}/celltype_neighborhood_purity.py",
+        latent = LATENT,
+        labels = LABELS,
+    output:
+        tsv = "results/aggregate/celltype_neighborhood_purity.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/celltype_neighborhood_purity.log",
+    shell:
+        "{PYSCVI} {input.script} {input.latent} {input.labels} {output.tsv} > {log} 2>&1"
 #+end_src
 *** [[file:workflows/results.smk][Snakefile]]
 **** Preamble
@@ -5748,6 +6227,8 @@ rule agg_qc_reproducibility:
 :ID:       ae921bef-9995-4e74-9a09-36dcbb2d5fe3
 :END:
 ** Ideas
+- https://jef.works/blog/2024/08/29/the-many-ways-to-detect-svgs-using-moransI/
+
 - _02 additional probe analysis
 - https://claude.ai/design/p/019dd94c-82cc-7402-afca-9a1c4e96427f?file=CosMx+Graphical+Abstract.html
 - [ ] fov subdivision
