@@ -24,15 +24,18 @@ R_SCRIPTS = "scripts/aggregate"
 
 MASTER = config["samplesheet"]                     # results/data_model/samples.tsv
 
-# --- typing handoff: three pre-existing leaf inputs from aggregate_typing.smk ---
+# --- typing handoff: leaf inputs from aggregate_typing.smk ---
 LABELS = "results/aggregate/full_labels.parquet"
 MERGED = f"{D_AGG}/merged.rds"
 OBS    = f"{D_FULL}/obs.parquet"
+LATENT = f"{D_FULL}/scvi_latent.parquet"           # tier-1 scVI latent, reused for neighborhood-purity QC
+
+# --- GPU-env Python interpreter (neighborhood-purity QC recomputes kNN on the latent) ---
+PYSCVI = "conda run -n spatial-rads-scvi python"
 
 # --- cohort: flank only ---
 _s    = pd.read_csv(MASTER, sep="\t")
 FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
-
 rule all:
     input:
         "results/aggregate/composition_by_sample.tsv",
@@ -76,9 +79,10 @@ rule all:
         "results/aggregate/detectability_summary.tsv",
         "results/aggregate/results_master.tsv",
         "results/aggregate/qc_arm_balance.tsv",
-        "results/aggregate/plots/qc_arm_balance.png",
+        "results/aggregate/qc_arm_balance_samples.tsv",
         "results/aggregate/qc_reproducibility.tsv",
-        "results/aggregate/plots/qc_reproducibility.png",
+        "results/aggregate/qc_panel_sparsity.tsv",
+        "results/aggregate/celltype_neighborhood_purity.tsv",
 # --- Track 1: cell-type composition (M02 day2 propeller test + M01 descriptive) ---
 rule composition:
     message: "composition: cell-type composition M02 day2 propeller test + M01 descriptive"
@@ -220,7 +224,6 @@ rule pathway_plots:
 # All consume the unified per-cell labels (results/aggregate/full_labels.parquet)
 # and the day-2 readout tables, terminating in the tier-tagged results_master.tsv.
 # ============================================================================
-
 # --- T5: per-cell-type readout detection report (panel detectability in M02) ---
 rule panel_coverage:
     message: "panel_coverage: per-cell-type readout detection report (panel detectability in M02)"
@@ -502,14 +505,14 @@ rule agg_qc_arm_balance:
         contam  = "results/processing/contamination_qc.tsv",
         samples = MASTER,
     output:
-        tsv = "results/aggregate/qc_arm_balance.tsv",
-        png = "results/aggregate/plots/qc_arm_balance.png",
+        tsv     = "results/aggregate/qc_arm_balance.tsv",
+        samples = "results/aggregate/qc_arm_balance_samples.tsv",
     threads: 1
     log:
         f"{D_LOGS}/qc_arm_balance.log",
     shell:
         "{RSCRIPT} {input.script} {input.tech} {input.contam} {input.samples} "
-        "{output.tsv} {output.png} > {log} 2>&1"
+        "{output.tsv} {output.samples} > {log} 2>&1"
 # --- QC: replicate reproducibility -- per-arm pseudobulk concordance (SpatialQM getCorrelation) +
 # technical-metric PCA over the n=4/arm M02 day-2 cohort; flags an outlier slide driving an arm. ---
 rule agg_qc_reproducibility:
@@ -520,9 +523,44 @@ rule agg_qc_reproducibility:
         tech   = "results/processing/sample_tech_metrics.tsv",
     output:
         tsv = "results/aggregate/qc_reproducibility.tsv",
-        png = "results/aggregate/plots/qc_reproducibility.png",
     threads: 1
     log:
         f"{D_LOGS}/qc_reproducibility.log",
     shell:
-        "{RSCRIPT} {input.script} {input.se} {input.tech} {output.tsv} {output.png} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.se} {input.tech} {output.tsv} > {log} 2>&1"
+# --- QC: per-cell panel detection -- the platform-sparsity fact motivating cluster-then-annotate
+# typing (per-cell InSituType unreachable at ~6% panel detection). Joins per-cell nFeature (merged.rds)
+# to the unified compartment labels + arm/dataset design -> box quantiles by compartment. ---
+rule agg_qc_panel_sparsity:
+    message: "agg_qc_panel_sparsity: per-cell panel detection by compartment/dataset/arm"
+    input:
+        script = f"{R_SCRIPTS}/qc_panel_sparsity.R",
+        merged = MERGED,
+        labels = LABELS,
+        samples = MASTER,
+    output:
+        tsv = "results/aggregate/qc_panel_sparsity.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/qc_panel_sparsity.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.merged} {input.labels} {input.samples} "
+        "{output.tsv} > {log} 2>&1"
+
+# --- QC: transcriptional neighborhood purity (Plummer et al. Nat Biotechnol 2025, Fig 4d) --
+# report-only coherence check on the locked typing. Recomputes kNN on the reused tier-1 scVI
+# latent (no retyping, no GPU training) and scores per-cell purity by final cell_subtype. Runs
+# in the scVI env for scanpy; plotting is the standalone fig_qc_neighborhood_purity.R block.
+rule agg_celltype_purity:
+    message: "agg_celltype_purity: transcriptional neighborhood purity by cell subtype (typing coherence QC)"
+    input:
+        script = f"{R_SCRIPTS}/celltype_neighborhood_purity.py",
+        latent = LATENT,
+        labels = LABELS,
+    output:
+        tsv = "results/aggregate/celltype_neighborhood_purity.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/celltype_neighborhood_purity.log",
+    shell:
+        "{PYSCVI} {input.script} {input.latent} {input.labels} {output.tsv} > {log} 2>&1"

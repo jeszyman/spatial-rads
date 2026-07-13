@@ -18,7 +18,7 @@
     - unsupervised group cells by transcriptome similarity (scVI + Leiden)
     - label clusters
   - peak / valley m1
-    - OLD was per cell as replicates and caused pseudoreplica
+    - OLD was per cell as replicates and caused pseudoreplica (false replicates)
     - new is per fov as units of test,upfront check for peak / valley cell count for power,narrowed bands, no sig, likely true result
 
 - QC & preprocessing (complete) — invariant per-sample pipeline: raw per-slide RDS → 950-gene common-panel adapter → 4-criteria QC filter → LogNormalize (23 samples). Report-only QC:
