@@ -26,7 +26,7 @@ First-in-field spatial transcriptomics study of MBRT peak/valley biology. MBRT d
 1. **QC & Landscape** (complete) — `dev/peak_valley_analysis/00-03_*.R`: load, filter, normalize, cluster, cell type validation.
 2. **MBRT vs SBRT Kinetics** (complete) — `dev/02_deg_analysis.R` etc.: DEGs, pathway kinetics, composition, spatial neighborhoods.
 3. **Peak/Valley at 4h** (complete) — `dev/peak_valley_analysis/05-12_*.R`: stripe detection, H2AX validation, classification, peak-vs-valley DEGs/pathways/composition/neighborhoods, SBRT comparison.
-4. **Signature Projection** (planned, runs on jeff-frag-test VM) — project peak/valley signatures across all timepoints; see `plan-mbrt-signatures.md`.
+4. **Peak/valley signature (M01)** (planned) — define the 4h H2AX-anchored peak/valley signature, rebuilt on current QC'd cells + merged-scale atlas labels, via FOV-pseudobulk DE + camera/UCell enrichment + coarse-compartment stratification + orthogonal morphology; within-M01 descriptive only. See `plan-m01-peak-valley-signature.md`. Supersedes the retired VM-based `plan-mbrt-signatures.md` (see `retro-mbrt-signatures.md` for the failed-run post-mortem). M02 replication + gated stripe re-detection in the companion `plan-m02-signature-replication.md` (skeleton; H2AX now exists for M02, gated on a manual FOV overlay).
 
 ## Code Organization
 
@@ -35,7 +35,7 @@ First-in-field spatial transcriptomics study of MBRT peak/valley biology. MBRT d
 - `scripts/*.R` — R steps invoked by snakemake rules. The `preprocessing.smk` steps are tangled from org; the `scripts/aggregate/*.R` steps are authored directly as standalone scripts (not in the org notebook).
 - `plan-aggregate.md` — handoff doc for the next cross-sample / cross-dataset workflow build.
 - `plan-aggregate-refactor.md` — harmonized seven-step plan to make the cross-sample workflow reproduce the locked typing (A2 full re-wire; decisions resolved 2026-06-22; literate transfer executed 2026-07-12 as the `aggregate_typing.smk`/`aggregate_differential.smk` split).
-- `plan-mbrt-signatures.md` — Layer-4 signature projection plan (autonomous VM runs).
+- `plan-m01-peak-valley-signature.md` — M01-only 4h peak/valley signature: define, rebuild on current labels, characterize (H2AX-anchored, descriptive n=1). Supersedes the retired `plan-mbrt-signatures.md` (VM Layer-4, failed autonomous run; post-mortem in `retro-mbrt-signatures.md`).
 - `results/processing/` — small TSVs and reports from `preprocessing.smk` (qc_summary, probe_qc_report, contamination_qc, plots).
 - `dev/peak_valley_analysis/` — scientific Layer-3 work, exploratory.
 - `config/spatial-rads-conda-env.yaml` — conda environment definition.

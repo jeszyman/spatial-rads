@@ -16,7 +16,7 @@ does not block it. Only contact point: the *tumor-compartment subset* used as
 the worked example — re-pull it from re-typed labels when running.
 
 This is the spatial axis of the peak/valley question; the condition-level /
-outcome axis lives in `plan-outcomes-de.md`. Scope: M01 flank Block_21 MBRT
+whole-compartment arm axis is owned by `plan-mbrt-vs-sbrt-reanalysis.md`. Scope: M01 flank Block_21 MBRT
 4h is the worked example (peak FOVs known from H2AX IHC); generalizing to
 other samples is an open question below.
 
