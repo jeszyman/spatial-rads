@@ -1,16 +1,16 @@
-concept	source	source_id	citation
-TypeI_interferon	nanostring	Type I Interferon Signaling	NA
-TypeI_interferon	hallmark	HALLMARK_INTERFERON_ALPHA_RESPONSE	NA
-TypeII_interferon	nanostring	Type II Interferon Signaling	NA
-TypeII_interferon	hallmark	HALLMARK_INTERFERON_GAMMA_RESPONSE	NA
-DNA_Damage_Repair	nanostring	DNA Damage Repair	NA
-DNA_Damage_Repair	hallmark	HALLMARK_DNA_REPAIR	NA
-Angiogenesis	nanostring	Angiogenesis;VEGF Signaling	NA
-Angiogenesis	hallmark	HALLMARK_ANGIOGENESIS	NA
-Hypoxia	nanostring	HIF1 Signaling	NA
-Hypoxia	hallmark	HALLMARK_HYPOXIA	NA
-Fibrosis_remodeling	nanostring	Collagen;TGF-beta Signaling;EMT	NA
-Fibrosis_remodeling	hallmark	HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION;HALLMARK_TGF_BETA_SIGNALING	NA
-Stromal_stress_senescence	nanostring	Senescence;Cellular Stress;p53 Signaling	NA
-Stromal_stress_senescence	hallmark	HALLMARK_P53_PATHWAY	NA
-STING	custom	NA	PLACEHOLDER_NEEDS_CITATION
+concept	source	source_id	tier	citation
+TypeI_interferon	nanostring	Type I Interferon Signaling	primary	NA
+TypeI_interferon	hallmark	HALLMARK_INTERFERON_ALPHA_RESPONSE	exploratory	NA
+TypeII_interferon	nanostring	Type II Interferon Signaling	primary	NA
+TypeII_interferon	hallmark	HALLMARK_INTERFERON_GAMMA_RESPONSE	exploratory	NA
+DNA_Damage_Repair	nanostring	DNA Damage Repair	primary	NA
+DNA_Damage_Repair	hallmark	HALLMARK_DNA_REPAIR	exploratory	NA
+Angiogenesis	nanostring	Angiogenesis;VEGF Signaling	primary	NA
+Angiogenesis	hallmark	HALLMARK_ANGIOGENESIS	exploratory	NA
+Hypoxia	nanostring	HIF1 Signaling	primary	NA
+Hypoxia	hallmark	HALLMARK_HYPOXIA	exploratory	NA
+Fibrosis_remodeling	nanostring	Collagen;TGF-beta Signaling;EMT	primary	NA
+Fibrosis_remodeling	hallmark	HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION;HALLMARK_TGF_BETA_SIGNALING	exploratory	NA
+Stromal_stress_senescence	nanostring	Senescence;Cellular Stress;p53 Signaling	primary	NA
+Stromal_stress_senescence	hallmark	HALLMARK_P53_PATHWAY	exploratory	NA
+SASP	custom	NA	exploratory	doi:10.1371/journal.pbio.0060301

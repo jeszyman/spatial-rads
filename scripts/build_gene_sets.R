@@ -23,9 +23,10 @@ reg_p     <- a[1]; yaml_p <- a[2]; vendor_p <- a[3]; panel_p <- a[4]
 min_pg    <- as.integer(a[5]); out_sets <- a[6]; out_cov <- a[7]
 
 panel <- readLines(panel_p)
-reg   <- fread(reg_p, colClasses = "character")            # concept, source, source_id, citation
-stopifnot(all(c("concept","source","source_id","citation") %in% names(reg)))
+reg   <- fread(reg_p, colClasses = "character")            # concept, source, source_id, tier, citation
+stopifnot(all(c("concept","source","source_id","tier","citation") %in% names(reg)))
 stopifnot(all(reg$source %in% c("nanostring","hallmark","custom")))
+stopifnot(all(reg$tier %in% c("primary","exploratory")))
 
 ## ---- custom members: bespoke concepts must be present with a citation ----
 custom <- lapply(read_yaml(yaml_p), as.character)
@@ -61,34 +62,57 @@ members <- function(r) {
     custom     = custom[[r$concept]])
   unique(as.character(g))
 }
+# set = the scored-set key: concept name for a primary set, else the concept (the
+# hallmark twin of a named concept keeps the HALLMARK_* id so it is distinct from its
+# primary sibling). Downstream (pathway_scores.R, assemble_results.R) splits genes by `set`.
+set_name <- function(r) if (r$source == "hallmark") r$source_id else r$concept
 sets_long <- rbindlist(lapply(seq_len(nrow(reg)), function(i) {
   r <- reg[i]; g <- members(r)
-  data.table(concept = r$concept, source = r$source, source_id = r$source_id,
-             provenance = r$source, citation = r$citation, gene = g)
+  data.table(set = set_name(r), concept = r$concept, source = r$source, source_id = r$source_id,
+             provenance = r$source, tier = r$tier, citation = r$citation, gene = g)
 }))
 
-## ---- coverage per (concept, source) + confirmatory selection ----
-cov <- sets_long[, .(source_id = source_id[1], citation = citation[1],
+## ---- full Hallmark exploratory sweep: every MH set clearing the panel-gene floor ----
+## (concept-twin Hallmark sets already emitted above are excluded to avoid duplicate rows)
+named_hm <- unique(unlist(lapply(reg[source == "hallmark", source_id], split_ids)))
+hm_all   <- hm[, .(gene = unique(gene_symbol)), by = .(set = gs_name)]
+hm_all[, n_panel := sum(gene %in% panel), by = set]
+hm_sweep <- hm_all[n_panel >= min_pg & !set %in% named_hm]
+hm_sweep <- hm_sweep[, .(set, concept = set, source = "hallmark", source_id = set,
+                         provenance = "hallmark", tier = "exploratory", citation = NA_character_, gene)]
+sets_long <- rbind(sets_long, hm_sweep, fill = TRUE)
+
+## ---- coverage per scored set + confirmatory selection ----
+cov <- sets_long[, .(concept = concept[1], source = source[1], source_id = source_id[1],
+                     tier = tier[1], citation = citation[1],
                      n_total = uniqueN(gene),
                      n_panel = uniqueN(gene[gene %in% panel])),
-                 by = .(concept, source)]
+                 by = set]
 cov[, coverage := n_panel / n_total]
 cov[, thin := n_panel < min_pg]
-# one confirmatory set per concept = highest panel COVERAGE (n_panel/n_total); the
-# panel-designed module beats a genome-wide set diluted off-panel. ties -> nanostring, hallmark
+# one confirmatory set per PRIMARY concept = highest panel COVERAGE (n_panel/n_total); the
+# panel-designed module beats a genome-wide set diluted off-panel. exploratory sets are
+# never confirmatory. ties -> nanostring, hallmark, custom.
 src_rank <- c(nanostring = 1L, hallmark = 2L, custom = 3L)
 cov[, confirmatory := FALSE]
-sel <- cov[, .I[order(-coverage, src_rank[source])[1]], by = concept]$V1
-cov[sel, confirmatory := TRUE]
+conf_sets <- cov[tier == "primary"][order(concept, -coverage, src_rank[source]),
+                                    .(set = set[1]), by = concept]$set
+cov[set %in% conf_sets, confirmatory := TRUE]
 
 ## ---- attach confirmatory + coverage back onto the long table ----
 sets_long <- merge(sets_long,
-                   cov[, .(concept, source, confirmatory, n_panel, n_total, coverage, thin)],
-                   by = c("concept", "source"), all.x = TRUE)
+                   cov[, .(set, confirmatory, n_panel, n_total, coverage, thin)],
+                   by = "set", all.x = TRUE)
 sets_long[, on_panel := gene %in% panel]
 
 ## ---- freeze: hand-authored surfaces (registry + custom yaml) vs git HEAD ----
+# SPATIALRADS_FREEZE_SKIP=1 bypasses the guard for the intended "building the next
+# frozen state" step: after a deliberate registry/yaml revision, build once with the
+# skip to regenerate artifacts, then COMMIT the new registry+yaml (which becomes HEAD
+# and the new frozen baseline). Never set it in the committed workflow.
+freeze_skip <- nzchar(Sys.getenv("SPATIALRADS_FREEZE_SKIP"))
 freeze_check <- function(path, parse) {
+  if (freeze_skip) return(NULL)
   txt <- tryCatch(paste(system2("git", c("show", paste0("HEAD:", path)), stdout = TRUE),
                         collapse = "\n"), error = function(e) NULL)
   if (is.null(txt) || !nzchar(txt)) return(invisible())   # not yet committed -> nothing to guard
@@ -106,12 +130,17 @@ if (!is.null(committed_yaml)) for (s in names(custom))
     stop("freeze: custom set '", s, "' differs from committed config/pathway_gene_lists.yaml")
 
 ## ---- write ----
+# `set` + `tier` lead so downstream consumers (pathway_scores.R splits genes by `set`;
+# assemble_results.R filters tier == "primary" and matches cov by `set`) read a stable key.
 dir.create(dirname(out_sets), recursive = TRUE, showWarnings = FALSE)
-setcolorder(sets_long, c("concept","source","source_id","provenance","citation",
+setcolorder(sets_long, c("set","tier","concept","source","source_id","provenance","citation",
                          "confirmatory","gene","on_panel","n_panel","n_total","coverage","thin"))
 fwrite(sets_long, out_sets, sep = "\t")
 writeLines(sprintf("# msigdbr_version: %s", mver), out_cov)
-fwrite(cov[, .(concept, source, source_id, citation, n_total, n_panel, coverage, thin, confirmatory)],
+cov[, usable := tier == "primary" | n_panel >= min_pg]      # legacy column assemble_results reads
+fwrite(cov[, .(set, tier, concept, source, source_id, citation,
+               n_total, n_panel, coverage, usable, thin, confirmatory)],
        out_cov, sep = "\t", append = TRUE, col.names = TRUE)
-cat(sprintf("pathway_sets: %d concepts, %d (concept,source) sets; %d confirmatory | msigdbr %s\n",
-            uniqueN(cov$concept), nrow(cov), cov[confirmatory == TRUE, .N], mver))
+cat(sprintf("pathway_sets: %d sets (%d primary, %d exploratory); %d confirmatory | msigdbr %s\n",
+            nrow(cov), cov[tier=="primary", .N], cov[tier=="exploratory", .N],
+            cov[confirmatory == TRUE, .N], mver))

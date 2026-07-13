@@ -31,7 +31,7 @@ IMMUNE   <- c("T cells","NK cells","ILC","Plasma cells","Macrophages","DC",
               "Mast cells","Neutrophils")
 STROMA   <- c("Fibroblast","SmoothMuscle","Adipocyte","Endothelial")
 STROMA_DE<- c("Fibroblast","SmoothMuscle","Adipocyte")   # endo DE belongs to H2
-H1_PROG  <- c("TypeI_interferon","TypeII_interferon","STING")
+H1_PROG  <- c("TypeI_interferon","TypeII_interferon")   # STING retired 2026-07-13 (panel blind spot)
 H2_PROG  <- c("Angiogenesis","Hypoxia")
 H3_PROG  <- c("Fibrosis_remodeling","Stromal_stress_senescence")
 

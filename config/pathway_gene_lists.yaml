@@ -4,4 +4,8 @@
 # MUST have a non-NA citation in that registry. NanoString- and Hallmark-derived sets
 # are materialized computationally by scripts/build_gene_sets.R and do NOT live here.
 # Genes absent from the common 950-gene panel drop at build/scoring time.
-STING: [Irf3, Isg15, Cxcl10]
+#
+# SASP: senescence-associated secretory phenotype, curated composite of canonical
+# secreted factors (Coppe 2008, doi:10.1371/journal.pbio.0060301). Exploratory tier.
+# Off-panel members Mmp3, Mmp13, Serpine1 drop at build (14/17 on the 950-gene panel).
+SASP: [Il6, Il1a, Il1b, Cxcl1, Cxcl2, Ccl2, Ccl20, Mmp3, Mmp13, Serpine1, Igfbp3, Igfbp7, Timp1, Tnf, Vegfa, Gdf15, Csf2]
