@@ -1,3 +1,25 @@
+* spatial test
+:PROPERTIES:
+:ID:       8091391b-231a-441f-8670-c2d5ce47d84c
+:EXPORT_FILE_NAME: ./tmp/talk
+:EXPORT_TITLE: spatial test
+:EXPORT_AUTHOR: Jeffrey Szymanski
+:EXPORT_DATE: \today
+:EXPORT_LATEX_CLASS: present
+:EXPORT_OPTIONS: toc:nil num:UNNUMBERED H:2 ^:{}
+:EXPORT_LATEX_HEADER: \usepackage{szymanski-present}
+:END:
+** Background
+** Methods
+** Results
+** Next steps
+** Acknowledgments
+** Slide generation reference
+#+begin_comment
+Export: python3 ~/repos/latex/scripts/emacs_export_header_to_latex.py --org_file /home/jeszyman/repos/spatial-rads/spatial-rads.org --node_id 8091391b-231a-441f-8670-c2d5ce47d84c
+#+end_comment
+
+
 * Spatial Radiomics                                           :sci_proj_repo:
 https://www.nature.com/articles/s41588-026-02671-2
 https://www.nature.com/articles/s41467-025-56080-w
@@ -8,20 +30,15 @@ kill out - =analysis/= — legacy exploratory =dev/= outputs (objects, figures, 
 ** Plans
 - [[file:plan-aggregate.md][aggregate workflow — design, decisions, status]] — cross-sample/cross-dataset workflow. /Cell typing executed and locked (2026-06-02): scVI integration + coarse cluster-then-annotate (res=3.0, all four Q4 gates passed; tumor 48.1% / stroma 40.6% / immune 11.2%), tier-2 immune SingleR/ImmGen with marker rescue (macrophage-dominated; B cells near-absent), and tier-2 stroma UCell with marker rescue (fibroblast-dominated; endothelium and adipocytes recovered). All three tiers joined into the unified per-cell table =results/aggregate/full_labels.parquet=. See v2.5 banner. Split 2026-07-12 into two literate, org-tangled workflows at the typing/differential seam: =aggregate_typing.smk= (merge → scVI typing → =full_labels.parquet= + =merged.rds=) and =aggregate_differential.smk= (MBRT-vs-SBRT differential layer → =results_master.tsv=, consuming the typing outputs as leaf inputs); reproducibility-wiring history in =plan-aggregate-refactor.md=./
 - [[file:plan-aggregate-refactor.md][aggregate refactor — reproducibility-wiring, best-practice review, literate transfer]] — decisions resolved 2026-06-22 (=A2 full re-wire= / decision-forcing best-practice review / =C1= orchestration-only literate transfer), harmonized into a seven-step sequence: audit → method shoot-out (scVI vs scANVI/scArches on the 2-slide pilot) → wire the real ~13-node multi-env DAG (authoring =full_scvi.py=, retiring =recover_negprobes= onto the re-based M01 RDS) → full rebuild → re-validate the 4 Q4 gates → refresh =results_master.tsv= → literate transfer. Acceptance = re-validation, not byte-identity. Steps 1–5 executed 2026-06-22 (bit-identical rebuild; =full_scvi.py= authored, DAG wired) and Step 7 literate transfer executed 2026-07-12 as a two-file split (=aggregate_typing.smk= + =aggregate_differential.smk=), not the originally-specified single =aggregate.smk=; Step 6 =results_master.tsv= refresh + =recover_negprobes= retirement remain pending.
-- [[file:plan-preprocessing.md][preprocessing.smk — invariant per-sample preprocessing]] — adapter → QC → normalize + report-only QC (per-sample typing/pathway deleted 2026-07-10; terminus norm.rds); folds the former processing-pipeline + mutter01-controls plans.
 - [[file:plan-mbrt-signatures.md][MBRT signatures plan]] — autonomous VM Layer-4 run.
 - [[file:plan-mbrt-vs-sbrt-reanalysis.md][MBRT vs SBRT vs Control — arm-level reanalysis]] — CURRENT canonical framing (2026-06-22, post 4/4 devils-advocate panel). Look at all 3 contrasts effect-size-forward on the reproducible labels; the MBRT arm-level "null" is reframed as spatial DILUTION (the real M01 4h peak signature averaged out), not biological absence; symmetric panel coverage + a detectability table (not a fuzzy decision-gate); never "sparing" (MBRT dose unrecorded); resolving spatial gated on M02 peak/valley staining + MBRT dose physics. Impl: =plan-mbrt-vs-sbrt-reanalysis-impl.md=.
 - [[file:plan-mbrt-vs-sbrt.md][MBRT vs SBRT downstream analysis — design/run record]] — the EXECUTED differential layer (=results_master.tsv=, 2026-06-03): three a priori hypotheses (H1 immune, H2 vascular, H3 stromal) × MBRT/SBRT/Control + exploratory + spatial-structure scans. /Framing superseded 2026-06-22 by the reanalysis above (null → spatial dilution); retained as the run record./
-- [[file:plan-pathway-genesets.md][Pathway gene-sets + panel generation — design/spec]] — single-source-of-truth refactor: generate the 950-gene common panel + a tier-structured pathway gene-set artifact (tier-1 curated frozen, tier-2 pinned MSigDB Hallmark) in =data_model.smk=, rewire all gene-set consumers off live =msigdbr=, and collapse the redundant double per-cell scoring. Implementation steps in [[file:plan-pathway-genesets-impl.md][plan-pathway-genesets-impl.md]]. Brainstormed + devils-advocate-reviewed 2026-06-22.
 
 *** Plan status ledger
 Ground-truthed 2026-07-10 against the Change log + committed code + on-disk artifacts, NOT the =Status:= banner in each plan file (those drift). The authoritative record of what actually ran is the Change log timeline, committed code, and produced artifacts.
 
 |  # | Plan                               | State                                                                                                                                                      | Remaining                                                                                                        |
 |----+------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------|
-|  1 | [[file:plan-preprocessing.md][per-sample preprocessing]]           | split executed 2026-07-10 (per-sample typing/pathway deleted; terminus norm.rds); folds the former processing-pipeline + mutter01-controls plans           | full-run verify + commit                                                                                         |
-|  2 | [[file:docs/superpowers/plans/2026-03-30-peak-valley-workbook-plan.md][peak/valley 4h workbook]]            | done (exploratory Layers 1-3)                                                                                                                              | —                                                                                                                |
-|  3 | [[file:plan-pathway-genesets.md][pathway gene-sets]]                  | Phase 1 done + pushed                                                                                                                                      | Phase 2 absorbed by the split (per-sample pathway deleted; merge terminus norm.rds)                              |
 |  4 | [[file:plan-aggregate.md][cross-dataset typing]]               | executed + locked 2026-06-02; reproducible (bit-identical rebuild 2026-06-22); merge now reads norm.rds; typing split into aggregate_typing.smk 2026-07-12 | —                                                                                                                |
 |  5 | [[file:plan-aggregate-refactor.md][aggregate reproducibility refactor]] | Steps 1-5 done 2026-06-22; Step 7 literate transfer done 2026-07-12 (two-file split: aggregate_typing.smk + aggregate_differential.smk)                    | Step 6 refresh results_master.tsv; negprobe retirement; re-base integration-QC benchmark label off merged labels |
 |  6 | [[file:plan-mbrt-vs-sbrt.md][MBRT/SBRT/Control differential]]     | executed 2026-06-03                                                                                                                                        | framing superseded by #7; kept as run record                                                                     |
@@ -276,6 +293,64 @@ sourced-conda-envs:
     - 1–4 hours: foci gradually resolve as non-homologous end joining (NHEJ, dominant in G0/G1) and homologous recombination (HR, S/G2 only) repair breaks. Repaired DSBs dephosphorylate H2AX.
     - 24 hours: >90% of foci resolved in normally-repairing cells; residual foci mark unrepaired complex lesions, heterochromatic breaks, or cells entering apoptosis.
   - >24 hours: persistent foci = biomarker of genomic instability / failed repair.
+** A priori hypotheses
+:PROPERTIES:
+:ID:       a2f0763f-6675-4d1c-a3bd-b130b9d4eabf
+:END:
+
+Literature-grounded predictions, organized by the scale at which the data can resolve them. The MBRT-specific biology is within-tumor peak/valley; whole-compartment arm averaging dilutes any peak-restricted signal, so arm-level lines are exploratory. The originally pre-registered confirmatory family (immune / vascular / stroma, tiered FDR) and all realized findings are in [[file:plan-mbrt-vs-sbrt.md][plan-mbrt-vs-sbrt.md]]. Arm contrasts (MBRT vs SBRT, MBRT vs Control, SBRT vs Control) run on the day-2 replicate cohort (n=4/arm); peak vs valley is within-tumor and needs H2AX registration.
+
+*** Within-tumor peak/valley (needs H2AX registration)
+Where the microbeam signal is undiluted. The immune-activation prediction lives here: MBRT drives stronger antigen presentation and IFN response than uniform RT, but the signal is peak-restricted (validated 4h M01 37-gene MHC-I/IFN signature) and cancels under arm averaging. Not yet examined at n=4 day-2.
+
+#+caption: Literature-supported SFRT/MBRT immune mechanisms vs what the panel can test.
+| Mechanism                    | On panel                             | Askable                 |
+|------------------------------+--------------------------------------+-------------------------|
+| Type I IFN                   | 7/19                                 | Yes                     |
+| Type II IFN / IFN-γ          | 8/17 (Ifng, Cxcl9/10/11)             | Yes                     |
+| T-cell infiltration/effector | Cd3e, Cd8a, Gzmb, Prf1, Ccl5, Pdcd1  | Yes                     |
+| cGAS-STING sensing           | sensors (Cgas/Sting1/Tbk1) off-panel | Proxy (downstream ISGs) |
+| Immunogenic cell death       | Calr/Hmgb1 off-panel; Entpd1 present | Weak/partial            |
+| Abscopal / distant control   | not applicable                       | No (out of design)      |
+
+**** Peaks -- direct damage and antigen presentation
+High-dose beam tracks show DDR, apoptosis, MHC-I antigen presentation, and IFN response.
+- Test: peak vs valley (MBRT). Direction: damage, antigen-presentation, and IFN higher in peaks.
+- Support: Kanagavelu 2014 /Radiat Res/; Billena & Khan 2019 /IJROBP/.
+
+**** Peak vascular damage and hypoxia
+Immature tumor neovessels in the beam tracks are destroyed while valley vessels are spared, driving localized hypoxia.
+- Test: peak vs valley (MBRT). Direction: endothelial disruption and hypoxia higher in peaks.
+- Readout: endothelial fraction, angiogenesis program, hypoxia program (Vegfa, Car9, Slc2a1).
+- Support: Bouchet 2010 /IJROBP/; Bouchet 2013 /Radiother Oncol/; Sabatasso 2015 /Phys Med/.
+
+**** Valleys -- bystander immune priming
+Low-dose valleys are the candidate origin of the immune advantage: bystander IFN/STING and mixed tumor-immune neighborhoods.
+- Test: peak vs valley; MBRT valley vs SBRT. Direction: bystander IFN/STING and tumor-immune mixing higher in valleys.
+- Support: Yang 2021; Kanagavelu 2014; Smyth 2018.
+
+*** Arm-level (exploratory; MBRT signal diluted by whole-compartment averaging)
+
+**** Myofibroblast expansion (normal-tissue sparing readout)
+Normal-tissue sparing cast as its only discrete readout in this tumor-block design: uniform RT drives stromal fibrosis while microbeam RT spares it, seen as a shift in fibroblast state mix (resting to activated), not per-cell upregulation.
+- Test: fibroblast substate composition; fibrosis program (collagens, Acta2, Tgfb targets). Direction: activated fraction and fibrosis program higher under SBRT than MBRT.
+- Support: Dilmanian 2006 /PNAS/; Crosbie 2010 /IJROBP/; Bazyar 2018 /Sci Rep/.
+
+**** Normal-vessel sparing
+Mature normal vasculature survives microbeam tracks and repairs, so normal-tissue endothelium is less perturbed under MBRT than uniform RT. Testable at arm level because it lives in the spared compartment, not a within-tumor gradient; slow to manifest, so day-2 may be early.
+- Test: MBRT vs SBRT, normal-tissue endothelium. Direction: less endothelial perturbation under MBRT.
+- Support: Bouchet 2015 /Phys Med/ (normal vs tumoral vessels).
+
+**** Myeloid M2 polarization
+MBRT myeloid cells skew M2 (Cd163/Mrc1) relative to SBRT.
+- Test: MBRT vs SBRT, myeloid-restricted.
+
+**** DNA damage / arrest / senescence
+Engaged by both arms; expected to localize to peaks under MBRT.
+- Test: arm contrasts and peak vs valley.
+
+*** Signature persistence (gated)
+Do the 4h peak and valley signatures remain detectable as gene programs at later timepoints and in the replicate cohort, and are they absent under uniform SBRT? Scored across MBRT timepoints, not a two-group contrast; no H2AX ground truth away from 4h, so high scores cannot be read as retained peak/valley identity.
 ** Data
 :PROPERTIES:
 :ID:       025e75ff-f300-477b-96e7-f8c21665fb16
@@ -4806,6 +4881,176 @@ str(meta)
 #+end_src
 
 ** Results
+
+*** Exploratory post IR dynamics
+**** Descriptive
+
+
+Peak/valley signature kinetics rebuilt on the canonical merged-scale labels (coarse compartment + tier-2 subtypes at [[file:results/aggregate/full_labels.parquet]]), replacing the retired Yi ImmGen buckets. For each cell class with at least 30 peak and 30 valley cells at MBRT 4h (the H2AX-ground-truthed FOVs), a 10-gene peak-up and 10-gene valley-up signature is derived by Wilcoxon peak-vs-valley differential expression, scored as mean LogNormalize expression across all flank cells, and standardized to z within the class so panels are magnitude-comparable on a shared y axis. Lines track Control/MBRT/SBRT over 0 Gy to 6 d; the MBRT 4h peak and valley split is overlaid at a 4h guide. Because the signatures are defined at MBRT 4h peak vs valley, the 4h separation is partly by construction: the interpretable signal is the cross-timepoint decay and the SBRT curve, not the 4h gap itself. Descriptive, n=1 per arm; eight classes clear the 30-cell-per-side floor (tumor; the fibroblast, endothelial, smooth-muscle, and adipocyte stroma; and the macrophage, DC, and ILC immune subsets); the sparser immune lineages (T, NK, plasma, mast, neutrophil; B absent) fall below it and drop out. [[file:dev/if_channel_check/class_region_signatures_kinetics.png]]
+
+#+name: class-region-signatures
+#+begin_src R :tangle dev/if_channel_check/class_region_signatures.R
+#!/usr/bin/env Rscript
+# Class x region peak/valley signature kinetics (Mutter_01, descriptive n=1).
+# Rewired onto the canonical merged-scale labels (results/aggregate/full_labels.parquet):
+# coarse compartment + tier-2 subtypes, replacing the retired Yi ImmGen buckets. For each
+# canonical cell class a 10-gene peak-up and 10-gene valley-up signature is derived from the
+# MBRT 4h peak-vs-valley contrast (manual H2AX FOVs), scored as mean LogNormalize expression
+# across all flank cells, and standardized to z within the class so panels are comparable.
+# Curves track Control/MBRT/SBRT over 0 Gy->6d; the MBRT 4h peak/valley split is overlaid at 4h.
+# Signatures are defined at MBRT 4h, so the 4h peak>valley gap is partly by construction; the
+# informative signal is the cross-timepoint decay and the SBRT curve.
+# Args (all optional, canonical defaults): <labels> <samplesheet> <normdir> <outdir>
+suppressPackageStartupMessages({
+  library(arrow); library(data.table); library(Seurat); library(Matrix); library(ggplot2)
+})
+
+## ---- args / canonical defaults ----
+a       <- commandArgs(trailingOnly = TRUE)
+LABELS  <- if (length(a) >= 1) a[1] else "results/aggregate/full_labels.parquet"
+SS      <- if (length(a) >= 2) a[2] else "results/data_model/samples.tsv"
+NORMDIR <- if (length(a) >= 3) a[3] else "/mnt/data/projects/spatial-rads/processing/norm"
+OUT     <- if (length(a) >= 4) a[4] else "dev/if_channel_check"
+
+MBRT4H_SAMPLE <- "sam0003"   # MBRT_4h flank sample (the H2AX-labelled block)
+MIN_SIDE      <- 30          # min cells per peak/valley side to derive a class signature
+peak_fovs   <- c(224, 209, 201, 186, 172, 225, 229, 215, 175, 176, 206, 181, 168, 167)
+valley_fovs <- c(199, 213, 227, 188, 204, 218, 178, 165, 170, 231, 189, 173, 154)
+
+## ---- labels: parse sample + fov + per-sample barcode from the canonical cell id ----
+## canonical cell = <sample_id>_<slide>_<fov>_<cellidx>; norm.rds colname drops the sample prefix.
+lab <- as.data.table(read_parquet(LABELS))[dataset == "Mutter_01"]
+lab[, sample_id := sub("_.*$", "", cell)]
+lab[, barcode   := sub("^sam[0-9]+_", "", cell)]
+lab[, fov       := as.integer(sub("^.*_([0-9]+)_[0-9]+$", "\\1", cell))]
+
+ss <- fread(SS)
+lab <- merge(lab, ss[, .(sample_id, condition, treatment, timepoint_h, model)],
+             by = "sample_id", all.x = TRUE)
+lab <- lab[model == "flank" & cell_subtype != "unassigned" & !is.na(cell_subtype)]
+
+## ---- peak/valley labels at MBRT 4h ----
+lab[, pv := NA_character_]
+lab[sample_id == MBRT4H_SAMPLE & fov %in% peak_fovs,   pv := "peak"]
+lab[sample_id == MBRT4H_SAMPLE & fov %in% valley_fovs, pv := "valley"]
+
+## classes with enough cells on both sides to support a peak/valley signature
+pv_wide <- dcast(lab[!is.na(pv), .N, by = .(cell_subtype, pv)],
+                 cell_subtype ~ pv, value.var = "N", fill = 0)
+classes <- pv_wide[peak >= MIN_SIDE & valley >= MIN_SIDE, cell_subtype]
+cat("Classes passing peak/valley power floor:\n"); print(classes)
+
+## ---- derive signatures from the MBRT 4h norm object ----
+obj4 <- readRDS(file.path(NORMDIR, paste0(MBRT4H_SAMPLE, ".norm.rds")))
+m4   <- lab[sample_id == MBRT4H_SAMPLE & !is.na(pv)]; setkey(m4, barcode)
+keep <- intersect(colnames(obj4), m4$barcode)
+obj4 <- subset(obj4, cells = keep)
+md4  <- m4[colnames(obj4)]
+obj4$cell_class <- md4$cell_subtype
+obj4$pv         <- md4$pv
+
+signatures <- list()
+for (cls in classes) {
+  sub <- subset(obj4, subset = cell_class == cls)
+  if (min(table(factor(sub$pv, c("peak", "valley")))) < MIN_SIDE) next
+  Idents(sub) <- "pv"
+  mk <- FindMarkers(sub, ident.1 = "peak", ident.2 = "valley", test.use = "wilcox",
+                    logfc.threshold = 0.1, min.pct = 0.05, verbose = FALSE)
+  mk <- as.data.table(mk, keep.rownames = "gene")
+  pk <- head(mk[avg_log2FC >  0.1][order(-avg_log2FC)], 10)$gene
+  vl <- head(mk[avg_log2FC < -0.1][order( avg_log2FC)], 10)$gene
+  if (length(pk)) signatures[[paste(cls, "peak",   sep = "__")]] <- pk
+  if (length(vl)) signatures[[paste(cls, "valley", sep = "__")]] <- vl
+}
+cat("Signature sizes (genes):\n"); print(sapply(signatures, length))
+
+## ---- score every flank cell with its class signature (mean LogNormalize expression) ----
+all_sig_genes <- unique(unlist(signatures))
+score_rows <- list()
+for (s in sort(unique(lab$sample_id))) {
+  o  <- readRDS(file.path(NORMDIR, paste0(s, ".norm.rds")))
+  d  <- GetAssayData(o, layer = "data")
+  d  <- d[intersect(all_sig_genes, rownames(d)), , drop = FALSE]
+  ls <- lab[sample_id == s]; setkey(ls, barcode)
+  cc <- intersect(colnames(d), ls$barcode)
+  d  <- d[, cc, drop = FALSE]; ls <- ls[cc]
+  for (sig in names(signatures)) {
+    cls <- sub("__.*", "", sig); reg <- sub(".*__", "", sig)
+    sg  <- intersect(signatures[[sig]], rownames(d))
+    idx <- which(ls$cell_subtype == cls)
+    if (!length(sg) || !length(idx)) next
+    score_rows[[paste(s, sig)]] <- data.table(
+      cell_class = cls, region = reg,
+      score = as.numeric(Matrix::colMeans(d[sg, idx, drop = FALSE])),
+      condition = ls$condition[idx], treatment = ls$treatment[idx],
+      timepoint_h = ls$timepoint_h[idx], pv = ls$pv[idx])
+  }
+  rm(o, d); invisible(gc())
+}
+long <- rbindlist(score_rows)
+
+## z within each class x region signature -> panels comparable on a shared y axis
+long[, z := (score - mean(score, na.rm = TRUE)) / sd(score, na.rm = TRUE),
+     by = .(cell_class, region)]
+tp_map <- c("0" = "0 Gy", "1" = "1h", "4" = "4h", "48" = "2d", "144" = "6d")
+long[, tp := factor(tp_map[as.character(timepoint_h)],
+                    levels = c("0 Gy", "1h", "4h", "2d", "6d"))]
+long[, treat := fifelse(is.na(treatment) | treatment == "NT", "Control", treatment)]
+
+## ---- summarize: arm means + MBRT 4h peak/valley overlay ----
+summ <- long[, .(mean_z = mean(z, na.rm = TRUE), n = .N),
+             by = .(cell_class, region, treat, tp)]
+pvov <- long[treat == "MBRT" & !is.na(pv),
+             .(mean_z = mean(z, na.rm = TRUE), n = .N), by = .(cell_class, region, pv)]
+pvov[, treat := paste("MBRT", pv)][, tp := factor("4h", levels = levels(summ$tp))][, pv := NULL]
+summ <- rbind(summ, pvov, fill = TRUE)
+
+## ---- plot ----
+class_order <- intersect(c("Tumor", "Fibroblast", "Endothelial", "SmoothMuscle", "Adipocyte",
+                           "Macrophages", "DC", "T cells", "NK cells", "ILC", "Plasma cells",
+                           "Mast cells", "Neutrophils"), unique(summ$cell_class))
+summ[, cell_class := factor(cell_class, levels = class_order)]
+summ[, region := factor(region, levels = c("peak", "valley"),
+                        labels = c("peak signature", "valley signature"))]
+treat_levels <- c("Control", "MBRT", "SBRT", "MBRT peak", "MBRT valley")
+summ[, treat := factor(treat, levels = treat_levels)]
+line_s <- summ[treat %in% c("Control", "MBRT", "SBRT")]
+pt_s   <- summ[treat %in% c("MBRT peak", "MBRT valley")]
+cols <- c(Control = "gray40", MBRT = "#e41a1c", SBRT = "#377eb8",
+          "MBRT peak" = "#b30000", "MBRT valley" = "#fc9272")
+shps <- c(Control = 16, MBRT = 17, SBRT = 15, "MBRT peak" = 8, "MBRT valley" = 4)
+x4 <- which(levels(summ$tp) == "4h")
+
+p <- ggplot() +
+  geom_vline(xintercept = x4, color = "grey80", linewidth = 0.4, linetype = "dotted") +
+  geom_line(data = line_s, aes(tp, mean_z, color = treat, group = treat), linewidth = 0.7) +
+  geom_point(data = line_s, aes(tp, mean_z, color = treat, shape = treat), size = 2.4) +
+  geom_point(data = pt_s, aes(tp, mean_z, color = treat, shape = treat),
+             size = 3.4, stroke = 1.2) +
+  facet_grid(region ~ cell_class) +
+  scale_color_manual(values = cols) + scale_shape_manual(values = shps) +
+  labs(x = "Timepoint",
+       y = "Signature score (z of mean LogNormalize expression, within class)",
+       color = NULL, shape = NULL,
+       title = "Peak/valley signature kinetics by canonical cell class (Mutter_01)",
+       subtitle = paste("Rows: signature region. Columns: cell class.",
+                        "Signatures derived from MBRT 4h peak vs valley (dotted guide).")) +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1, size = 8),
+        panel.spacing.x = unit(0.7, "lines"))
+
+ggsave(file.path(OUT, "class_region_signatures_kinetics.png"), p,
+       width = max(8, 3 * length(class_order)), height = 6.5, dpi = 140)
+
+## ---- provenance ----
+fwrite(summ, file.path(OUT, "class_region_signature_scores.tsv"), sep = "\t")
+fwrite(rbindlist(lapply(names(signatures), function(s)
+         data.table(signature = s, cell_class = sub("__.*", "", s),
+                    region = sub(".*__", "", s), gene = signatures[[s]]))),
+       file.path(OUT, "class_region_signature_members.tsv"), sep = "\t")
+cat("Saved class_region_signatures_kinetics.png + score/member TSVs\n")
+#+end_src
 *** Cross-dataset aggregate: MBRT vs SBRT vs Control differential analysis
 :PROPERTIES:
 :header-args:snakemake: :tangle workflows/aggregate_differential.smk
@@ -4816,6 +5061,18 @@ We merged the 20 flank samples (Mutter_01 n=1 timecourse, Mutter_02 n=4 per arm 
 The dominant day-2 signal was SBRT-driven stromal fibrosis. Myofibroblast-activation genes (multiple collagens and Acta2) rose under SBRT versus Control across the fibroblast, adipocyte, and smooth-muscle compartments (padj_confirmatory to 2e-11), and H3 contributed 20 of the 27 SBRT-vs-Control confirmatory hits. The modality-direct MBRT-vs-SBRT contrast recovered the same genes in the SBRT-greater-than-MBRT direction (19 of its 20 confirmatory hits were H3). A smaller set of endothelial rows (Pdgfb and Vwf up under SBRT) and interferon-stimulated immune rows (Ifitm1, Mx1) also cleared the confirmatory threshold. MBRT was essentially null at whole-compartment scale: MBRT versus Control produced 2 of 207 confirmatory hits with a median absolute effect of 0, and all 207 of its confirmatory rows fell below their minimum detectable effect.
 
 Across the confirmatory family, 578 of 621 rows (93%) fell below the n=4 minimum detectable effect, so most MBRT non-results were underpowered rather than established nulls. M01-to-M02 day-2 effect-size concordance on the unified labels was weak (top Spearman rho 0.21 for MBRT, near zero to negative for SBRT). These results are consistent with and extend the earlier whole-sample finding that MBRT immune stimulation was not supported, and the SBRT-versus-MBRT difference cannot be cleanly attributed to dose pattern given the unrecorded MBRT mean dose and the averaging of peak and valley in any whole-compartment contrast. The single canonical output table is [[file:results/aggregate/results_master.tsv]], produced by the [[file:workflows/aggregate_differential.smk][aggregate_differential.smk]] workflow (split from the former =aggregate.smk= on 2026-07-12; consumes the =aggregate_typing.smk= labels); design, decisions, and limitations are in [[file:plan-mbrt-vs-sbrt.md][plan-mbrt-vs-sbrt.md]].
+
+**** Differential test engines (modularization)
+
+The differential layer was originally written as one bespoke script per readout, with the same statistical machinery copy-pasted into each: build the design matrix from =~0 + condition + slide_id=, form the three arm contrasts (MBRT vs Control, SBRT vs Control, MBRT vs SBRT), fit the model, and adjust p-values. That machinery is being factored into two reusable /test engines/ that every readout calls, so each statistical method exists in exactly one place and reads its contrast, formula, and replication unit from the resolved comparison registry ([[file:results/data_model/comparisons.tsv]]) rather than from literals embedded in the script. Design and task breakdown are in [[file:docs/superpowers/specs/2026-07-12-differential-modularization-design.md][the modularization design doc]] and [[file:docs/superpowers/plans/2026-07-12-differential-modularization.md][implementation plan]].
+
+An /engine/ here is just the generic test executor. You hand it a table and a comparison name; it fits the model and returns raw statistics (estimate, standard error, degrees of freedom, test statistic, and unadjusted p-value). It deliberately does NOT adjust p-values: multiple-testing correction moves to a single downstream results step, so a family of tests can be corrected together rather than each analysis silently applying its own within-analysis BH. There are two engines because the two data types need different models.
+
+The *count engine* ([[file:scripts/engines/count_engine.R]]) handles gene-level differential expression on the CosMx counts. It is negative-binomial pseudobulk DESeq2: raw counts are summed within each (sample x cell type) group into one profile per sample, then modelled per cell type. This is the field-standard method for per-cell-type differential expression on imaging-based spatial data, where per-cell counts are too sparse to model directly. It preserves the existing apeglm shrinkage exactly, including the two-fit pattern (one fit with Control as reference for the versus-Control contrasts, a second releveled to SBRT for MBRT-versus-SBRT), because apeglm accepts only a single coefficient, not an arbitrary contrast vector.
+
+The *linear-model engine* ([[file:scripts/engines/lm_engine.R]]) does NOT touch transcript counts. It runs a limma moderated-t test on /sample-level derived features/: one number per sample obtained by collapsing that sample's cells. Its primary use is cell-type composition. Stating that fibroblasts are 42% of a sample's cells needs no model; the model exists to /test whether that proportion differs between arms/, computing an effect size, 95% confidence interval, and p-value on the logit-transformed fraction while adjusting for slide, at n=4 mice per arm. That specific test is propeller ([[https://doi.org/10.1093/bioinformatics/btac582][Phipson et al. 2022]]), which is limma applied to logit-transformed cell-type proportions and is a recognized standard for single-cell and spatial composition testing. The same engine runs the analogous arm-comparison test for the other per-sample readouts (pathway module scores, tumor-immune mixing scores, myeloid M1/M2 ratio) via an identity transform; those are sound general-purpose sample-level statistics rather than a CosMx-specific named method, and none of them are new to this refactor, which only relocates code that already existed. The engine reproduces each source script's exact procedure, including whether =eBayes= used its robust variant, verified per engine against the pre-refactor output to floating-point tolerance.
+
+A thin /producer/ script per readout builds the feature table (proportions, niche frequencies, mixing scores) and hands it to the appropriate engine; a single /results/ step then assigns the pre-registered hypotheses (H1 immune, H2 vascular, H3 stromal), applies the cross-family multiple-testing correction, and writes the tier-tagged master table. This is a code-architecture refactor only: the methods and the reported science are unchanged, and the within-tumor peak/valley spatial contrast (a permutation rotation-null test, gated on absent staining) is explicitly out of scope and would need a third engine family it does not preclude.
 
 **** Workflow
 

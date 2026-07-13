@@ -22,6 +22,12 @@ entry in `spatial-rads.org` and the Step-7 addendum in `plan-aggregate-refactor.
 
 ## v2.0 — Atlas re-typing precedes this workflow (2026-05-31)
 
+> **Superseded (design history).** The external-atlas re-typing described in this
+> section never shipped. It was replaced by InSituType (v2.1 below), which in turn
+> failed at panel sparsity and was replaced by the shipped method: scVI integration
+> then Leiden cluster-then-annotate, plus tier-2 SingleR/UCell and marker rescue
+> (canonical in `CLAUDE.md`). Retained as decision history; not the current typing.
+
 Every `cell_type`-keyed stage here (Stage 1a labels, composition, pseudobulk DE,
 GSEA, pathway, per-cell DE, M01/M02 concordance) consumes per-sample labels that
 are being **replaced** by the v2.0 external-atlas re-typing — all cells typed

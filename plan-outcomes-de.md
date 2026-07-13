@@ -19,10 +19,11 @@ machine*, this brief is about *pointing it at outcome-relevant biology*.
 
 The recorded findings here (`deg_summary_m02day2.tsv` counts, the tumor `a` /
 `tumor_epithelial` / Pericyte / Stem.Prog cuts, propeller composition) were
-computed on v1 ImmGen + de-novo-`a` labels. Cell typing is being **replaced** by
-the v2.0 external-atlas re-typing against the **NanoString CellProfileLibrary
-mouse mammary atlas** + ImmGen (`plan-processing-pipeline.md` Atlas stem): the
-`a` bucket and `tumor_epithelial` conventions will change. **Re-verify every
+computed on v1 ImmGen + de-novo-`a` labels. Cell typing has since been **replaced**
+by merged-scale re-typing: scVI integration then Leiden cluster-then-annotate, plus
+tier-2 SingleR/UCell and marker rescue (canonical in `CLAUDE.md`; the external-atlas
+approach named in the 2026-05-31 draft never shipped). The `a` bucket and
+`tumor_epithelial` conventions changed. **Re-verify every
 cell-type-keyed number against re-typed outputs when promoting this brief to a
 committed plan.** The dilution and MBRT-vs-SBRT/p21 findings (compartment-level,
 not label-fragile) should hold; the precise per-cell-type counts will not.
