@@ -5413,18 +5413,25 @@ fwrite(rbindlist(lapply(names(signatures), function(s)
 cat("Saved class_region_signatures_kinetics.png + score/member TSVs\n")
 #+end_src
 
-**** Peak/valley group-mean DE: no whole-compartment signature at 4h
+**** Peak/valley shows no signature at 4h: not expression, not composition
 
-At 4h, the one timepoint with H2AX ground truth, there is no whole-compartment peak-versus-valley transcriptional signature in tumor or stroma once the FOV, not the cell, is the replicate unit. Cells were pooled to paired FOV-by-zone pseudobulk on the current QC'd sam0003 counts with merged-scale atlas labels, and tested with =~ FOV + zone= (limma-voom, core bands: perpendicular distance to beam centerline below 0.10 mm for peak, above 0.40 mm for valley). Zero genes clear FDR in tumor (23 paired FOVs, 881 genes) or stroma (31 FOVs, 895 genes), and the p-value histograms are flat, the shape a genuinely null contrast produces. The immune panel is right-skewed rather than flat (8 FOVs, 157 genes): underpowered, so inconclusive, not a clean null. The same machinery run on tumor-versus-stroma (the positive control) returns 586/940 genes at FDR<0.05 with a hard spike at p near 0, confirming the pipeline detects real spatial biology emphatically when it is present. The earlier per-cell FindMarkers signatures owed their significance to pseudoreplication (roughly 150,000 cells scored as independent replicates, turning sub-0.3 log2FC ripples into tiny p-values); under honest FOV-level replication the whole-compartment contrast is null. This does not settle the within-block rotation-null result, which tests a different null and remains contested (see the Peak/valley idea-node in the Project Map).
+At 4h, the one timepoint with H2AX ground truth, there is no peak-versus-valley transcriptional signature at any scale we can test, and no cell-type composition shift between the zones. This is the strongest case in the project (the only block with dose-zone ground truth), and it is null.
+
+Expression: cells were pooled to paired FOV-by-zone pseudobulk on the current QC'd sam0003 counts with merged-scale atlas labels, and tested with =~ FOV + zone= (limma-voom, core bands: perpendicular distance to beam centerline below 0.10 mm for peak, above 0.40 mm for valley). Zero genes clear FDR whether the cells are pooled across all compartments (39 paired FOVs, 936 genes), restricted to tumor (23 FOVs, 881 genes), or restricted to stroma (31 FOVs, 895 genes); every one of these p-value histograms is flat, the shape a genuinely null contrast produces. The immune panel is right-skewed rather than flat (8 FOVs, 157 genes): underpowered, so inconclusive, not a clean null. The same machinery run on tumor-versus-stroma (the positive control) returns 586/940 genes at FDR<0.05 with a hard spike at p near 0, confirming the pipeline detects real spatial biology emphatically when it is present.
+
+The earlier per-cell FindMarkers signatures (a myeloid list led by Ccl8, Cd163, Mrc1, C1qa) were pseudoreplication artifacts: roughly 150,000 cells scored as independent replicates when the block is n=1, which manufactures significance from near-zero effects. Those genes do not reproduce under honest FOV-level replication; they are flat and even slightly valley-leaning in the all-cells contrast (Ccl8 log2FC -0.03, Cd163 -0.04, Mrc1 -0.03, all p>0.7), so the pseudoreplicated ranking was spurious in both significance and direction, not merely over-significant.
+
+Composition: the myeloid list could have reflected more macrophages in peak stripes rather than per-cell regulation, but there is no such shift. Paired per-FOV compartment fractions are indistinguishable between zones (tumor peak 0.34 vs valley 0.34, paired p=0.88; stroma 0.55 vs 0.54, p=0.27; immune 0.10 vs 0.12, p=0.35, if anything lower in peak). So peak/valley carries neither an expression nor a composition signal at 4h.
+
+This does not settle the within-block rotation-null result, which tests a different null (a small consistent per-gene shift against an architecture-rotated background, on tumor cells) and remains contested (see the Peak/valley idea-node in the Project Map).
 
 #+begin_src R :tangle scripts/fig_pv_phist.R
 #!/usr/bin/env Rscript
 # -----------------------------------------------------------------------------
 # fig_pv_phist.R
-# Peak/valley group-mean DE is a true null (flat p-histogram) while the same
-# FOV-pseudobulk machinery detects tumor-vs-stroma emphatically (spike at 0).
-# 4 panels: peak/valley in tumor / stroma / immune, + tumor-vs-stroma pos control.
-# M01 4h block (sam0003), current QC'd counts + merged-scale atlas labels.
+# Peak/valley group-mean DE is null (flat p-histogram) in every compartment AND
+# all-cells, while the same FOV-pseudobulk machinery detects tumor-vs-stroma
+# emphatically (spike at 0). M01 4h block (sam0003), current QC'd + atlas labels.
 # -----------------------------------------------------------------------------
 suppressPackageStartupMessages({library(Seurat);library(arrow);library(edgeR)
   library(limma);library(dplyr);library(readr);library(Matrix);library(ggplot2)})
@@ -5453,9 +5460,10 @@ pv_de <- function(sub, split_col, lvls, floor=30) {
   list(p=tt$P.Value, nsig=sum(tt$adj.P.Val<0.05), nfov=length(both), ngene=nrow(tt))
 }
 
-## peak/valley per compartment (core bands)
+## peak/valley all-cells + per compartment (core bands)
 md$zone <- ifelse(md$dist_to_peak<0.10,"peak",ifelse(md$dist_to_peak>0.40,"valley",NA))
 res <- list()
+res[["Peak vs valley: all cells"]] <- pv_de(md[!is.na(md$zone),],"zone",c("valley","peak"))
 for(cp in c("tumor","stroma","immune")){
   s <- md[md$compartment==cp & !is.na(md$zone),]
   res[[paste0("Peak vs valley: ",cp)]] <- pv_de(s,"zone",c("valley","peak"))
@@ -5475,18 +5483,75 @@ df$panel <- factor(df$panel, levels=ord)
 p <- ggplot(df, aes(x=p, fill=pos)) +
   geom_histogram(breaks=seq(0,1,0.05), color="grey30", linewidth=0.2) +
   geom_hline(yintercept=0, linewidth=0.3) +
-  facet_wrap(~panel, scales="free_y", nrow=2) +
+  facet_wrap(~panel, scales="free_y", ncol=3) +
   scale_fill_manual(values=c("FALSE"="grey65","TRUE"="#0072B2"), guide="none") +
   labs(x="p-value", y="genes",
-       title="Peak/valley DE is null; same machinery detects tumor vs stroma") +
+       title="Peak/valley DE is null in every compartment and all-cells; same machinery detects tumor vs stroma") +
   theme_scifig() +
-  theme(strip.text=element_text(size=11), plot.title=element_text(size=13))
+  theme(strip.text=element_text(size=10), plot.title=element_text(size=12))
 
-save_plot(p, "results/aggregate/plots/pv_phist_null", w=10, h=7)
+save_plot(p, "results/aggregate/plots/pv_phist_null", w=13, h=7)
+#+end_src
+
+#+ATTR_ORG: :width 800
+[[file:results/aggregate/plots/pv_phist_null.png]]
+
+The myeloid genes that led the discarded per-cell signature (Ccl8, Cd163, Mrc1) could in principle mark more macrophages in peak stripes rather than per-cell regulation, but there is no such composition shift: paired per-FOV compartment fractions are indistinguishable between the zones in all three compartments.
+
+#+begin_src R :tangle scripts/fig_pv_composition.R
+#!/usr/bin/env Rscript
+# -----------------------------------------------------------------------------
+# fig_pv_composition.R
+# No cell-type composition shift between beam peak and valley zones at 4h.
+# Paired per-FOV compartment fractions (core bands), peak vs valley, 39 FOVs.
+# M01 4h block (sam0003), current QC'd counts + merged-scale atlas labels.
+# -----------------------------------------------------------------------------
+suppressPackageStartupMessages({library(Seurat);library(arrow);library(dplyr)
+  library(readr);library(tidyr);library(ggplot2)})
+source("/home/jeszyman/repos/science/R/figure_schema.R")
+
+o <- readRDS("/mnt/data/projects/spatial-rads/processing/norm/sam0003.norm.rds")
+md <- o@meta.data; md$cell <- rownames(md)
+a <- read_parquet("results/aggregate/full_labels.parquet")
+a <- a[grepl("^sam0003_",a$cell),c("cell","compartment")]; a$cell<-sub("^sam0003_","",a$cell)
+z <- read_tsv("dev/peak_valley_analysis/data/mbrt4h_peak_valley.tsv",show_col_types=FALSE)[,c("cell_id","dist_to_peak")]
+md <- md %>% left_join(a,by="cell") %>% left_join(z,by=c("cell"="cell_id"))
+md <- md[!is.na(md$dist_to_peak) & !is.na(md$compartment),]
+md$zone <- ifelse(md$dist_to_peak<0.10,"peak",ifelse(md$dist_to_peak>0.40,"valley",NA))
+md <- md[!is.na(md$zone),]
+keepf <- md %>% count(fov,zone) %>% filter(n>=30) %>% count(fov) %>% filter(n==2) %>% pull(fov)
+md <- md[md$fov %in% keepf,]
+
+comp <- md %>% count(fov,zone,compartment) %>% group_by(fov,zone) %>%
+  mutate(frac=n/sum(n)) %>% ungroup()
+comp$compartment <- factor(comp$compartment, levels=c("tumor","stroma","immune"))
+comp$zone <- factor(comp$zone, levels=c("valley","peak"))
+
+## paired t on logit for annotation
+lg <- function(p) log((p+.005)/(1-p+.005))
+ann <- comp %>% select(fov,zone,compartment,frac) %>%
+  pivot_wider(names_from=zone,values_from=frac,values_fill=0) %>%
+  group_by(compartment) %>%
+  summarise(p=t.test(lg(peak),lg(valley),paired=TRUE)$p.value,
+            ymax=max(c(peak,valley)), .groups="drop") %>%
+  mutate(lab=sprintf("paired p=%.2f", p))
+
+p <- ggplot(comp, aes(x=zone, y=frac, fill=zone)) +
+  geom_line(aes(group=fov), color="grey75", linewidth=0.3, alpha=0.6) +
+  geom_point(aes(group=fov), color="grey55", size=0.7, alpha=0.6) +
+  geom_boxplot(width=0.5, alpha=0.55, outlier.shape=NA) +
+  facet_wrap(~compartment, scales="free_y") +
+  geom_text(data=ann, aes(x=1.5, y=ymax*1.05, label=lab), inherit.aes=FALSE, size=4) +
+  scale_fill_manual(values=c("valley"="#85C1E9","peak"="#E74C3C"), guide="none") +
+  labs(x=NULL, y="fraction of cells in FOV",
+       title="No peak/valley cell-type composition shift at 4h (39 paired FOVs)") +
+  theme_scifig() + theme(plot.title=element_text(size=12))
+
+save_plot(p, "results/aggregate/plots/pv_composition", w=10, h=4.8)
 #+end_src
 
 #+ATTR_ORG: :width 700
-[[file:results/aggregate/plots/pv_phist_null.png]]
+[[file:results/aggregate/plots/pv_composition.png]]
 
 *** Cross-dataset aggregate: MBRT vs SBRT vs Control differential analysis
 :PROPERTIES:
