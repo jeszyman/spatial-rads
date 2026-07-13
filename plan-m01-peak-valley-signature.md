@@ -33,14 +33,14 @@ future test.
 
 ## Panel triage carried into this plan
 
-- **4h bulk peak/valley signature: REBUILD-and-verify.** The gene list is label-free in definition
-  but was derived on the *old* QC'd cell-pool object. The current merged-scale QC filter and the M01
-  raw-RDS re-base drop different low-count cells; in a peak zone those dropped cells are
-  disproportionately the heavily-damaged, pre-necrotic cells that *carry* the signal, so a QC change
-  can attenuate the very contrast. Re-derive on the current QC'd 4h cells with the same H2AX zone
-  labels; report gene-overlap (Jaccard) and effect-size correlation against the original
-  `peak_signature_bulk.tsv` / `valley_signature_bulk.tsv`. High concordance means effectively
-  salvaged; low concordance means the old list was partly a QC artifact.
+- **4h peak/valley signature: DERIVE fresh, tumor-restricted, on honest replication.** There is no
+  trustworthy prior signature to reproduce: the old per-cell Wilcoxon lists
+  (`peak_signature_bulk.tsv` etc.) were pseudoreplicated (149k cells treated as independent
+  replicates), are DELETED, and are not a concordance target. Derive the signature de novo on the
+  current QC'd 4h cells with H2AX zone labels, **within the tumor compartment** (peak/valley is a
+  within-tumor-tissue contrast; comparing across a whole slide confounds zone with cell-type mix),
+  using FOV-level pseudobulk so the replicate unit is the FOV, not the cell. Whatever clears (or does
+  not clear) at FOV-level FDR is the signature; report it honestly with no external yardstick.
 - **Cell-type-stratified signature: RETIRE the artifact, REBUILD at coarse resolution.** The old
   per-ImmGen-subtype lists (`celltype_signatures.tsv`) are dead: retired labels, known-bad for
   immune in flank, and fine-subtype-by-zone splitting fragments one n=1 block into uninterpretable
@@ -65,10 +65,53 @@ to it. All grains run on the same within-block peak-versus-valley contrast. A fo
 panel-independent readout (morphology) corroborates the transcriptional result through segmentation
 geometry.
 
+### Step 0: zone-differential QC attrition audit (the rebuild-and-verify crux)
+
+The panel's central worry is that the current QC preferentially drops peak cells, and every
+count- or quality-based cutoff is mechanistically anti-correlated with radiation damage: heavily
+irradiated 4h peak cells in mitotic catastrophe / early apoptosis show transcriptional shutdown, RNA
+degradation, and abnormal nuclei, so a counts floor, a complexity floor, an area filter, or a
+negprobe-proportion cap each fail those cells preferentially. Damage is what defines a peak, so QC
+and signal are coupled, not independent. Before rebuilding the signature, audit this directly on the
+4h MBRT block (`sam0003`, Block_21):
+
+- Join the raw per-cell QC metrics (`nCount_RNA`, `nFeature_RNA`, `propNegative`, `Area`) to the H2AX
+  zone labels via the `<slide>_<fov>_<local>` cell-id crosswalk.
+- Report per-zone retention at each of the four current criteria (counts > 20, features > 10,
+  propNegative < 0.5, area 3-MAD) and jointly; expose whether peak attrition exceeds valley.
+- Report the peak/valley effect-size for the signature genes **before versus after** QC, so
+  attenuation is measured, not assumed.
+- Deciding tension: loosening QC to retain damaged peak cells also readmits genuine technical junk,
+  and the two look alike (both low-count, high-negprobe). Do not silently loosen; if attrition is
+  strongly zone-biased, report a sensitivity analysis at a relaxed floor alongside the default, and
+  flag which signature genes depend on the retained low-count cells.
+
+This step gates interpretation of the whole signature: if peak attrition is modest and the
+effect-size is stable across QC, the rebuild is trustworthy; if not, the signature is partly a
+survival-biased artifact and must be reported as such.
+
+**Result (run 2026-07-13 on beast, sam0003 raw object, 149,111 zoned cells).** The feared
+zone-selective attrition is empirically absent. Applying the current four-criteria gate
+(counts > 20, features > 10, propNegative < 0.5, area 3-MAD) to the zoned cells drops only 0.06% of
+peak and 0.05% of valley cells (a 0.01-point gap); zero cells fail the counts, features, or negprobe
+floors, and only the area-MAD filter removes anything. The mechanistic premise also fails: peak and
+valley cells have matched library depth (median 84 counts / 70 features versus 84 / 69), so 4h peak
+cells are not depth-depressed. Scope: zone labels exist only for cells that passed the original QC,
+so this measures whether the current gate perturbs the exact population the signature was built on
+(it does not, ~99.94% invariant, not zone-biased); it does not speak to cells dropped before zoning,
+which were never in the signature. Conclusion: the derivation runs on essentially the original cell
+set, so the fresh tumor-restricted FOV-level DE is not survival-biased; it stands on its own FDR, not
+on agreement with any prior list.
+
 ### Prerequisite gate: FOV footprint versus beam spacing
 
 Before choosing the design, measure the CosMx FOV footprint (from `x_slide_mm`/`y_slide_mm` extents
 per `fov`) against the 1.02 mm collimator spacing. This decides the unit:
+
+**Result (run 2026-07-13):** CosMx FOVs are 0.506 mm square (median long-axis 0.507, tight IQR),
+half the 1.02 mm beam period; the unaligned FOV grid means 74/80 FOVs (92%) contain both peak and
+valley cells, only 6 single-zone. Zones near-balanced (73,558 peak / 75,553 valley). **Paired
+`~ FOV + zone` design adopted** (well-powered regime).
 
 - **FOVs smaller than the spacing and straddling beam boundaries (expected, ~0.5-0.9 mm CosMx):**
   use the **paired FOV-by-zone design** below. The beam stripes cut across FOVs at the mounting
