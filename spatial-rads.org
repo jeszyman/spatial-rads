@@ -24,6 +24,7 @@ Export: python3 ~/repos/latex/scripts/emacs_export_header_to_latex.py --org_file
 https://www.nature.com/articles/s41588-026-02671-2
 https://www.nature.com/articles/s41467-025-56080-w
 https://www.reddit.com/r/bioinformatics/comments/1ut3rrv/any_consensus_on_software_being_used_to_detect/
+
 kill out - =analysis/= — legacy exploratory =dev/= outputs (objects, figures, tables) from the Layer 2-3 work, superseded by =processing/= and =aggregate/= for canonical results.
 
 
@@ -332,6 +333,7 @@ Low-dose valleys are the candidate origin of the immune advantage: bystander IFN
 *** Arm-level (exploratory; MBRT signal diluted by whole-compartment averaging)
 
 **** Myofibroblast expansion (normal-tissue sparing readout)
+
 Normal-tissue sparing cast as its only discrete readout in this tumor-block design: uniform RT drives stromal fibrosis while microbeam RT spares it, seen as a shift in fibroblast state mix (resting to activated), not per-cell upregulation.
 - Test: fibroblast substate composition; fibrosis program (collagens, Acta2, Tgfb targets). Direction: activated fraction and fibrosis program higher under SBRT than MBRT.
 - Support: Dilmanian 2006 /PNAS/; Crosbie 2010 /IJROBP/; Bazyar 2018 /Sci Rep/.
@@ -4881,7 +4883,7 @@ str(meta)
 #+end_src
 
 ** Results
-
+*** Sample quality
 *** Exploratory post IR dynamics
 **** Descriptive
 
@@ -5113,17 +5115,26 @@ OBS    = f"{D_FULL}/obs.parquet"
 _s    = pd.read_csv(MASTER, sep="\t")
 FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
 
+#+end_src
+
+#+name: aggregate-differential-all
+#+begin_src snakemake
 rule all:
     input:
         "results/aggregate/composition_by_sample.tsv",
         "results/aggregate/composition_test_m02day2.tsv",
         "results/aggregate/composition_unassigned_sensitivity.tsv",
+        "results/aggregate/engine/composition_engine.tsv",
+        "results/aggregate/engine/de_engine.tsv",
+        "results/aggregate/engine/niche_engine.tsv",
+        "results/aggregate/engine/mixing_engine.tsv",
+        "results/aggregate/engine/myeloid_engine.tsv",
+        "results/aggregate/engine/substate_engine.tsv",
         "results/aggregate/plots/composition_m02day2_bars.png",
         "results/aggregate/plots/composition_m02day2_forest.png",
         "results/aggregate/plots/composition_m01_timecourse.png",
         "results/aggregate/pseudobulk_qc.tsv",
-        "results/aggregate/degs_pseudobulk_m02day2.tsv",
-        "results/aggregate/deg_summary_m02day2.tsv",
+        "results/aggregate/engine/de_engine.tsv",
         "results/aggregate/detection_test_m02day2.tsv",
         "results/aggregate/gsea_pseudobulk_m02day2.tsv",
         "results/aggregate/pathway_scores_summary.tsv",
@@ -5137,21 +5148,17 @@ rule all:
         "results/aggregate/celltype_qc_markers.tsv",
         "results/aggregate/plots/celltype_qc_dotplot.png",
         "results/aggregate/niche_frequency.tsv",
-        "results/aggregate/niche_test_m02day2.tsv",
         "results/aggregate/plots/niche_frequency_m02.png",
         "results/aggregate/plots/niche_centroids_heatmap.png",
         "results/aggregate/spatial_mixing_per_sample.tsv",
-        "results/aggregate/spatial_mixing_test_m02day2.tsv",
         "results/aggregate/plots/mixing_m02.png",
         "results/aggregate/myeloid_m1m2_scores.tsv",
-        "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
         "results/aggregate/plots/myeloid_m1m2_m02.png",
         "results/aggregate/concordance_m01_m02.tsv",
         "results/aggregate/plots/concordance_scatter.png",
         "results/aggregate/geneset_overlap.tsv",
         "results/aggregate/fibroblast_substate.parquet",
         "results/aggregate/substate_gate_report.tsv",
-        "results/aggregate/composition_substate_test_m02day2.tsv",
         "results/aggregate/detectability_summary.tsv",
         "results/aggregate/results_master.tsv",
         "results/aggregate/qc_arm_balance.tsv",
@@ -5177,13 +5184,34 @@ rule composition:
         forest     = "results/aggregate/plots/composition_m02day2_forest.png",
         timecourse = "results/aggregate/plots/composition_m01_timecourse.png",
         sensitivity = "results/aggregate/composition_unassigned_sensitivity.tsv",
+        lm_input   = "results/aggregate/engine_inputs/composition_cells.tsv",
     threads: 1
     log:
         f"{D_LOGS}/composition.log",
     shell:
         "{RSCRIPT} {input.script} {input.obs} {input.labels} {output.by_sample} "
         "{output.test} {output.dropped} {output.bars} {output.forest} "
-        "{output.timecourse} {output.sensitivity} > {log} 2>&1"
+        "{output.timecourse} {output.sensitivity} {output.lm_input} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-composition-engine
+#+begin_src snakemake
+# --- engine: composition arm test (propeller/logit path) on the per-cell labels ---
+rule composition_engine:
+    message: "composition_engine: lm_engine proportion test on cell-type composition (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        cells  = "results/aggregate/engine_inputs/composition_cells.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/composition_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/composition_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 composition "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-pseudobulk-build
@@ -5205,24 +5233,27 @@ rule pseudobulk_build:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.se} {output.qc} > {log} 2>&1"
 #+end_src
 
-#+name: aggregate-differential-deg-pseudobulk
+#+name: aggregate-differential-de-engine
 #+begin_src snakemake
-# --- Track 2 inference: pseudobulk DESeq2 DE (M02 day2, abundance-floored) ---
-rule deg_pseudobulk:
-    message: "deg_pseudobulk: pseudobulk DESeq2 DE (M02 day2, abundance-floored)"
+# --- Track 2 inference: pseudobulk NB DE via the count engine (M02 day2, abundance-floored,
+# apeglm two-fit). Sole pseudobulk-DE source: feeds results_master, gsea, and concordance.
+# (Superseded the standalone deg_pseudobulk.R -- retired 2026-07-13, output bit-identical.) ---
+rule de_engine:
+    message: "de_engine: count_engine pseudobulk NB DE (apeglm two-fit) -> sufficient stats"
     input:
-        script = f"{R_SCRIPTS}/deg_pseudobulk.R",
+        script = "scripts/engines/count_engine.R",
         se     = f"{D_AGG}/pseudobulk_se.rds",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
     output:
-        degs    = "results/aggregate/degs_pseudobulk_m02day2.tsv",
-        summary = "results/aggregate/deg_summary_m02day2.tsv",
-        skipped = "results/aggregate/degs_pseudobulk_skipped.tsv",
+        stats   = "results/aggregate/engine/de_engine.tsv",
+        skipped = "results/aggregate/engine/de_engine_skipped.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/deg_pseudobulk.log",
+        f"{D_LOGS}/de_engine.log",
     shell:
-        "{RSCRIPT} {input.script} {input.se} {output.degs} {output.summary} "
-        "{output.skipped} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.se} mutter02_day2 {input.comp} {input.params} "
+        "{output.stats} {output.skipped} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-detection-test
@@ -5249,7 +5280,7 @@ rule gsea:
     message: "gsea: GSEA on pseudobulk stat-ranked genes (primary + Hallmark)"
     input:
         script = f"{R_SCRIPTS}/gsea.R",
-        degs   = "results/aggregate/degs_pseudobulk_m02day2.tsv",
+        degs   = "results/aggregate/engine/de_engine.tsv",
         sets   = "results/data_model/pathway_sets.tsv",
     output:
         gsea = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
@@ -5302,16 +5333,16 @@ rule pathway_plots:
     shell:
         "{RSCRIPT} {input.script} {input.summary} {input.test} "
         "{output.heatmap} {output.timecourse} {output.scatter} > {log} 2>&1"
-#+end_src
-
-#+name: aggregate-differential-panel-coverage
-#+begin_src snakemake
 # ============================================================================
 # MBRT-vs-SBRT downstream differential layer (plan-mbrt-vs-sbrt-impl.md T4-T13).
 # All consume the unified per-cell labels (results/aggregate/full_labels.parquet)
 # and the day-2 readout tables, terminating in the tier-tagged results_master.tsv.
 # ============================================================================
 
+#+end_src
+
+#+name: aggregate-differential-panel-coverage
+#+begin_src snakemake
 # --- T5: per-cell-type readout detection report (panel detectability in M02) ---
 rule panel_coverage:
     message: "panel_coverage: per-cell-type readout detection report (panel detectability in M02)"
@@ -5401,7 +5432,7 @@ rule niches:
         per_cell  = f"{D_AGG}/niche_per_cell.parquet",
         centroids = "results/aggregate/niche_centroids.tsv",
         freq      = "results/aggregate/niche_frequency.tsv",
-        test      = "results/aggregate/niche_test_m02day2.tsv",
+        lm_input  = "results/aggregate/engine_inputs/niche_cells.tsv",
         heatmap   = "results/aggregate/plots/niche_centroids_heatmap.png",
         freq_plot = "results/aggregate/plots/niche_frequency_m02.png",
     threads: 1
@@ -5409,8 +5440,28 @@ rule niches:
         f"{D_LOGS}/niches.log",
     shell:
         "{RSCRIPT} {input.script} {input.labels} {input.coords} {input.obs} "
-        "{output.per_cell} {output.centroids} {output.freq} {output.test} "
+        "{output.per_cell} {output.centroids} {output.freq} {output.lm_input} "
         "{output.heatmap} {output.freq_plot} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-niche-engine
+#+begin_src snakemake
+# --- engine: niche frequency arm test (propeller/logit path) ---
+rule niche_engine:
+    message: "niche_engine: lm_engine proportion test on niche frequency (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        cells  = "results/aggregate/engine_inputs/niche_cells.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/niche_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/niche_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 niche "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-spatial-mixing
@@ -5425,7 +5476,7 @@ rule spatial_mixing:
         obs    = OBS,
     output:
         per_sample = "results/aggregate/spatial_mixing_per_sample.tsv",
-        test       = "results/aggregate/spatial_mixing_test_m02day2.tsv",
+        lm_input   = "results/aggregate/engine_inputs/mixing_metrics.tsv",
         per_cell   = f"{D_AGG}/spatial_mixing_per_cell.parquet",
         plot       = "results/aggregate/plots/mixing_m02.png",
     threads: 1
@@ -5433,7 +5484,27 @@ rule spatial_mixing:
         f"{D_LOGS}/spatial_mixing.log",
     shell:
         "{RSCRIPT} {input.script} {input.labels} {input.coords} {input.obs} "
-        "{output.per_sample} {output.test} {output.per_cell} {output.plot} > {log} 2>&1"
+        "{output.per_sample} {output.lm_input} {output.per_cell} {output.plot} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-mixing-engine
+#+begin_src snakemake
+# --- engine: tumor-immune mixing arm test (matrix/identity path, non-robust) ---
+rule mixing_engine:
+    message: "mixing_engine: lm_engine identity test on spatial mixing metrics (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        matrix = "results/aggregate/engine_inputs/mixing_metrics.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/mixing_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/mixing_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 mixing "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-myeloid-polarization
@@ -5449,14 +5520,34 @@ rule myeloid_polarization:
         labels = LABELS,
     output:
         scores = "results/aggregate/myeloid_m1m2_scores.tsv",
-        test   = "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
+        lm_input = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
         plot   = "results/aggregate/plots/myeloid_m1m2_m02.png",
     threads: 8
     log:
         f"{D_LOGS}/myeloid_polarization.log",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.scores} "
-        "{output.test} {output.plot} > {log} 2>&1"
+        "{output.lm_input} {output.plot} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-myeloid-engine
+#+begin_src snakemake
+# --- engine: myeloid M1/M2 arm test (matrix/identity path, non-robust) ---
+rule myeloid_engine:
+    message: "myeloid_engine: lm_engine identity test on macrophage M1/M2 metrics (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        matrix = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/myeloid_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/myeloid_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 myeloid "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-concordance-m01-m02
@@ -5468,7 +5559,7 @@ rule concordance_m01_m02:
         script = f"{R_SCRIPTS}/concordance_m01_m02.R",
         rds    = MERGED,
         labels = LABELS,
-        degs   = "results/aggregate/degs_pseudobulk_m02day2.tsv",
+        degs   = "results/aggregate/engine/de_engine.tsv",
     output:
         tsv     = "results/aggregate/concordance_m01_m02.tsv",
         scatter = "results/aggregate/plots/concordance_scatter.png",
@@ -5504,19 +5595,39 @@ rule substate_split:
 #+name: aggregate-differential-substate-composition
 #+begin_src snakemake
 rule substate_composition:
-    message: "substate_composition: fibroblast substate composition test (M02 day2)"
+    message: "substate_composition: build fibroblast-split per-cell engine input (M02 day2)"
     input:
         script   = f"{R_SCRIPTS}/substate_composition.R",
         obs      = OBS,
         labels   = LABELS,
         substate = "results/aggregate/fibroblast_substate.parquet",
     output:
-        test = "results/aggregate/composition_substate_test_m02day2.tsv",
+        lm_input = "results/aggregate/engine_inputs/substate_cells.tsv",
     threads: 1
     log:
         f"{D_LOGS}/substate_composition.log",
     shell:
-        "{RSCRIPT} {input.script} {input.obs} {input.labels} {input.substate} {output.test} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.obs} {input.labels} {input.substate} {output.lm_input} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-substate-engine
+#+begin_src snakemake
+# --- engine: fibroblast sub-state composition arm test (propeller/logit path) ---
+rule substate_engine:
+    message: "substate_engine: lm_engine proportion test on fibroblast sub-state composition (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        cells  = "results/aggregate/engine_inputs/substate_cells.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/substate_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/substate_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 substate "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-geneset-overlap
@@ -5541,13 +5652,13 @@ rule assemble_results:
     message: "assemble_results: tier-tagged master results table with confirmatory-family FDR"
     input:
         script  = f"{R_SCRIPTS}/assemble_results.R",
-        comp    = "results/aggregate/composition_test_m02day2.tsv",
-        degs    = "results/aggregate/degs_pseudobulk_m02day2.tsv",
+        comp    = "results/aggregate/engine/composition_engine.tsv",
+        degs    = "results/aggregate/engine/de_engine.tsv",
         gsea    = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
         pathway = "results/aggregate/pathway_test_m02day2.tsv",
-        niche   = "results/aggregate/niche_test_m02day2.tsv",
-        mixing  = "results/aggregate/spatial_mixing_test_m02day2.tsv",
-        myeloid = "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
+        niche   = "results/aggregate/engine/niche_engine.tsv",
+        mixing  = "results/aggregate/engine/mixing_engine.tsv",
+        myeloid = "results/aggregate/engine/myeloid_engine.tsv",
         mde     = "results/aggregate/power_mde.tsv",
         sets    = "results/data_model/pathway_sets.tsv",
         cov     = "results/data_model/gene_set_panel_coverage.tsv",
@@ -5564,7 +5675,7 @@ rule assemble_results:
         "{input.mde} {input.sets} {input.cov} {input.det} {output.master} > {log} 2>&1"
 #+end_src
 
-#+name: aggregate-differential-qc-arm-balance
+#+name: aggregate-differential-agg-qc-arm-balance
 #+begin_src snakemake
 # --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
 # technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
@@ -5587,7 +5698,7 @@ rule agg_qc_arm_balance:
         "{output.tsv} {output.png} > {log} 2>&1"
 #+end_src
 
-#+name: aggregate-differential-qc-reproducibility
+#+name: aggregate-differential-agg-qc-reproducibility
 #+begin_src snakemake
 # --- QC: replicate reproducibility -- per-arm pseudobulk concordance (SpatialQM getCorrelation) +
 # technical-metric PCA over the n=4/arm M02 day-2 cohort; flags an outlier slide driving an arm. ---
@@ -5606,7 +5717,6 @@ rule agg_qc_reproducibility:
     shell:
         "{RSCRIPT} {input.script} {input.se} {input.tech} {output.tsv} {output.png} > {log} 2>&1"
 #+end_src
-
 *** [[file:workflows/results.smk][Snakefile]]
 **** Preamble
 **** spatial-rads LINK to Load packages
@@ -5624,11 +5734,6 @@ rule agg_qc_reproducibility:
 \tableofcontents
 
 
-*** Scientific Figure
-[[file:/tmp/cars/cars.png]]
-- Make tables from low-level data
-- Table
-- Make figure
 ** Reference
 - Alan Fields https://www.mayo.edu/research/faculty/fields-alan-p-ph-d/bio-00028181
 - tag:sci_repo

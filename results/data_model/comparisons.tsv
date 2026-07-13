@@ -1,17 +1,17 @@
-name	kind	cohort	resolution	unit	tier	formula	hypotheses	dose_confounded	requires	n_group1	n_group2	n_mouse_group1	n_mouse_group2	model_rank	resid_df	inference_capable	gate
-SBRT_vs_Ctrl	sample	mutter02_day2	whole	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	FALSE		4	4	4	4	6	6	TRUE	
-SBRT_vs_Ctrl	sample	mutter02_day2	compartment	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	FALSE		4	4	4	4	6	6	TRUE	
-MBRT_vs_Ctrl	sample	mutter02_day2	whole	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	FALSE		4	4	4	4	6	6	TRUE	
-MBRT_vs_Ctrl	sample	mutter02_day2	compartment	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	FALSE		4	4	4	4	6	6	TRUE	
-MBRT_vs_SBRT	sample	mutter02_day2	whole	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	TRUE		4	4	4	4	6	6	TRUE	
-MBRT_vs_SBRT	sample	mutter02_day2	compartment	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	TRUE		4	4	4	4	6	6	TRUE	
-MBRT_peak_vs_valley	region	mutter01_mbrt_4h		mouse	confirmatory		""	FALSE	h2ax_registration	0	0	0	0			FALSE	unchecked
-MBRT_peak_vs_valley	region	mutter02_day2		mouse	confirmatory		""	FALSE	h2ax_registration	0	0	0	0			FALSE	unchecked
-MBRT_valley_vs_SBRT	region	mutter02_day2		mouse	exploratory		""	TRUE	h2ax_registration	0	0	0	0			FALSE	unchecked
-niche_DA_by_arm	region	mutter02_day2		mouse	exploratory	~0 + condition + slide_id	""	FALSE		0	0	0	0	6	6	FALSE	
-tumor_immune_mixing_by_arm	region	mutter02_day2		mouse	exploratory	~0 + condition + slide_id	""	FALSE		0	0	0	0	6	6	FALSE	
-substate_composition_by_arm	region	mutter02_day2		mouse	exploratory	~0 + condition + slide_id	""	FALSE		0	0	0	0	6	6	FALSE	
-treated_vs_baseline_timecourse	sample	mutter01_flank		sample	descriptive		""	FALSE		7	1	7	1			FALSE	
-MBRT_vs_SBRT_matched_timepoint	sample	mutter01_flank		sample	descriptive		""	FALSE		0	0	0	0			FALSE	
-MBRT_vs_SBRT_tongue_day10	sample	mutter01_tongue		sample	descriptive		""	FALSE		0	0	0	0			FALSE	
-cohort_concordance	context			sample	exploratory		""	FALSE		0	0	0	0			FALSE	
+name	kind	cohort	resolution	unit	tier	formula	hypotheses	dose_confounded	requires	contrast_num_level	contrast_den_level	ref_level	transform	n_group1	n_group2	n_mouse_group1	n_mouse_group2	model_rank	resid_df	inference_capable	gate
+SBRT_vs_Ctrl	sample	mutter02_day2	whole	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	FALSE		SBRT_day2	Control	Control	logit	4	4	4	4	6	6	TRUE	
+SBRT_vs_Ctrl	sample	mutter02_day2	compartment	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	FALSE		SBRT_day2	Control	Control	logit	4	4	4	4	6	6	TRUE	
+MBRT_vs_Ctrl	sample	mutter02_day2	whole	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	FALSE		MBRT_day2	Control	Control	logit	4	4	4	4	6	6	TRUE	
+MBRT_vs_Ctrl	sample	mutter02_day2	compartment	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	FALSE		MBRT_day2	Control	Control	logit	4	4	4	4	6	6	TRUE	
+MBRT_vs_SBRT	sample	mutter02_day2	whole	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	TRUE		MBRT_day2	SBRT_day2	SBRT_day2	logit	4	4	4	4	6	6	TRUE	
+MBRT_vs_SBRT	sample	mutter02_day2	compartment	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	TRUE		MBRT_day2	SBRT_day2	SBRT_day2	logit	4	4	4	4	6	6	TRUE	
+MBRT_peak_vs_valley	region	mutter01_mbrt_4h		mouse	confirmatory		""	FALSE	h2ax_registration					0	0	0	0			FALSE	unchecked
+MBRT_peak_vs_valley	region	mutter02_day2		mouse	confirmatory		""	FALSE	h2ax_registration					0	0	0	0			FALSE	unchecked
+MBRT_valley_vs_SBRT	region	mutter02_day2		mouse	exploratory		""	TRUE	h2ax_registration					0	0	0	0			FALSE	unchecked
+niche_DA_by_arm	region	mutter02_day2		mouse	exploratory	~0 + condition + slide_id	""	FALSE						0	0	0	0	6	6	FALSE	
+tumor_immune_mixing_by_arm	region	mutter02_day2		mouse	exploratory	~0 + condition + slide_id	""	FALSE						0	0	0	0	6	6	FALSE	
+substate_composition_by_arm	region	mutter02_day2		mouse	exploratory	~0 + condition + slide_id	""	FALSE						0	0	0	0	6	6	FALSE	
+treated_vs_baseline_timecourse	sample	mutter01_flank		sample	descriptive		""	FALSE						7	1	7	1			FALSE	
+MBRT_vs_SBRT_matched_timepoint	sample	mutter01_flank		sample	descriptive		""	FALSE						0	0	0	0			FALSE	
+MBRT_vs_SBRT_tongue_day10	sample	mutter01_tongue		sample	descriptive		""	FALSE						0	0	0	0			FALSE	
+cohort_concordance	context			sample	exploratory		""	FALSE						0	0	0	0			FALSE	
