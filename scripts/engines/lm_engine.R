@@ -70,9 +70,11 @@ con_exprs <- setNames(
 cm <- makeContrasts(contrasts = con_exprs, levels = design)
 colnames(cm) <- names(con_exprs)
 fit2 <- eBayes(contrasts.fit(fit, cm), robust = robust)
-df_total <- fit2$df.residual + fit2$df.prior
+# df.total (residual + moderation prior) is limma's canonical total df; it comes back UNNAMED,
+# so key it to the fit's feature rows explicitly (name-indexing an unnamed vector => NA).
+df_total <- setNames(fit2$df.total, rownames(fit2))
 
-## ---- extract sufficient statistics ----
+## ---- extract sufficient statistics (topTable sort.by="none" preserves fit row order) ----
 res <- rbindlist(lapply(colnames(cm), function(cn) {
   tt <- topTable(fit2, coef = cn, number = Inf, sort.by = "none")
   se_nat <- fit2$stdev.unscaled[, cn] * sqrt(fit2$s2.post)   # moderated SE, natural-log scale
@@ -88,6 +90,7 @@ res <- rbindlist(lapply(colnames(cm), function(cn) {
     stat         = tt$t,
     p            = tt$P.Value)
 }))
+stopifnot(!any(is.na(res$df)), !any(is.na(res$se)))          # guard the name-indexing
 
 dir.create(dirname(out_path), recursive = TRUE, showWarnings = FALSE)
 fwrite(res, out_path, sep = "\t")

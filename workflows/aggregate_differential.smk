@@ -38,6 +38,12 @@ rule all:
         "results/aggregate/composition_by_sample.tsv",
         "results/aggregate/composition_test_m02day2.tsv",
         "results/aggregate/composition_unassigned_sensitivity.tsv",
+        "results/aggregate/engine/composition_engine.tsv",
+        "results/aggregate/engine/de_engine.tsv",
+        "results/aggregate/engine/niche_engine.tsv",
+        "results/aggregate/engine/mixing_engine.tsv",
+        "results/aggregate/engine/myeloid_engine.tsv",
+        "results/aggregate/engine/substate_engine.tsv",
         "results/aggregate/plots/composition_m02day2_bars.png",
         "results/aggregate/plots/composition_m02day2_forest.png",
         "results/aggregate/plots/composition_m01_timecourse.png",
@@ -57,21 +63,17 @@ rule all:
         "results/aggregate/celltype_qc_markers.tsv",
         "results/aggregate/plots/celltype_qc_dotplot.png",
         "results/aggregate/niche_frequency.tsv",
-        "results/aggregate/niche_test_m02day2.tsv",
         "results/aggregate/plots/niche_frequency_m02.png",
         "results/aggregate/plots/niche_centroids_heatmap.png",
         "results/aggregate/spatial_mixing_per_sample.tsv",
-        "results/aggregate/spatial_mixing_test_m02day2.tsv",
         "results/aggregate/plots/mixing_m02.png",
         "results/aggregate/myeloid_m1m2_scores.tsv",
-        "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
         "results/aggregate/plots/myeloid_m1m2_m02.png",
         "results/aggregate/concordance_m01_m02.tsv",
         "results/aggregate/plots/concordance_scatter.png",
         "results/aggregate/geneset_overlap.tsv",
         "results/aggregate/fibroblast_substate.parquet",
         "results/aggregate/substate_gate_report.tsv",
-        "results/aggregate/composition_substate_test_m02day2.tsv",
         "results/aggregate/detectability_summary.tsv",
         "results/aggregate/results_master.tsv",
         "results/aggregate/qc_arm_balance.tsv",
@@ -93,13 +95,30 @@ rule composition:
         forest     = "results/aggregate/plots/composition_m02day2_forest.png",
         timecourse = "results/aggregate/plots/composition_m01_timecourse.png",
         sensitivity = "results/aggregate/composition_unassigned_sensitivity.tsv",
+        lm_input   = "results/aggregate/engine_inputs/composition_cells.tsv",
     threads: 1
     log:
         f"{D_LOGS}/composition.log",
     shell:
         "{RSCRIPT} {input.script} {input.obs} {input.labels} {output.by_sample} "
         "{output.test} {output.dropped} {output.bars} {output.forest} "
-        "{output.timecourse} {output.sensitivity} > {log} 2>&1"
+        "{output.timecourse} {output.sensitivity} {output.lm_input} > {log} 2>&1"
+# --- engine: composition arm test (propeller/logit path) on the per-cell labels ---
+rule composition_engine:
+    message: "composition_engine: lm_engine proportion test on cell-type composition (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        cells  = "results/aggregate/engine_inputs/composition_cells.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/composition_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/composition_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 composition "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 # --- Track 2: pseudobulk construction (M02 day2, sample x cell_type count sums) ---
 rule pseudobulk_build:
     message: "pseudobulk_build: sample x cell_type pseudobulk count sums (M02 day2)"
@@ -131,6 +150,24 @@ rule deg_pseudobulk:
     shell:
         "{RSCRIPT} {input.script} {input.se} {output.degs} {output.summary} "
         "{output.skipped} > {log} 2>&1"
+# --- engine: pseudobulk NB DE (count engine) -- feeds results_master; deg_pseudobulk above
+# is retained (bit-identical) only for gsea + concordance until Task 7 repoints them. ---
+rule de_engine:
+    message: "de_engine: count_engine pseudobulk NB DE (apeglm two-fit) -> sufficient stats"
+    input:
+        script = "scripts/engines/count_engine.R",
+        se     = f"{D_AGG}/pseudobulk_se.rds",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats   = "results/aggregate/engine/de_engine.tsv",
+        skipped = "results/aggregate/engine/de_engine_skipped.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/de_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.se} mutter02_day2 {input.comp} {input.params} "
+        "{output.stats} {output.skipped} > {log} 2>&1"
 # --- Track 2: detection-vs-level decomposition + sparsity-aware call_class (Fix 2) ---
 rule detection_test:
     message: "detection_test: detection-vs-level decomposition + sparsity-aware call_class"
@@ -273,7 +310,7 @@ rule niches:
         per_cell  = f"{D_AGG}/niche_per_cell.parquet",
         centroids = "results/aggregate/niche_centroids.tsv",
         freq      = "results/aggregate/niche_frequency.tsv",
-        test      = "results/aggregate/niche_test_m02day2.tsv",
+        lm_input  = "results/aggregate/engine_inputs/niche_cells.tsv",
         heatmap   = "results/aggregate/plots/niche_centroids_heatmap.png",
         freq_plot = "results/aggregate/plots/niche_frequency_m02.png",
     threads: 1
@@ -281,8 +318,24 @@ rule niches:
         f"{D_LOGS}/niches.log",
     shell:
         "{RSCRIPT} {input.script} {input.labels} {input.coords} {input.obs} "
-        "{output.per_cell} {output.centroids} {output.freq} {output.test} "
+        "{output.per_cell} {output.centroids} {output.freq} {output.lm_input} "
         "{output.heatmap} {output.freq_plot} > {log} 2>&1"
+# --- engine: niche frequency arm test (propeller/logit path) ---
+rule niche_engine:
+    message: "niche_engine: lm_engine proportion test on niche frequency (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        cells  = "results/aggregate/engine_inputs/niche_cells.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/niche_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/niche_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 niche "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 # --- T10: tumor-immune spatial mixing (immune-neighbour fraction + Keren score) ---
 rule spatial_mixing:
     message: "spatial_mixing: tumor-immune spatial mixing (immune-neighbour fraction + Keren score)"
@@ -293,7 +346,7 @@ rule spatial_mixing:
         obs    = OBS,
     output:
         per_sample = "results/aggregate/spatial_mixing_per_sample.tsv",
-        test       = "results/aggregate/spatial_mixing_test_m02day2.tsv",
+        lm_input   = "results/aggregate/engine_inputs/mixing_metrics.tsv",
         per_cell   = f"{D_AGG}/spatial_mixing_per_cell.parquet",
         plot       = "results/aggregate/plots/mixing_m02.png",
     threads: 1
@@ -301,7 +354,23 @@ rule spatial_mixing:
         f"{D_LOGS}/spatial_mixing.log",
     shell:
         "{RSCRIPT} {input.script} {input.labels} {input.coords} {input.obs} "
-        "{output.per_sample} {output.test} {output.per_cell} {output.plot} > {log} 2>&1"
+        "{output.per_sample} {output.lm_input} {output.per_cell} {output.plot} > {log} 2>&1"
+# --- engine: tumor-immune mixing arm test (matrix/identity path, non-robust) ---
+rule mixing_engine:
+    message: "mixing_engine: lm_engine identity test on spatial mixing metrics (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        matrix = "results/aggregate/engine_inputs/mixing_metrics.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/mixing_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/mixing_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 mixing "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 # --- T11: myeloid M1/M2 polarization (UCell M1/M2 panels -> per-sample ratio) ---
 # threads: 8 -- AddModuleScore_UCell forks UCELL_CORES=8 workers (BiocParallel, not
 # BLAS), so reserve 8 to avoid oversubscription.
@@ -313,14 +382,30 @@ rule myeloid_polarization:
         labels = LABELS,
     output:
         scores = "results/aggregate/myeloid_m1m2_scores.tsv",
-        test   = "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
+        lm_input = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
         plot   = "results/aggregate/plots/myeloid_m1m2_m02.png",
     threads: 8
     log:
         f"{D_LOGS}/myeloid_polarization.log",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.scores} "
-        "{output.test} {output.plot} > {log} 2>&1"
+        "{output.lm_input} {output.plot} > {log} 2>&1"
+# --- engine: myeloid M1/M2 arm test (matrix/identity path, non-robust) ---
+rule myeloid_engine:
+    message: "myeloid_engine: lm_engine identity test on macrophage M1/M2 metrics (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        matrix = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/myeloid_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/myeloid_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 myeloid "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 # --- T12: M01<->M02 day-2 effect-size concordance on the unified labels ---
 rule concordance_m01_m02:
     message: "concordance_m01_m02: M01<->M02 day-2 effect-size concordance on the unified labels"
@@ -356,19 +441,35 @@ rule substate_split:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.markers} "
         "{output.parquet} {output.gate} > {log} 2>&1"
 rule substate_composition:
-    message: "substate_composition: fibroblast substate composition test (M02 day2)"
+    message: "substate_composition: build fibroblast-split per-cell engine input (M02 day2)"
     input:
         script   = f"{R_SCRIPTS}/substate_composition.R",
         obs      = OBS,
         labels   = LABELS,
         substate = "results/aggregate/fibroblast_substate.parquet",
     output:
-        test = "results/aggregate/composition_substate_test_m02day2.tsv",
+        lm_input = "results/aggregate/engine_inputs/substate_cells.tsv",
     threads: 1
     log:
         f"{D_LOGS}/substate_composition.log",
     shell:
-        "{RSCRIPT} {input.script} {input.obs} {input.labels} {input.substate} {output.test} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.obs} {input.labels} {input.substate} {output.lm_input} > {log} 2>&1"
+# --- engine: fibroblast sub-state composition arm test (propeller/logit path) ---
+rule substate_engine:
+    message: "substate_engine: lm_engine proportion test on fibroblast sub-state composition (M02 day2)"
+    input:
+        script = "scripts/engines/lm_engine.R",
+        cells  = "results/aggregate/engine_inputs/substate_cells.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats = "results/aggregate/engine/substate_engine.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/substate_engine.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 substate "
+        "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 rule geneset_overlap:
     message: "geneset_overlap: pairwise gene-set overlap for the curated pathway sets"
     input:
@@ -385,13 +486,13 @@ rule assemble_results:
     message: "assemble_results: tier-tagged master results table with confirmatory-family FDR"
     input:
         script  = f"{R_SCRIPTS}/assemble_results.R",
-        comp    = "results/aggregate/composition_test_m02day2.tsv",
-        degs    = "results/aggregate/degs_pseudobulk_m02day2.tsv",
+        comp    = "results/aggregate/engine/composition_engine.tsv",
+        degs    = "results/aggregate/engine/de_engine.tsv",
         gsea    = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
         pathway = "results/aggregate/pathway_test_m02day2.tsv",
-        niche   = "results/aggregate/niche_test_m02day2.tsv",
-        mixing  = "results/aggregate/spatial_mixing_test_m02day2.tsv",
-        myeloid = "results/aggregate/myeloid_m1m2_test_m02day2.tsv",
+        niche   = "results/aggregate/engine/niche_engine.tsv",
+        mixing  = "results/aggregate/engine/mixing_engine.tsv",
+        myeloid = "results/aggregate/engine/myeloid_engine.tsv",
         mde     = "results/aggregate/power_mde.tsv",
         sets    = "results/data_model/pathway_sets.tsv",
         cov     = "results/data_model/gene_set_panel_coverage.tsv",

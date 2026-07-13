@@ -48,22 +48,31 @@ COLS <- c("readout_class","unit","feature","contrast","effect","effect_type",
           "ci_low","ci_high","se","stat","pvalue","padj_own","hypothesis","tier",
           "n_per_arm","dataset")
 
-# --- composition (propeller logit log2FC) ---------------------------------------
-comp <- fread(comp_p)
-comp_m <- comp[, .(readout_class="composition", unit=cell_type, feature=NA_character_,
-  contrast, effect=log2FC_logit, effect_type="log2FC_logit", ci_low=ci_low_log2,
-  ci_high=ci_high_log2, se=NA_real_, stat=t_stat, pvalue, padj_own=padj,
-  hypothesis=NA_character_, n_per_arm=n_samples_per_group, dataset)]
+# Engine outputs carry sufficient statistics only (estimate/se/df/stat/p) -- correction is
+# recomputed HERE, reproducing each source's BH grouping. Engine `unit`/`feature_id`
+# semantics differ by engine: lm_engine puts the feature in feature_id (unit="mouse"), while
+# count_engine puts the cell-type stratum in `unit` and the gene in feature_id. The adapter
+# below reads the correct column per readout. (Schema-harmonization deferred to daylight.)
+
+# --- composition (propeller logit log2FC; lm_engine proportion path) -------------
+comp <- fread(comp_p)                                    # engine schema
+comp[, padj := p.adjust(p, "BH")]                        # composition.R used global BH
+comp_m <- comp[, .(readout_class="composition", unit=feature_id, feature=NA_character_,
+  contrast, effect=estimate, effect_type="log2FC_logit",
+  ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
+  se, stat, pvalue=p, padj_own=padj,
+  hypothesis=NA_character_, n_per_arm=4L, dataset="Mutter_02")]
 comp_m[unit %in% IMMUNE,        hypothesis := "H1"]
 comp_m[unit == "Endothelial",   hypothesis := "H2;H3"]
 comp_m[unit %in% setdiff(STROMA,"Endothelial"), hypothesis := "H3"]
 
-# --- pseudobulk DE (DESeq2 log2FC; Wald CI from lfcSE) ---------------------------
+# --- pseudobulk DE (count_engine; unit=cell_type, feature_id=gene; Wald CI from se) ----
 de <- fread(de_p)
-de_m <- de[, .(readout_class="DE", unit=cell_type, feature=gene, contrast,
-  effect=log2FC, effect_type="log2FC", ci_low=log2FC-1.96*lfcSE,
-  ci_high=log2FC+1.96*lfcSE, se=lfcSE, stat, pvalue, padj_own=padj,
-  hypothesis=NA_character_, n_per_arm=n_samples_used, dataset)]
+de[, padj := p.adjust(p, "BH"), by = .(unit, contrast)]  # DESeq2 grouping: per cell_type x contrast
+de_m <- de[, .(readout_class="DE", unit=unit, feature=feature_id, contrast,
+  effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
+  ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
+  hypothesis=NA_character_, n_per_arm=n_samples_used, dataset="Mutter_02")]
 de_m[unit %in% IMMUNE    & feature %in% H1_GENES, hypothesis := "H1"]
 de_m[unit == "Endothelial" & feature %in% H2_GENES, hypothesis := "H2"]
 de_m[unit %in% STROMA_DE & feature %in% H3_GENES, hypothesis := "H3"]
@@ -85,24 +94,30 @@ gsea_m <- gsea[, .(readout_class="gsea", unit=cell_type, feature=pathway_name, c
   stat=NES, pvalue, padj_own=padj_bh, hypothesis=NA_character_,
   n_per_arm=NA_integer_, dataset)]
 
-# --- niche composition (propeller; exploratory) ---------------------------------
+# --- niche composition (lm_engine proportion path; exploratory) -----------------
 ni <- fread(ni_p)
-ni_m <- ni[, .(readout_class="niche_composition", unit=as.character(niche),
-  feature=NA_character_, contrast, effect=log2FC_logit, effect_type="log2FC_logit",
-  ci_low=ci_low_log2, ci_high=ci_high_log2, se=NA_real_, stat=t_stat, pvalue,
-  padj_own=padj, hypothesis=NA_character_, n_per_arm=n_samples_per_group, dataset)]
+ni[, padj := p.adjust(p, "BH")]                          # niches.R used global BH
+ni_m <- ni[, .(readout_class="niche_composition", unit=as.character(feature_id),
+  feature=NA_character_, contrast, effect=estimate, effect_type="log2FC_logit",
+  ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
+  se, stat, pvalue=p, padj_own=padj, hypothesis=NA_character_, n_per_arm=4L,
+  dataset="Mutter_02")]
 
-# --- spatial mixing + myeloid polarization (limma metric matrices; exploratory) --
+# --- spatial mixing + myeloid polarization (lm_engine identity path; exploratory) --
 mx <- fread(mx_p)
-mx_m <- mx[, .(readout_class="spatial_mixing", unit="global", feature=metric, contrast,
-  effect=estimate, effect_type="limma_estimate", ci_low, ci_high, se=NA_real_,
-  stat=t_stat, pvalue, padj_own=padj, hypothesis=NA_character_,
-  n_per_arm=n_samples_per_group, dataset)]
+mx[, padj := p.adjust(p, "BH")]
+mx_m <- mx[, .(readout_class="spatial_mixing", unit="global", feature=feature_id, contrast,
+  effect=estimate, effect_type="limma_estimate",
+  ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se, se,
+  stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
+  n_per_arm=4L, dataset="Mutter_02")]
 my <- fread(my_p)
-my_m <- my[, .(readout_class="myeloid_polarization", unit="Macrophages", feature=metric,
-  contrast, effect=estimate, effect_type="limma_estimate", ci_low, ci_high,
-  se=NA_real_, stat=t_stat, pvalue, padj_own=padj, hypothesis=NA_character_,
-  n_per_arm=n_samples_per_group, dataset)]
+my[, padj := p.adjust(p, "BH")]
+my_m <- my[, .(readout_class="myeloid_polarization", unit="Macrophages", feature=feature_id,
+  contrast, effect=estimate, effect_type="limma_estimate",
+  ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se, se,
+  stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
+  n_per_arm=4L, dataset="Mutter_02")]
 
 master <- rbindlist(list(comp_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m),
                     use.names = TRUE)
