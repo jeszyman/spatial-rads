@@ -23,9 +23,11 @@ CONTRASTS <- c(MBRT_vs_Ctrl = "MBRT_day2", SBRT_vs_Ctrl = "SBRT_day2")
 dir.create(dirname(out_tsv), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(plot_sc), recursive = TRUE, showWarnings = FALSE)
 
-# --- M02 side: pseudobulk DESeq2 log2FC (the two vs-Control contrasts) -----------
-m02 <- fread(degs_m02_path)[contrast %in% names(CONTRASTS),
-                            .(cell_type, gene, contrast, log2FC_m02 = log2FC)]
+# --- M02 side: pseudobulk DESeq2 log2FC (the two vs-Control contrasts). Reads the count
+# engine's output (unit=cell_type, feature_id=gene, estimate=apeglm log2FC). ---
+m02 <- fread(degs_m02_path)
+setnames(m02, c("unit", "feature_id", "estimate"), c("cell_type", "gene", "log2FC"), skip_absent = TRUE)
+m02 <- m02[contrast %in% names(CONTRASTS), .(cell_type, gene, contrast, log2FC_m02 = log2FC)]
 
 # --- M01 side: descriptive mean-ratio log2FC (n=1) -------------------------------
 o   <- readRDS(merged_path)

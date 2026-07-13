@@ -48,8 +48,7 @@ rule all:
         "results/aggregate/plots/composition_m02day2_forest.png",
         "results/aggregate/plots/composition_m01_timecourse.png",
         "results/aggregate/pseudobulk_qc.tsv",
-        "results/aggregate/degs_pseudobulk_m02day2.tsv",
-        "results/aggregate/deg_summary_m02day2.tsv",
+        "results/aggregate/engine/de_engine.tsv",
         "results/aggregate/detection_test_m02day2.tsv",
         "results/aggregate/gsea_pseudobulk_m02day2.tsv",
         "results/aggregate/pathway_scores_summary.tsv",
@@ -134,24 +133,9 @@ rule pseudobulk_build:
         f"{D_LOGS}/pseudobulk_build.log",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.se} {output.qc} > {log} 2>&1"
-# --- Track 2 inference: pseudobulk DESeq2 DE (M02 day2, abundance-floored) ---
-rule deg_pseudobulk:
-    message: "deg_pseudobulk: pseudobulk DESeq2 DE (M02 day2, abundance-floored)"
-    input:
-        script = f"{R_SCRIPTS}/deg_pseudobulk.R",
-        se     = f"{D_AGG}/pseudobulk_se.rds",
-    output:
-        degs    = "results/aggregate/degs_pseudobulk_m02day2.tsv",
-        summary = "results/aggregate/deg_summary_m02day2.tsv",
-        skipped = "results/aggregate/degs_pseudobulk_skipped.tsv",
-    threads: 1
-    log:
-        f"{D_LOGS}/deg_pseudobulk.log",
-    shell:
-        "{RSCRIPT} {input.script} {input.se} {output.degs} {output.summary} "
-        "{output.skipped} > {log} 2>&1"
-# --- engine: pseudobulk NB DE (count engine) -- feeds results_master; deg_pseudobulk above
-# is retained (bit-identical) only for gsea + concordance until Task 7 repoints them. ---
+# --- Track 2 inference: pseudobulk NB DE via the count engine (M02 day2, abundance-floored,
+# apeglm two-fit). Sole pseudobulk-DE source: feeds results_master, gsea, and concordance.
+# (Superseded the standalone deg_pseudobulk.R -- retired 2026-07-13, output bit-identical.) ---
 rule de_engine:
     message: "de_engine: count_engine pseudobulk NB DE (apeglm two-fit) -> sufficient stats"
     input:
@@ -186,7 +170,7 @@ rule gsea:
     message: "gsea: GSEA on pseudobulk stat-ranked genes (primary + Hallmark)"
     input:
         script = f"{R_SCRIPTS}/gsea.R",
-        degs   = "results/aggregate/degs_pseudobulk_m02day2.tsv",
+        degs   = "results/aggregate/engine/de_engine.tsv",
         sets   = "results/data_model/pathway_sets.tsv",
     output:
         gsea = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
@@ -413,7 +397,7 @@ rule concordance_m01_m02:
         script = f"{R_SCRIPTS}/concordance_m01_m02.R",
         rds    = MERGED,
         labels = LABELS,
-        degs   = "results/aggregate/degs_pseudobulk_m02day2.tsv",
+        degs   = "results/aggregate/engine/de_engine.tsv",
     output:
         tsv     = "results/aggregate/concordance_m01_m02.tsv",
         scatter = "results/aggregate/plots/concordance_scatter.png",

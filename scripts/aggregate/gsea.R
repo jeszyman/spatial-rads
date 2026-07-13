@@ -31,8 +31,11 @@ all_sets      <- lapply(split(gs_long$gene, gs_long$set), unique)
 set_meta      <- unique(gs_long[, .(pathway_name = set, pathway_source = source, tier)])
 set_size_full <- vapply(all_sets, length, integer(1))   # full set size (panel-independent)
 
-# --- DE stats: one ranking per (cell_type x contrast) over tested genes ---
+# --- DE stats: one ranking per (cell_type x contrast) over tested genes. Reads the count
+# engine's sufficient-statistics output (unit=cell_type, feature_id=gene); renamed on load so
+# the ranking logic below is unchanged. ---
 degs   <- fread(degs_path)
+setnames(degs, c("unit", "feature_id"), c("cell_type", "gene"), skip_absent = TRUE)
 strata <- unique(degs[!is.na(stat), .(cell_type, contrast)])
 
 run_one <- function(ct, cn) {
