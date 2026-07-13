@@ -26,6 +26,10 @@ plot_bars        <- args[6]
 plot_forest      <- args[7]
 plot_timecourse  <- args[8]
 out_sens         <- args[9]
+out_lm_input     <- args[10]   # per-cell engine input; the shared lm_engine produces the
+                               # canonical composition arm test for results_master. The inline
+                               # propeller below is retained only for this producer's own forest
+                               # plot + unassigned-sensitivity diagnostics (not the master family).
 
 dir.create(dirname(out_test), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(plot_bars), recursive = TRUE, showWarnings = FALSE)
@@ -47,6 +51,13 @@ setcolorder(by_sample, c("sample_id", "cell_type", "n_cells", "fraction",
                          "condition", "timepoint_h", "dataset", "slide_id"))
 setorder(by_sample, dataset, sample_id, -n_cells)
 fwrite(by_sample, out_by_sample, sep = "\t")
+
+# --- engine input: per-cell labels (cell, sample_id, label, condition, slide_id), M02 day2.
+# The canonical composition arm test that enters results_master runs in the shared lm_engine
+# (proportion/logit path, robust eBayes) on this; the inline propeller below stays only for
+# this producer's forest plot + unassigned-sensitivity diagnostics. ---
+lm_input <- m[dataset == "Mutter_02", .(cell, sample_id, label = cell_type, condition, slide_id)]
+fwrite(lm_input, out_lm_input, sep = "\t")
 
 # --- M02 day2 propeller test ----------------------------------------------
 m2 <- m[dataset == "Mutter_02"]

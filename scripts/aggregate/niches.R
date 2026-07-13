@@ -11,11 +11,11 @@
 #       <out_centroids.tsv> <out_freq.tsv> <out_test.tsv> <plot_heatmap> <plot_freq>
 suppressPackageStartupMessages({
   library(data.table); library(arrow); library(RANN)
-  library(speckle); library(limma); library(ggplot2)
+  library(ggplot2)
 })
 a <- commandArgs(trailingOnly = TRUE)
 labels_path <- a[1]; coords_path <- a[2]; obs_path <- a[3]
-out_pc <- a[4]; out_cent <- a[5]; out_freq <- a[6]; out_test <- a[7]
+out_pc <- a[4]; out_cent <- a[5]; out_freq <- a[6]; out_lm_input <- a[7]
 plot_heat <- a[8]; plot_freq <- a[9]
 K <- 6L; SEED <- 42L; KNN <- 20L
 
@@ -63,32 +63,12 @@ freq[, frac := n / sum(n), by = sample_id]
 setorder(freq, dataset, sample_id, niche)
 fwrite(freq, out_freq, sep = "\t")
 
-# --- M02 day2 propeller test on niche labels ------------------------------------
+# --- engine input: per-cell niche labels (cell, sample_id, label, condition, slide_id), M02
+# day2. The propeller arm test on niche frequency now runs in the shared lm_engine
+# (proportion/logit path, robust eBayes); this producer only assigns the niche labels. ---
 m2 <- d[dataset == "Mutter_02"]
-m2[, condition := factor(condition, levels = c("Control", "MBRT_day2", "SBRT_day2"))]
-props <- getTransformedProps(clusters = m2$niche, sample = m2$sample_id, transform = "logit")
-tp <- props$TransformedProps
-tp <- tp[!apply(tp, 1, function(r) any(!is.finite(r))), , drop = FALSE]
-samp <- unique(m2[, .(sample_id, condition, slide_id)]); setkey(samp, sample_id)
-samp <- samp[colnames(tp)]
-design <- model.matrix(~ 0 + condition + slide_id, data = samp)
-colnames(design) <- make.names(colnames(design))
-fit <- lmFit(tp, design)
-cm  <- makeContrasts(
-  MBRT_vs_Ctrl = conditionMBRT_day2 - conditionControl,
-  SBRT_vs_Ctrl = conditionSBRT_day2 - conditionControl,
-  MBRT_vs_SBRT = conditionMBRT_day2 - conditionSBRT_day2, levels = design)
-fit2 <- eBayes(contrasts.fit(fit, cm), robust = TRUE)
-ln2 <- log(2)
-test <- rbindlist(lapply(colnames(cm), function(cn) {
-  tt <- topTable(fit2, coef = cn, number = Inf, sort.by = "none", confint = TRUE)
-  data.table(niche = rownames(tt), contrast = cn, log2FC_logit = tt$logFC / ln2,
-             ci_low_log2 = tt$CI.L / ln2, ci_high_log2 = tt$CI.R / ln2,
-             t_stat = tt$t, pvalue = tt$P.Value)
-}))
-test[, padj := p.adjust(pvalue, method = "BH")]
-test[, `:=`(method = "propeller", n_samples_per_group = 4L, dataset = "Mutter_02")]
-fwrite(test, out_test, sep = "\t")
+lm_input <- m2[, .(cell, sample_id, label = niche, condition, slide_id)]
+fwrite(lm_input, out_lm_input, sep = "\t")
 
 # --- plots ----------------------------------------------------------------------
 p_heat <- ggplot(cent_long, aes(cell_subtype, niche, fill = mean_frac)) +
@@ -110,5 +90,5 @@ p_freq <- ggplot(m2f, aes(niche, frac, fill = condition)) +
   theme_bw(base_size = 10)
 ggsave(plot_freq, p_freq, width = 8, height = 4.5, dpi = 150)
 
-cat(sprintf("niches: %d cells, K=%d | cluster sizes %s | M02 test %d rows, %d padj<0.05\n",
-            nrow(d), K, paste(km$size, collapse = "/"), nrow(test), test[padj < 0.05, .N]))
+cat(sprintf("niches: %d cells, K=%d | cluster sizes %s | lm input %d M02 cells\n",
+            nrow(d), K, paste(km$size, collapse = "/"), nrow(lm_input)))

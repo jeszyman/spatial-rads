@@ -10,11 +10,11 @@
 # Args: <merged.rds> <full_labels.parquet> <out_scores.tsv> <out_test.tsv> <plot_m02>
 suppressPackageStartupMessages({
   library(Seurat); library(arrow); library(UCell)
-  library(limma); library(data.table); library(ggplot2)
+  library(data.table); library(ggplot2)
 })
 a <- commandArgs(trailingOnly = TRUE)
 merged_path <- a[1]; labels_path <- a[2]
-out_scores <- a[3]; out_test <- a[4]; plot_m02 <- a[5]
+out_scores <- a[3]; out_lm_input <- a[4]; plot_m02 <- a[5]
 SEED <- 42L; UCELL_CORES <- 8L
 CONDS <- c("Control", "MBRT_day2", "SBRT_day2")
 
@@ -53,28 +53,16 @@ score <- md[!is.na(M1_score) & !is.na(M2_score),
 setorder(score, dataset, timepoint_h, sample_id)
 fwrite(score, out_scores, sep = "\t")
 
-# --- M02 day2 limma test on the per-sample metric matrix ------------------------
+# --- engine input: long (sample_id, feature_id, value, condition, slide_id), M02 day2. The
+# arm test on these per-sample macrophage metrics now runs in the shared lm_engine
+# (matrix/identity path, non-robust eBayes); this producer only builds the feature matrix. ---
+metrics <- c("M1_mean", "M2_mean", "M2_M1_ratio")
 m2 <- score[dataset == "Mutter_02" & timepoint_h == 48L]
 m2[, condition := factor(condition, levels = CONDS)]
-setkey(m2, sample_id)
-metrics <- c("M1_mean", "M2_mean", "M2_M1_ratio")
-mat <- t(as.matrix(m2[, ..metrics])); colnames(mat) <- m2$sample_id
-design <- model.matrix(~ 0 + condition + slide_id, data = m2)
-colnames(design) <- make.names(colnames(design))
-fit <- lmFit(mat, design)
-cm  <- makeContrasts(
-  MBRT_vs_Ctrl = conditionMBRT_day2 - conditionControl,
-  SBRT_vs_Ctrl = conditionSBRT_day2 - conditionControl,
-  MBRT_vs_SBRT = conditionMBRT_day2 - conditionSBRT_day2, levels = design)
-fit2 <- eBayes(contrasts.fit(fit, cm))
-test <- rbindlist(lapply(colnames(cm), function(cn) {
-  tt <- topTable(fit2, coef = cn, number = Inf, sort.by = "none", confint = TRUE)
-  data.table(metric = rownames(tt), contrast = cn, estimate = tt$logFC,
-             ci_low = tt$CI.L, ci_high = tt$CI.R, t_stat = tt$t, pvalue = tt$P.Value)
-}))
-test[, padj := p.adjust(pvalue, method = "BH")]
-test[, `:=`(method = "limma", n_samples_per_group = 4L, dataset = "Mutter_02")]
-fwrite(test, out_test, sep = "\t")
+lm_input <- melt(m2[, c("sample_id", "condition", "slide_id", metrics), with = FALSE],
+                 id.vars = c("sample_id", "condition", "slide_id"),
+                 variable.name = "feature_id", value.name = "value")
+fwrite(lm_input, out_lm_input, sep = "\t")
 
 # --- plot: M1 / M2 / ratio by arm (M02 day2) -----------------------------------
 pd <- melt(m2[, c("sample_id", "condition", metrics), with = FALSE],
@@ -90,6 +78,6 @@ p <- ggplot(pd, aes(condition, value, fill = condition)) +
   theme_bw(base_size = 10) + theme(axis.text.x = element_text(angle = 20, hjust = 1))
 ggsave(plot_m02, p, width = 8, height = 4.5, dpi = 150)
 
-cat(sprintf("myeloid M1/M2: %d samples | M02 day2 test %d rows, %d padj<0.05 | M2/M1 range %.3f-%.3f\n",
-            nrow(score), nrow(test), test[padj < 0.05, .N],
+cat(sprintf("myeloid M1/M2: %d samples | lm input %d rows (%d metrics x %d M02 samples) | M2/M1 range %.3f-%.3f\n",
+            nrow(score), nrow(lm_input), length(metrics), nrow(m2),
             min(m2$M2_M1_ratio), max(m2$M2_M1_ratio)))
