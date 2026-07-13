@@ -1,0 +1,24 @@
+# Study-wide statistical constants for the differential test engines (Task 2/3 of the
+# modularization plan). Comparison-SPECIFIC parameters (contrast levels, formula, unit,
+# transform) live in the resolved registry (results/data_model/comparisons.tsv); the
+# constants here are study-wide and shared across every comparison, so they belong to the
+# engine, not the registry.
+
+count_engine:
+  min_cells: 10          # per (sample x cell_type): usable-replicate threshold
+  min_samples: 3         # usable replicates required per condition (abundance floor)
+  gene_min_count: 10     # a gene is kept if it has >= this many counts ...
+  gene_min_samples: 4    # ... in >= this many samples
+  shrinkage: apeglm      # lfcShrink type; apeglm accepts only coef=, hence the two-fit pattern
+
+lm_engine:
+  # eBayes robust flag per readout, reproducing each source script EXACTLY:
+  # composition / niche / pathway / substate used robust = TRUE;
+  # spatial-mixing / myeloid used robust = FALSE (few outcome rows, moderation negligible).
+  robust:
+    composition: true
+    niche: true
+    pathway: true
+    substate: true
+    mixing: false
+    myeloid: false
