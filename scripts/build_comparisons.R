@@ -75,6 +75,13 @@ for (e in reg) {
       hypotheses = paste(e$hypotheses %||% character(), collapse = ";"),
       dose_confounded = isTRUE(e$dose_confounded),
       requires = e$requires %||% NA_character_,
+      # Resolved contrast levels for the test engines: engine builds condition<num> -
+      # condition<den> with den as the DESeq2 reference. transform tags the proportion
+      # (logit) vs continuous (identity) path; NA where the entry names no single contrast.
+      contrast_num_level = if (!is.null(e$contrast_levels)) e$contrast_levels$num else NA_character_,
+      contrast_den_level = if (!is.null(e$contrast_levels)) e$contrast_levels$den else NA_character_,
+      ref_level          = if (!is.null(e$contrast_levels)) e$contrast_levels$den else NA_character_,
+      transform          = e$transform %||% NA_character_,
       n_group1 = nrow(g1), n_group2 = nrow(g2),
       n_mouse_group1 = nu1, n_mouse_group2 = nu2,
       model_rank = df$rank, resid_df = df$resid,

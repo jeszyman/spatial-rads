@@ -14,6 +14,8 @@ comparisons:
     group2: {treatment: NT,   timepoint_h: 48, model: flank}
     unit: mouse
     formula: "~0 + condition + slide_id"
+    contrast_levels: {num: SBRT_day2, den: Control}   # engine builds condition<num> - condition<den>
+    transform: logit                                   # proportion-readout default; continuous rules override to identity
     tier: confirmatory
     hypotheses: [H1_immune, H2_vascular, H3_stromal]
     dose_confounded: false
@@ -26,6 +28,8 @@ comparisons:
     group2: {treatment: NT,   timepoint_h: 48, model: flank}
     unit: mouse
     formula: "~0 + condition + slide_id"
+    contrast_levels: {num: MBRT_day2, den: Control}
+    transform: logit
     tier: confirmatory
     hypotheses: [H1_immune, H2_vascular, H3_stromal]
     dose_confounded: false
@@ -41,6 +45,8 @@ comparisons:
     group2: {treatment: SBRT, timepoint_h: 48, model: flank}
     unit: mouse
     formula: "~0 + condition + slide_id"
+    contrast_levels: {num: MBRT_day2, den: SBRT_day2}
+    transform: logit
     tier: confirmatory
     hypotheses: [H1_immune, H2_vascular, H3_stromal]
     dose_confounded: true
