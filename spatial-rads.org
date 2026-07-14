@@ -9,7 +9,7 @@
 :EXPORT_OPTIONS: toc:nil num:UNNUMBERED H:2 ^:{}
 :EXPORT_LATEX_HEADER: \usepackage{szymanski-present}
 :END:
-** Method Changes and Updates
+** Method Updates and Changes
 
 *** New Input Level QC
 **** Text                                                             :BMCOL:
@@ -33,6 +33,7 @@
 :END:
 #+ATTR_LATEX: :height 0.8\textheight
 [[/home/jeszyman/repos/spatial-rads/resources/media/plummer2025pg1.png]]
+
 *** Per-cell Data Quality Across Experiments
 #+CAPTION: Per-sample metrics of CosMx capture across experiments. Sparsity, zeros of cell x gene counts; SNR, signal to noise; specificity FDR, expected false positives by background probe count. *Overall M_02 has more transcripts per cell.*
 #+ATTR_LATEX: :width 0.85\textwidth
@@ -43,8 +44,8 @@
 
 *** Per-cell Data Quality Across M_02 Cohorts
 
-#+CAPTION: Per-sample metrics of CosMx capture across cohorts in Mutter_02 experiment. *Overall treatment does not affect CosMx quality*
 #+ATTR_LATEX: :height .75\textheight
+#+CAPTION: Per-sample metrics of CosMx capture across cohorts in Mutter_02 experiment. *Overall treatment does not affect CosMx quality.*
 #+ATTR_ORG: :width 1000
 [[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_arm_balance.svg]]
 *** Bias and Between Replicate Concordance
@@ -108,6 +109,28 @@ file:/home/jeszyman/repos/spatial-rads/resources/media/peak-valley.png
 
 #+latex: \note{TMM scales library size, voom converts counts to log cpm weights test DESeq2 neg binomial and limma, agreement .95-.98}
 ** Results
+*** No M_01 4hr Peak Valley Signature
+#+CAPTION: Peak-vs-valley FOV-pseudobulk DE at M_01 4h has no signature: p-value histograms are flat in all cells and every compartment.
+#+ATTR_LATEX: :width .7\textwidth
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/pv_phist_null.png]]
+*** Alternative confirmation of peak valley signature loss
+#+ATTR_LATEX: :height .8\textheight
+file:/home/jeszyman/repos/spatial-rads/dev/if_channel_check/pv_reconcile_figure.png
+*** Arm-level Day 2 Results: Composition
+#+ATTR_LATEX: :height \textheight
+file:~/repos/spatial-rads/results/aggregate/plots/composition_arm.svg
+
+*** Arm-level Day 2 Results: Pathway
+#+ATTR_LATEX: :height .9\textheight
+file:~/repos/spatial-rads/results/aggregate/plots/pathway_arm.svg
+** Slide generation reference                                      :noexport:
+#+begin_comment
+Export: python3 ~/repos/latex/scripts/emacs_export_header_to_latex.py --org_file /home/jeszyman/repos/spatial-rads/spatial-rads.org --node_id 8091391b-231a-441f-8670-c2d5ce47d84c
+#+end_comment
+
+
+* Spatial Radiomics                                           :sci_proj_repo:
+
 
   1. Arm-level differential — confirmatory statistical layer (executed; master-refresh pending) — single master table, 32,856 rows, three contrasts, tiered FDR, Mutter_02 day-2 n=4/arm.
   Pseudobulk DE (SBRT collagen/Acta2 fibrosis; MBRT near-null), detection-vs-level decomposition (SBRT signal = fraction_shift, p21 ambiguous), composition (propeller), data-driven niches
@@ -123,21 +146,7 @@ file:/home/jeszyman/repos/spatial-rads/resources/media/peak-valley.png
 
   1. Exploratory / cross-modality (mixed) — cell-morphology kinetics (MBRT nuclei shrink, SBRT swell; in progress); MALDI lipidomics cross-check (arm-level); IF morphology-channel check;
   p21 kinetics; early parquet/panel QC.
-*** No M_01 4hr Peak Valley Signature
-#+CAPTION: Peak-vs-valley FOV-pseudobulk DE at M_01 4h has no signature: p-value histograms are flat in all cells and every compartment.
-#+ATTR_LATEX: :width .7\textwidth
-[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/pv_phist_null.png]]
-*** Alternative confirmation of peak valley signature loss
-#+ATTR_LATEX: :height .8\textheight
-file:/home/jeszyman/repos/spatial-rads/dev/if_channel_check/pv_reconcile_figure.png
-** Next steps
-** Slide generation reference                                      :noexport:
-#+begin_comment
-Export: python3 ~/repos/latex/scripts/emacs_export_header_to_latex.py --org_file /home/jeszyman/repos/spatial-rads/spatial-rads.org --node_id 8091391b-231a-441f-8670-c2d5ce47d84c
-#+end_comment
 
-
-* Spatial Radiomics                                           :sci_proj_repo:
 https://www.nature.com/articles/s41588-026-02671-2
 https://www.nature.com/articles/s41467-025-56080-w
 https://www.reddit.com/r/bioinformatics/comments/1ut3rrv/any_consensus_on_software_being_used_to_detect/
@@ -917,7 +926,7 @@ Pathway sets are defined by a concept registry ([[file:config/pathway_concept_re
 
 Confirmatory concepts (target, 7): Type I IFN, Type II IFN, DNA Damage Repair, Angiogenesis, Hypoxia, Fibrosis remodeling, Stromal stress/senescence. Exploratory (target): all mouse Hallmark sets clearing the panel-gene floor, plus SASP (senescence-associated secretory phenotype, custom-cited).
 
-*Build status (2026-07-13):* the registry, builder, coverage figure, and =assemble_results.R= H1 definition now implement the final scope: STING retired from the confirmatory family, the exploratory Hallmark tier widened to every gate-passing mouse Hallmark set (47 of 50), and SASP added. The build emits 54 sets (7 primary/confirmatory + 47 exploratory) and both scored-set consumers (=pathway_scores.R=, =assemble_results.R=) parse the =set=/=tier= schema (smoke-tested). Pending: the ~5h pathway rescore that regenerates the locked UCell/AddModuleScore scores in =results_master.tsv=. Until that validates, it runs as a development artifact (shadow output) and downstream analysis continues on the committed =results_master.tsv=; the new master is promoted only after re-validation confirms the headline results (SBRT fibrosis, MBRT arm-level null, p21-ambiguous) survive the new gene sets.
+*Build status (2026-07-13, complete):* the registry, builder, coverage figure, and =assemble_results.R= H1 definition implement the final scope: STING retired from the confirmatory family, the exploratory Hallmark tier widened to every gate-passing mouse Hallmark set (47 of 50), and SASP added (Coppe 2008). The build emits 54 sets (7 primary/confirmatory + 47 exploratory). The ~5h pathway rescore ran to a shadow location, was validated non-destructively, and is *promoted*: =results_master.tsv= (32,910 rows: 2,412 confirmatory / 30,498 exploratory) now carries the new UCell/AddModuleScore scores. Re-validation (=validate_master.R=) confirms the headline results survive the corrected gene sets: SBRT stromal fibrosis (collagen/Acta2 up, 26 confirmatory-significant; H3 dominates SBRT_vs_Ctrl with 54 hits), MBRT arm-level null (4 confirmatory MBRT_vs_Ctrl hits), and p21 ambiguous (not called regulation). Pre-rescore master backed up at =aggregate/_preRescore_backup/=.
 
 STING retirement rationale: its module has only 2 of 3 genes on panel, both shared with the IFN sets (already flagged weak in the 2026-06-23 robustness pass). The cytosolic-DNA-sensing biology it aimed at is a genuine panel blind spot (see the two dropped RT signatures below), not a suppressible signal.
 
