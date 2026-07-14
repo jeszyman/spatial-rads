@@ -29,25 +29,7 @@ d <- read_tsv(inp, show_col_types = FALSE) %>%
   arrange(compartment, desc(middle)) %>%
   mutate(cell_subtype = fct_inorder(cell_subtype))
 
-rho_k <- signif(d$k_robust_spearman[1], 3)
-
 comp_cols <- c(tumor = "#cc0000", stroma = "#4a86e8", immune = "#e69138")
-
-# purity-vs-abundance association across all subtypes (panel B annotation)
-rho_n <- suppressWarnings(cor(log10(d$n), d$middle, method = "spearman"))
-
-legend_text <- str_c(
-  "Transcriptional neighborhood purity (Plummer et al., Nat Biotechnol 2025): for each cell, ",
-  "the fraction of its 30 nearest neighbors in the scVI integrated latent that share its final ",
-  "cell-subtype label; a coherence check on the locked cross-dataset typing, complementary to ",
-  "marker recall. (A) Per-subtype purity, one box per subtype (5/25/50/75/95th percentile over ",
-  "its cells), the same latent the labels were built in; coarse-compartment purity is near-ceiling ",
-  "by construction. (B) Purity tracks positively with subtype abundance (Spearman ",
-  sprintf("rho = %.2f", rho_n),
-  " over per-subtype medians): rarer subtypes, several of them marker-rescued, form looser ",
-  "neighborhoods. The association is not a rule, with smooth muscle and NK cells sitting purer ",
-  "than more abundant subtypes. Neighborhood size is not load-bearing: per-subtype medians ",
-  sprintf("rank-correlate rho = %s between k = 15 and k = 30.", rho_k))
 
 pA <- ggplot(d, aes(cell_subtype, middle, fill = compartment)) +
   geom_boxplot(aes(ymin = ymin, lower = lower, middle = middle, upper = upper, ymax = ymax),
@@ -72,10 +54,6 @@ pB <- ggplot(d, aes(n, middle, color = compartment)) +
   theme_scifig(base_size = 12)
 
 p <- (pA | pB) +
-  plot_layout(widths = c(1.5, 1)) +
-  plot_annotation(caption = str_wrap(legend_text, width = round(11 * 15)),
-                  theme = theme(plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
-                                                            lineheight = 1.3, margin = margin(t = 18)),
-                                plot.caption.position = "plot"))
+  plot_layout(widths = c(1.5, 1))
 
 save_plot(p, out, w = 13, h = 6)
