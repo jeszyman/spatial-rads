@@ -24,7 +24,7 @@ comp_map <- c(
   Adipocyte = "stroma", unassigned = "stroma",
   Macrophages = "immune", `T cells` = "immune", `NK cells` = "immune", ILC = "immune",
   DC = "immune", `Plasma cells` = "immune", `Mast cells` = "immune",
-  Neutrophils = "immune", `Epithelial cells` = "immune")
+  Neutrophils = "immune")
 comp_cols <- c(tumor = "#cc0000", stroma = "#4a86e8", immune = "#e69138")
 
 raw <- read_tsv(inp, show_col_types = FALSE)

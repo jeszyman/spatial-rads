@@ -13,7 +13,7 @@
 suppressPackageStartupMessages({library(tidyverse); library(arrow)})
 
 roster  <- read_parquet("results/aggregate/full_labels.parquet") %>% pull(cell_subtype) %>% unique()
-retired <- c("tumor_epithelial", "Pericyte", "a", "b")
+retired <- c("tumor_epithelial", "Pericyte", "a", "b", "Epithelial cells")
 fail <- character(0)
 
 chk_subset <- function(vals, label) {
@@ -41,6 +41,11 @@ locked_n <- nrow(read_parquet("results/aggregate/full_labels.parquet"))
 comp_n   <- sum(cbs$n_cells)
 if (comp_n != locked_n)
   fail <- c(fail, sprintf("composition cell total %d != locked labels %d", comp_n, locked_n))
+
+# Inference rows must carry the true per-arm replicate count (4), not total-samples.
+bad_n <- mas %>% filter(readout_class %in% c("DE","composition","pathway"), n_per_arm != 4)
+if (nrow(bad_n))
+  fail <- c(fail, sprintf("results_master has n_per_arm != 4 on %d inference rows", nrow(bad_n)))
 
 if (length(fail)) {
   cat("FAIL:\n"); cat(paste0("  - ", fail, collapse = "\n"), "\n"); quit(status = 1)

@@ -24,7 +24,7 @@ comp_map <- c(
   Adipocyte = "stroma", unassigned = "stroma",
   Macrophages = "immune", `T cells` = "immune", `NK cells` = "immune", ILC = "immune",
   DC = "immune", `Plasma cells` = "immune", `Mast cells` = "immune",
-  Neutrophils = "immune", `Epithelial cells` = "immune")
+  Neutrophils = "immune")
 arm_cols <- c(Control = "#4a86e8", MBRT = "#e69138", SBRT = "#cc0000")
 
 # Order cell types by compartment then overall abundance for a stable stack/axis.
