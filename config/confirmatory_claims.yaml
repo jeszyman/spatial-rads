@@ -1,0 +1,21 @@
+# Frozen results-tier declaration: which readouts x cell_types x programs are each
+# hypothesis's a priori confirmatory evidence. Consumed ONLY by assemble_results.R.
+# The run pipeline never reads this; engine/producer outputs stay hypothesis-agnostic.
+frozen_at: a3f1abe
+claims:
+  immune_activation:
+    DE:      {cell_types: [T cells, NK cells, ILC, Plasma cells, Macrophages, DC, Mast cells, Neutrophils], programs: [TypeI_interferon, TypeII_interferon]}
+    pathway: {cell_types: [T cells, NK cells, ILC, Plasma cells, Macrophages, DC, Mast cells, Neutrophils], programs: [TypeI_interferon, TypeII_interferon]}
+  vascular_hypoxia:
+    DE:      {cell_types: [Endothelial], contrasts: [SBRT_vs_Ctrl, MBRT_vs_Ctrl], programs: [Angiogenesis]}   # MBRT_vs_SBRT Endothelial-Angiogenesis DE ceded to normal_vessel_sparing
+    pathway: {cell_types: [Endothelial, Tumor], programs: [Angiogenesis, Hypoxia]}
+  stromal_fibrosis:
+    DE:          {cell_types: [Fibroblast, SmoothMuscle, Adipocyte], programs: [Fibrosis_remodeling, Stromal_stress_senescence]}
+    pathway:     {cell_types: [Fibroblast, SmoothMuscle, Adipocyte], programs: [Fibrosis_remodeling, Stromal_stress_senescence]}
+    composition: {cell_types: [SmoothMuscle, Adipocyte]}   # Fibroblast composition owned by myofibroblast_expansion substate
+  myofibroblast_expansion:
+    substate_composition: {parent_type: Fibroblast}   # resting/activated; the ONLY claim (pure composition hypothesis)
+  normal_vessel_sparing:
+    DE:      {cell_types: [Endothelial], contrasts: [MBRT_vs_SBRT], programs: [Angiogenesis]}
+  myeloid_M2:
+    pathway: {cell_types: [Macrophages], programs: [M1_polarization, M2_polarization]}

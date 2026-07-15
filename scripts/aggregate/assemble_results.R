@@ -27,21 +27,8 @@ a <- commandArgs(trailingOnly = TRUE)
 comp_p <- a[1]; de_p <- a[2]; gsea_p <- a[3]; pw_p <- a[4]; ni_p <- a[5]
 mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; det_p <- a[11]; out_p <- a[12]
 
-IMMUNE   <- c("T cells","NK cells","ILC","Plasma cells","Macrophages","DC",
-              "Mast cells","Neutrophils")
-STROMA   <- c("Fibroblast","SmoothMuscle","Adipocyte","Endothelial")
-STROMA_DE<- c("Fibroblast","SmoothMuscle","Adipocyte")   # endo DE belongs to H2
-H1_PROG  <- c("TypeI_interferon","TypeII_interferon")   # STING retired 2026-07-13 (panel blind spot)
-H2_PROG  <- c("Angiogenesis","Hypoxia")
-H3_PROG  <- c("Fibrosis_remodeling","Stromal_stress_senescence")
-
-# Primary (curated) sets from the tier-structured artifact; H1/H2/H3 picked by name.
-gs_dt <- fread(sets_p)                                   # set, tier, source, gene
+# Panel coverage table for the symmetric per-program coverage columns below.
 cov_dt <- fread(cov_p)                                   # set, tier, source, n_total, n_panel, usable, thin
-gs    <- split(gs_dt[tier == "primary", gene], gs_dt[tier == "primary", set])
-H1_GENES <- unique(unlist(gs[H1_PROG]))
-H2_GENES <- unique(unlist(gs["Angiogenesis"]))           # H2 DE: Angiogenesis only
-H3_GENES <- unique(unlist(gs[H3_PROG]))
 
 dir.create(dirname(out_p), recursive = TRUE, showWarnings = FALSE)
 COLS <- c("readout_class","unit","feature","contrast","effect","effect_type",
@@ -62,9 +49,6 @@ comp_m <- comp[, .(readout_class="composition", unit=feature_id, feature=NA_char
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
   se, stat, pvalue=p, padj_own=padj,
   hypothesis=NA_character_, n_per_arm=4L, dataset="Mutter_02")]
-comp_m[unit %in% IMMUNE,        hypothesis := "H1"]
-comp_m[unit == "Endothelial",   hypothesis := "H2;H3"]
-comp_m[unit %in% setdiff(STROMA,"Endothelial"), hypothesis := "H3"]
 
 # --- pseudobulk DE (count_engine; unit=cell_type, feature_id=gene; Wald CI from se) ----
 de <- fread(de_p)
@@ -73,9 +57,6 @@ de_m <- de[, .(readout_class="DE", unit=unit, feature=feature_id, contrast,
   effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
   ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
   hypothesis=NA_character_, n_per_arm=n_samples_used, dataset="Mutter_02")]
-de_m[unit %in% IMMUNE    & feature %in% H1_GENES, hypothesis := "H1"]
-de_m[unit == "Endothelial" & feature %in% H2_GENES, hypothesis := "H2"]
-de_m[unit %in% STROMA_DE & feature %in% H3_GENES, hypothesis := "H3"]
 
 # --- pathway program scores (UCell primary; limma estimate, normal CI) -----------
 pw <- fread(pw_p)[score_type == "UCell"]
@@ -83,9 +64,6 @@ pw_m <- pw[, .(readout_class="pathway", unit=cell_type, feature=pathway_name, co
   effect=estimate, effect_type="limma_score_estimate", ci_low=estimate-1.96*se,
   ci_high=estimate+1.96*se, se, stat=t_stat, pvalue, padj_own=padj_bh,
   hypothesis=NA_character_, n_per_arm=n_samples_per_group, dataset)]
-pw_m[unit %in% IMMUNE              & feature %in% H1_PROG, hypothesis := "H1"]
-pw_m[unit %in% c("Endothelial","Tumor") & feature %in% H2_PROG, hypothesis := "H2"]
-pw_m[unit %in% STROMA             & feature %in% H3_PROG, hypothesis := "H3"]
 
 # --- GSEA (Hallmark sweep, always exploratory; NES, no CI) -----------------------
 gsea <- fread(gsea_p)
@@ -121,6 +99,16 @@ my_m <- my[, .(readout_class="myeloid_polarization", unit="Macrophages", feature
 
 master <- rbindlist(list(comp_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m),
                     use.names = TRUE)
+
+# --- confirmatory tagging by frozen a-priori claims (not retro pattern-match) -----
+# Producers emit hypothesis=NA; the frozen results-tier config declares which
+# (readout_class, unit, contrast, feature) rows are each hypothesis's pre-registered
+# evidence, and the claims-join fills `hypothesis` for exactly those rows.
+source("scripts/aggregate/load_claims.R")
+CLAIMS <- load_claims("config/confirmatory_claims.yaml", "config/hypotheses.yaml")
+assert_no_multiclaim(CLAIMS)
+master <- apply_claims(master, CLAIMS)
+
 master[, tier := fifelse(!is.na(hypothesis), "confirmatory", "exploratory")]
 
 # --- tiered FDR -----------------------------------------------------------------
