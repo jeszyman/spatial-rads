@@ -13,7 +13,7 @@ hypotheses:
     programs:
       - {name: TypeI_interferon, genes: [Bst2, Ifi27, Ifit1, Ifit3/b, Ifitm1, Ifitm3, Ifna, Ifnar1, Irf3, Irf4, Jak1, Mx1, Oas1a/g, Oas2, Oas3, Oasl1, Rigi, Tyk2]}
       - {name: TypeII_interferon, genes: [B2m, Cd44, Ciita, Icam1, Ifng, Ifngr1, Ifngr2, Irf3, Irf4, Jak1, Jak2, Oas1a/g, Oas2, Oas3, Oasl1, Vcam1]}
-    provenance: {source: [<bibkey>], frozen_at: PENDING}
+    provenance: {source: [kanagavelu2014], frozen_at: 2b8c190}
 
   - name: vascular_hypoxia
     cell_types: [Endothelial, Tumor]
@@ -21,7 +21,7 @@ hypotheses:
     programs:
       - {name: Angiogenesis, genes: [Col4a1, Col4a2, Rgcc, Vwa1, Vwf, Akt1, Axl, Calm1, Cav1, Cdh5, Ctnnb1, Fyn, Hsp90aa1, Hspb1, Itgav, Kdr, Kras, Mapk13, Mapk14, Mtor, Pgf, Ptgs2, Ptk2, Rac1, Rac2, Src, Vegfa, Vegfb, Vegfc, Vegfd]}
       - {name: Hypoxia, genes: [Akt1, Angpt1, Angpt2, Bcl2, Cdkn1a, Egf, Egfr, Eno1/b, Erbb2, Flt1, Hif1a, Ifng, Ifngr1, Ifngr2, Igf1, Igf1r, Il6, Il6ra, Ins1, Insr, Ldha, Ltbr, Mtor, Nfkb1, Rela, Slc2a1, Stat3, Tek, Timp1, Tlr4, Uba52, Vegfa, Vhl]}
-    provenance: {source: [bouchet2010], frozen_at: PENDING}
+    provenance: {source: [bouchet2010], frozen_at: 2b8c190}
 
   - name: stromal_fibrosis
     cell_types: [Fibroblast, SmoothMuscle, Adipocyte]
@@ -29,21 +29,21 @@ hypotheses:
     programs:
       - {name: Fibrosis_remodeling, genes: [Col11a1, Col12a1, Col14a1, Col15a1, Col16a1, Col17a1, Col18a1, Col1a1, Col1a2, Col27a1, Col3a1, Col4a1, Col4a2, Col4a5, Col5a1, Col5a2, Col5a3, Col6a1, Col6a2, Col6a3, Col8a1, Col9a2, Col9a3, Actg2, Acvr1, Acvr1b, Acvr2a, Acvrl1, Bmp1, Bmp2, Bmp3, Bmp4, Bmp5, Bmp7, Bmpr1a, Bmpr2, Btk, Ccl28, Dcn, Eng, Gdf15, Hdac1, Hey1, Ifng, Il11, Inhba, Inhbb, Itgb1, Jag1, Junb, Kras, Krt18, Krt8, Lefty1, Myc, Parp1, Pdgfa, Pdgfb, Pdgfra, Prtn3, Ptgs2, Sat1, Smad2, Smad3, Smad4, Tgfb1, Tgfb2, Tgfb3, Tgfbr1, Tgfbr2, Thbs1, Thsd4, Tnf, Tsc22d1, Uba52, Vim, Akt1, Ar, Cav1, Ccl2, Ccl20, Ccl21a/b/d, Ccr7, Cd274, Cd44, Cdh1, Ctnnb1, Cxcl12, Cxcr4, Ddr2, Dnmt1, Egf, Egfr, Epcam, Erbb2, Esr1, Ezh2, Ezr, Fgfr1, Fn1, Hgf, Hif1a, Igf1, Igf1r, Il17a, Il1b, Il6, Jak2, Jun, Lcn2, Lgals1, Met, Mmp2, Mmp9, Mtor, Nanog, Nfkb1, Notch1, Ntrk2, Pou5f1, Pparg, Ptk2, Rac1, Rela, S100a4, Snai1, Snai2, Sox2, Src, Stat3, Tlr4, Trp53, Twist1, Twist2, Vegfa, Wnt5a]}
       - {name: Stromal_stress_senescence, genes: [Akt1, Atm, Atr, Calm1, Calm2, Calm3, Ccnd1, Cdkn1a, Chek1, Chek2, Ets1, Ezh2, Fos, Gadd45b, H2az1, Igfbp3, Igfbp7, Il1a, Il6, Jun, Kras, Mapk13, Mapk14, Mtor, Myc, Nfkb1, Rb1, Rela, Smad2, Smad3, Sqstm1, Stat3, Tgfb1, Tgfb2, Tgfb3, Tgfbr1, Tgfbr2, Trp53, Uba52, Ube2c, Apoa1, Ar, Atf3, Bag3, Ccl2, Clock, Crp, Cryab, Ddit3, Fau, Fkbp5, Gpx1, Gpx3, Gstp1/2, Hba-a1/2, Hbb, Hdac3, Hif1a, Hsp90aa1, Hsp90ab1, Hsp90b1, Hspa1a, Hspa1b, Lmna, Nlrp3, Nr3c1, Pgr, Ppara, Ptges3, Ptk6, Rora, Rxra, Sod1, Sod2, Tlr4, Tubb4b, Vegfa, Vhl, Bax, Bcl2, Bcl2l1, Bid, Brca1, Casp3, Casp8, Fas, G6pd2, Igf1, Serpinb5, Sfn, Thbs1, Tnfrsf10b]}
-    provenance: {source: [dilmanian2006, crosbie2010], frozen_at: PENDING}
+    provenance: {source: [dilmanian2006, crosbie2010], frozen_at: 2b8c190}
 
   - name: myofibroblast_expansion
     cell_types: [Fibroblast]
     contrasts: [SBRT_vs_Ctrl, MBRT_vs_Ctrl, MBRT_vs_SBRT]
     programs:
       - {name: Fibrosis_remodeling, genes: [Col11a1, Col12a1, Col14a1, Col15a1, Col16a1, Col17a1, Col18a1, Col1a1, Col1a2, Col27a1, Col3a1, Col4a1, Col4a2, Col4a5, Col5a1, Col5a2, Col5a3, Col6a1, Col6a2, Col6a3, Col8a1, Col9a2, Col9a3, Actg2, Acvr1, Acvr1b, Acvr2a, Acvrl1, Bmp1, Bmp2, Bmp3, Bmp4, Bmp5, Bmp7, Bmpr1a, Bmpr2, Btk, Ccl28, Dcn, Eng, Gdf15, Hdac1, Hey1, Ifng, Il11, Inhba, Inhbb, Itgb1, Jag1, Junb, Kras, Krt18, Krt8, Lefty1, Myc, Parp1, Pdgfa, Pdgfb, Pdgfra, Prtn3, Ptgs2, Sat1, Smad2, Smad3, Smad4, Tgfb1, Tgfb2, Tgfb3, Tgfbr1, Tgfbr2, Thbs1, Thsd4, Tnf, Tsc22d1, Uba52, Vim, Akt1, Ar, Cav1, Ccl2, Ccl20, Ccl21a/b/d, Ccr7, Cd274, Cd44, Cdh1, Ctnnb1, Cxcl12, Cxcr4, Ddr2, Dnmt1, Egf, Egfr, Epcam, Erbb2, Esr1, Ezh2, Ezr, Fgfr1, Fn1, Hgf, Hif1a, Igf1, Igf1r, Il17a, Il1b, Il6, Jak2, Jun, Lcn2, Lgals1, Met, Mmp2, Mmp9, Mtor, Nanog, Nfkb1, Notch1, Ntrk2, Pou5f1, Pparg, Ptk2, Rac1, Rela, S100a4, Snai1, Snai2, Sox2, Src, Stat3, Tlr4, Trp53, Twist1, Twist2, Vegfa, Wnt5a]}
-    provenance: {source: [dilmanian2006, crosbie2010, bazyar2018], frozen_at: PENDING}
+    provenance: {source: [dilmanian2006, crosbie2010], frozen_at: 2b8c190}
 
   - name: normal_vessel_sparing
     cell_types: [Endothelial]
     contrasts: [MBRT_vs_SBRT]
     programs:
       - {name: Angiogenesis, genes: [Col4a1, Col4a2, Rgcc, Vwa1, Vwf, Akt1, Axl, Calm1, Cav1, Cdh5, Ctnnb1, Fyn, Hsp90aa1, Hspb1, Itgav, Kdr, Kras, Mapk13, Mapk14, Mtor, Pgf, Ptgs2, Ptk2, Rac1, Rac2, Src, Vegfa, Vegfb, Vegfc, Vegfd]}
-    provenance: {source: [bouchet2015], frozen_at: PENDING}
+    provenance: {source: [bouchet2015], frozen_at: 2b8c190}
 
   - name: myeloid_M2
     cell_types: [Macrophages]
@@ -51,4 +51,4 @@ hypotheses:
     programs:
       - {name: M1_polarization, genes: [Nos2, Tnf, Il6, Il1b, Il12b, Cxcl9, Cxcl10, Cxcl11, Cd86, Cd80, Tlr2, Tlr4, Stat1, Irf5, Hif1a, Nfkb1]}
       - {name: M2_polarization, genes: [Cd163, Mrc1, Arg1, Il4ra, Mgl2, Retnla, Chi3l3, Ym1, Stab1, Vegfa, Ccl22, Mmp9, Tgfb1, Stat6, Klf4, Cd206]}
-    provenance: {source: [<bibkey>], frozen_at: PENDING}
+    provenance: {source: [becherini2023], frozen_at: 2b8c190}
