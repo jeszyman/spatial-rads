@@ -37,7 +37,7 @@ cov_dt <- fread(cov_p)                                   # set, tier, source, n_
 dir.create(dirname(out_p), recursive = TRUE, showWarnings = FALSE)
 COLS <- c("readout_class","unit","feature","contrast","effect","effect_type",
           "ci_low","ci_high","se","stat","pvalue","padj_own","hypothesis","tier",
-          "n_per_arm","dataset")
+          "n_per_arm","n_samples_used","dataset")
 
 # Engine outputs carry sufficient statistics only (estimate/se/df/stat/p) -- correction is
 # recomputed HERE, reproducing each source's BH grouping. Engine `unit`/`feature_id`
@@ -52,7 +52,8 @@ comp_m <- comp[, .(readout_class="composition", unit=feature_id, feature=NA_char
   contrast, effect=estimate, effect_type="log2FC_logit",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
   se, stat, pvalue=p, padj_own=padj,
-  hypothesis=NA_character_, n_per_arm=4L, dataset="Mutter_02", baseMean=NA_real_)]
+  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=NA_integer_,
+  dataset="Mutter_02", baseMean=NA_real_)]
 
 # --- pseudobulk DE (count_engine; unit=cell_type, feature_id=gene; Wald CI from se) ----
 de <- fread(de_p)
@@ -60,22 +61,23 @@ de[, padj := p.adjust(p, "BH"), by = .(unit, contrast)]  # DESeq2 grouping: per 
 de_m <- de[, .(readout_class="DE", unit=unit, feature=feature_id, contrast,
   effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
   ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
-  hypothesis=NA_character_, n_per_arm=n_samples_used, dataset="Mutter_02",
-  baseMean=baseMean)]
+  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=n_samples_used,
+  dataset="Mutter_02", baseMean=baseMean)]
 
 # --- pathway program scores (UCell primary; limma estimate, normal CI) -----------
 pw <- fread(pw_p)[score_type == "UCell"]
 pw_m <- pw[, .(readout_class="pathway", unit=cell_type, feature=pathway_name, contrast,
   effect=estimate, effect_type="limma_score_estimate", ci_low=estimate-1.96*se,
   ci_high=estimate+1.96*se, se, stat=t_stat, pvalue, padj_own=padj_bh,
-  hypothesis=NA_character_, n_per_arm=n_samples_per_group, dataset, baseMean=NA_real_)]
+  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=n_samples_per_group,
+  dataset, baseMean=NA_real_)]
 
 # --- GSEA (Hallmark sweep, always exploratory; NES, no CI) -----------------------
 gsea <- fread(gsea_p)
 gsea_m <- gsea[, .(readout_class="gsea", unit=cell_type, feature=pathway_name, contrast,
   effect=NES, effect_type="NES", ci_low=NA_real_, ci_high=NA_real_, se=NA_real_,
   stat=NES, pvalue, padj_own=padj_bh, hypothesis=NA_character_,
-  n_per_arm=NA_integer_, dataset, baseMean=NA_real_)]
+  n_per_arm=NA_integer_, n_samples_used=NA_integer_, dataset, baseMean=NA_real_)]
 
 # --- niche composition (lm_engine proportion path; exploratory) -----------------
 ni <- fread(ni_p)
@@ -84,7 +86,7 @@ ni_m <- ni[, .(readout_class="niche_composition", unit=as.character(feature_id),
   feature=NA_character_, contrast, effect=estimate, effect_type="log2FC_logit",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
   se, stat, pvalue=p, padj_own=padj, hypothesis=NA_character_, n_per_arm=4L,
-  dataset="Mutter_02", baseMean=NA_real_)]
+  n_samples_used=NA_integer_, dataset="Mutter_02", baseMean=NA_real_)]
 
 # --- spatial mixing + myeloid polarization (lm_engine identity path; exploratory) --
 mx <- fread(mx_p)
@@ -93,14 +95,14 @@ mx_m <- mx[, .(readout_class="spatial_mixing", unit="global", feature=feature_id
   effect=estimate, effect_type="limma_estimate",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se, se,
   stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
-  n_per_arm=4L, dataset="Mutter_02", baseMean=NA_real_)]
+  n_per_arm=4L, n_samples_used=NA_integer_, dataset="Mutter_02", baseMean=NA_real_)]
 my <- fread(my_p)
 my[, padj := p.adjust(p, "BH")]
 my_m <- my[, .(readout_class="myeloid_polarization", unit="Macrophages", feature=feature_id,
   contrast, effect=estimate, effect_type="limma_estimate",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se, se,
   stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
-  n_per_arm=4L, dataset="Mutter_02", baseMean=NA_real_)]
+  n_per_arm=4L, n_samples_used=NA_integer_, dataset="Mutter_02", baseMean=NA_real_)]
 
 master <- rbindlist(list(comp_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m),
                     use.names = TRUE)
@@ -115,13 +117,17 @@ HYP    <- load_hypotheses("config/hypotheses.yaml")   # program<->gene<->cell_ty
 assert_no_multiclaim(CLAIMS)
 master <- apply_claims(master, CLAIMS)
 
+# Collapse the tumor-compartment unit alias to the single locked roster name.
+master[unit == "Epithelial cells", unit := "Tumor"]
+
 master[, tier := fifelse(!is.na(hypothesis), "confirmatory", "exploratory")]
 
 # --- tiered FDR -----------------------------------------------------------------
+# Primary confirmatory FDR = pooled BH over the confirmatory family. Exploratory
+# rows keep their within-analysis BH in padj_own (no separate padj_exploratory: it
+# was a verbatim copy of padj_own).
 master[, padj_confirmatory := NA_real_]
 master[tier == "confirmatory", padj_confirmatory := p.adjust(pvalue, method = "BH")]
-master[, padj_exploratory := NA_real_]
-master[tier == "exploratory", padj_exploratory := padj_own]   # keep within-analysis BH
 
 # --- gatekeeping (secondary FDR view; padj_confirmatory above stays primary) -----
 master <- add_gatekeeping(master, CLAIMS, HYP)
@@ -178,7 +184,8 @@ master[, interpretable := !(readout_class == "DE" & unit == "unassigned")]   # u
 master[, dose_confounded := contrast == "MBRT_vs_SBRT"]                       # MBRT mean dose unrecorded
 master[, independent := !(readout_class %in% c("pathway","gsea") & feature == "STING")]  # STING ~50% shares genes with IFN sets
 
-setcolorder(master, c(COLS, "padj_confirmatory", "padj_exploratory",
+setcolorder(master, c(COLS, "padj_confirmatory",
+                      "gate_program", "gate_padj", "padj_gated", "padj_ihw",
                       "mde", "mde_scale", "abs_effect_lt_mde", "clears_mde", "trend_call",
                       "n_panel", "n_set_total", "panel_cov_frac"))
 setorder(master, tier, readout_class, unit, contrast, feature, na.last = TRUE)
