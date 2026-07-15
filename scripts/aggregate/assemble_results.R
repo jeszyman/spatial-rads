@@ -3,23 +3,17 @@
 # Collates every M02 day-2 differential readout (composition, pseudobulk DE, GSEA,
 # pathway program scores, niche composition, spatial mixing, myeloid polarization)
 # into one long table, one row per readout x unit x feature x contrast. Each row is
-# tagged tier = confirmatory|exploratory against a PRE-REGISTERED family (fixed lookup
-# below, not inferred). BH is recomputed across the pooled confirmatory family ->
-# padj_confirmatory; exploratory rows keep each analysis's own within-analysis BH ->
-# padj_exploratory. Effect size + 95% CI carried through; the matching n=4 MDE from
-# power_mde.tsv is joined (composition by cell_type, DE by cell_type, program by
-# cell_type x set), and abs_effect_lt_mde flags underpowered confirmatory nulls.
+# tagged tier = confirmatory|exploratory via a frozen a-priori claims-join (the
+# results-tier config config/confirmatory_claims.yaml declares each hypothesis's
+# pre-registered evidence; producers emit hypothesis=NA and the join fills it, so
+# nothing is retro pattern-matched). Primary confirmatory FDR = pooled BH over the
+# confirmatory family -> padj_confirmatory. Two auxiliary FDR views ride alongside:
+# gatekeeping (gate_padj/padj_gated) and IHW (padj_ihw). Effect size + 95% CI carried
+# through; the matching n=4 MDE from power_mde.tsv is joined, and abs_effect_lt_mde
+# flags underpowered confirmatory nulls.
 #
-# Pre-registered confirmatory family (each across all 3 contrasts):
-#  H1 immune activation : composition of immune subtypes; pseudobulk DE within immune
-#                         cell types restricted to TypeI/TypeII-IFN + STING genes;
-#                         program scores for those 3 sets in immune cells.
-#  H2 vascular/oxygen   : composition of endothelial; DE within endothelial restricted
-#                         to Angiogenesis genes; Angiogenesis+Hypoxia programs in
-#                         endothelial/tumor.
-#  H3 stromal sparing   : composition of stromal subtypes; DE within fibroblast/SMC/
-#                         adipocyte restricted to Fibrosis + Stromal-stress genes;
-#                         those 2 programs in stroma.
+# The six pre-registered hypotheses and their evidence live in config/hypotheses.yaml
+# (biological definition) + config/confirmatory_claims.yaml (readout->confirmatory map).
 # Args: <composition_test> <degs> <gsea> <pathway_test> <niche_test> <mixing_test>
 #       <myeloid_test> <power_mde> <pathway_sets.tsv> <out_master>
 suppressPackageStartupMessages({ library(data.table) })
@@ -58,7 +52,7 @@ comp_m <- comp[, .(readout_class="composition", unit=feature_id, feature=NA_char
   contrast, effect=estimate, effect_type="log2FC_logit",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
   se, stat, pvalue=p, padj_own=padj,
-  hypothesis=NA_character_, n_per_arm=4L, dataset="Mutter_02")]
+  hypothesis=NA_character_, n_per_arm=4L, dataset="Mutter_02", baseMean=NA_real_)]
 
 # --- pseudobulk DE (count_engine; unit=cell_type, feature_id=gene; Wald CI from se) ----
 de <- fread(de_p)
@@ -66,21 +60,22 @@ de[, padj := p.adjust(p, "BH"), by = .(unit, contrast)]  # DESeq2 grouping: per 
 de_m <- de[, .(readout_class="DE", unit=unit, feature=feature_id, contrast,
   effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
   ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
-  hypothesis=NA_character_, n_per_arm=n_samples_used, dataset="Mutter_02")]
+  hypothesis=NA_character_, n_per_arm=n_samples_used, dataset="Mutter_02",
+  baseMean=baseMean)]
 
 # --- pathway program scores (UCell primary; limma estimate, normal CI) -----------
 pw <- fread(pw_p)[score_type == "UCell"]
 pw_m <- pw[, .(readout_class="pathway", unit=cell_type, feature=pathway_name, contrast,
   effect=estimate, effect_type="limma_score_estimate", ci_low=estimate-1.96*se,
   ci_high=estimate+1.96*se, se, stat=t_stat, pvalue, padj_own=padj_bh,
-  hypothesis=NA_character_, n_per_arm=n_samples_per_group, dataset)]
+  hypothesis=NA_character_, n_per_arm=n_samples_per_group, dataset, baseMean=NA_real_)]
 
 # --- GSEA (Hallmark sweep, always exploratory; NES, no CI) -----------------------
 gsea <- fread(gsea_p)
 gsea_m <- gsea[, .(readout_class="gsea", unit=cell_type, feature=pathway_name, contrast,
   effect=NES, effect_type="NES", ci_low=NA_real_, ci_high=NA_real_, se=NA_real_,
   stat=NES, pvalue, padj_own=padj_bh, hypothesis=NA_character_,
-  n_per_arm=NA_integer_, dataset)]
+  n_per_arm=NA_integer_, dataset, baseMean=NA_real_)]
 
 # --- niche composition (lm_engine proportion path; exploratory) -----------------
 ni <- fread(ni_p)
@@ -89,7 +84,7 @@ ni_m <- ni[, .(readout_class="niche_composition", unit=as.character(feature_id),
   feature=NA_character_, contrast, effect=estimate, effect_type="log2FC_logit",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
   se, stat, pvalue=p, padj_own=padj, hypothesis=NA_character_, n_per_arm=4L,
-  dataset="Mutter_02")]
+  dataset="Mutter_02", baseMean=NA_real_)]
 
 # --- spatial mixing + myeloid polarization (lm_engine identity path; exploratory) --
 mx <- fread(mx_p)
@@ -98,14 +93,14 @@ mx_m <- mx[, .(readout_class="spatial_mixing", unit="global", feature=feature_id
   effect=estimate, effect_type="limma_estimate",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se, se,
   stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
-  n_per_arm=4L, dataset="Mutter_02")]
+  n_per_arm=4L, dataset="Mutter_02", baseMean=NA_real_)]
 my <- fread(my_p)
 my[, padj := p.adjust(p, "BH")]
 my_m <- my[, .(readout_class="myeloid_polarization", unit="Macrophages", feature=feature_id,
   contrast, effect=estimate, effect_type="limma_estimate",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se, se,
   stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
-  n_per_arm=4L, dataset="Mutter_02")]
+  n_per_arm=4L, dataset="Mutter_02", baseMean=NA_real_)]
 
 master <- rbindlist(list(comp_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m),
                     use.names = TRUE)
@@ -130,6 +125,9 @@ master[tier == "exploratory", padj_exploratory := padj_own]   # keep within-anal
 
 # --- gatekeeping (secondary FDR view; padj_confirmatory above stays primary) -----
 master <- add_gatekeeping(master, CLAIMS, HYP)
+
+# --- IHW auxiliary FDR (keyed on DE baseMean; padj_confirmatory stays primary) ----
+master <- add_ihw(master)
 
 # --- join the matching n=4 MDE from power_mde.tsv -------------------------------
 mde <- fread(mde_p)

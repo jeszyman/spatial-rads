@@ -99,7 +99,7 @@ for (ct in all_types) {
   for (cc in CONTRASTS) {
     coef <- sprintf("condition_%s_vs_%s", cc$num, cc$den)
     obj  <- fits[[cc$den]]
-    res  <- results(obj, name = coef)                          # baseMean, stat, pvalue
+    res  <- results(obj, name = coef, independentFiltering = TRUE)  # baseMean, stat, pvalue
     shr  <- lfcShrink(obj, coef = coef, type = "apeglm", quiet = TRUE)  # log2FC, lfcSE
     deg_rows[[length(deg_rows) + 1]] <- data.table(
       comparison = coh, contrast = cc$name, unit = ct, feature_type = "gene",

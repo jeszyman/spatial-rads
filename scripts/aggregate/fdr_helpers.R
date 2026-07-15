@@ -30,3 +30,17 @@ add_gatekeeping <- function(master, claims, hyp) {
   }
   master[]
 }
+
+# IHW covariate-weighted FDR (auxiliary). Keyed on log10(baseMean+1) as an
+# abundance/detection proxy. DE significance default stays on padj_own.
+add_ihw <- function(master) {
+  master <- copy(master)
+  master[, padj_ihw := NA_real_]
+  de_idx <- master[, which(readout_class=="DE" & !is.na(pvalue) & !is.na(baseMean))]
+  if (length(de_idx) >= 50) {   # IHW needs enough tests to stratify
+    de <- master[de_idx]
+    res <- IHW::ihw(pvalues = de$pvalue, covariates = log10(de$baseMean + 1), alpha = 0.05)
+    master[de_idx, padj_ihw := IHW::adj_pvalues(res)]
+  }
+  master[]
+}

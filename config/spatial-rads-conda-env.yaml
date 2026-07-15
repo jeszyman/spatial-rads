@@ -38,6 +38,7 @@ dependencies:
   - bioconductor-apeglm   # lfcShrink for DESeq2
   - bioconductor-fgsea    # pathway GSEA on ranked stats
   - bioconductor-limma    # pathway-score inference on per-sample means
+  - bioconductor-ihw      # covariate-weighted FDR (detection-rate-keyed auxiliary padj)
   - r-msigdbr=26.1.0      # MSigDB Hallmark gene sets (exploratory tier); pinned for reproducibility
   # --- Spatial colocalization (aggregate.smk) ---
   - bioconductor-spicyr   # cell-cell colocalization inference
