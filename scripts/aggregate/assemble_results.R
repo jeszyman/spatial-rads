@@ -23,6 +23,16 @@
 # Args: <composition_test> <degs> <gsea> <pathway_test> <niche_test> <mixing_test>
 #       <myeloid_test> <power_mde> <pathway_sets.tsv> <out_master>
 suppressPackageStartupMessages({ library(data.table) })
+
+# --- gatekeeping (secondary FDR view) -------------------------------------------
+# Auxiliary to the pooled-primary padj_confirmatory. A gate exists only where a
+# program is claimed as gene-level confirmatory evidence (a DE claim). Parent = the
+# matching GSEA enrichment row (one BH family over gate-eligible programs); child =
+# the claimed DE genes, BH'd within each opened program's cell_type x contrast.
+# Programs with no DE claim create no gate. Defined at top so `source(<this file>)`
+# exposes it to the gatekeeping test without running the pipeline body.
+source("scripts/aggregate/fdr_helpers.R")   # add_gatekeeping()
+
 a <- commandArgs(trailingOnly = TRUE)
 comp_p <- a[1]; de_p <- a[2]; gsea_p <- a[3]; pw_p <- a[4]; ni_p <- a[5]
 mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; det_p <- a[11]; out_p <- a[12]
@@ -106,6 +116,7 @@ master <- rbindlist(list(comp_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m),
 # evidence, and the claims-join fills `hypothesis` for exactly those rows.
 source("scripts/aggregate/load_claims.R")
 CLAIMS <- load_claims("config/confirmatory_claims.yaml", "config/hypotheses.yaml")
+HYP    <- load_hypotheses("config/hypotheses.yaml")   # program<->gene<->cell_type<->contrast, for gatekeeping
 assert_no_multiclaim(CLAIMS)
 master <- apply_claims(master, CLAIMS)
 
@@ -116,6 +127,9 @@ master[, padj_confirmatory := NA_real_]
 master[tier == "confirmatory", padj_confirmatory := p.adjust(pvalue, method = "BH")]
 master[, padj_exploratory := NA_real_]
 master[tier == "exploratory", padj_exploratory := padj_own]   # keep within-analysis BH
+
+# --- gatekeeping (secondary FDR view; padj_confirmatory above stays primary) -----
+master <- add_gatekeeping(master, CLAIMS, HYP)
 
 # --- join the matching n=4 MDE from power_mde.tsv -------------------------------
 mde <- fread(mde_p)
