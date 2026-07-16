@@ -377,3 +377,6 @@ results/processing/yi_reference.tsv
 results/aggregate/degs_pseudobulk_m02day2.tsv
 results/aggregate/umap_integration.tsv
 results/aggregate/qc_metrics_per_cell.tsv
+
+# Large regenerable pipeline output — lives on disk, rebuilt by aggregate_differential.smk
+results/aggregate/results_master.tsv
