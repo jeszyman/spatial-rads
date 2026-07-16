@@ -29,7 +29,7 @@ source("scripts/aggregate/fdr_helpers.R")   # add_gatekeeping()
 
 a <- commandArgs(trailingOnly = TRUE)
 comp_p <- a[1]; de_p <- a[2]; gsea_p <- a[3]; pw_p <- a[4]; ni_p <- a[5]
-mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; out_p <- a[11]
+mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; sub_p <- a[11]; out_p <- a[12]
 
 # Panel coverage table for the symmetric per-program coverage columns below.
 cov_dt <- fread(cov_p)                                   # set, tier, source, n_total, n_panel, usable, thin
@@ -49,6 +49,18 @@ COLS <- c("readout_class","unit","feature","contrast","effect","effect_type",
 comp <- fread(comp_p)                                    # engine schema
 comp[, padj := p.adjust(p, "BH")]                        # composition.R used global BH
 comp_m <- comp[, .(readout_class="composition", unit=feature_id, feature=NA_character_,
+  contrast, effect=estimate, effect_type="log2FC_logit",
+  ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
+  se, stat, pvalue=p, padj_own=padj,
+  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=NA_integer_,
+  dataset="Mutter_02", baseMean=NA_real_)]
+
+# --- substate composition (Fibroblast resting/activated; lm_engine proportion path) --
+# Same schema as composition; unit is the sub-state label (e.g. Fibroblast_activated),
+# which the myofibroblast_expansion claim targets.
+sub <- fread(sub_p)
+sub[, padj := p.adjust(p, "BH")]
+sub_m <- sub[, .(readout_class="substate_composition", unit=feature_id, feature=NA_character_,
   contrast, effect=estimate, effect_type="log2FC_logit",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
   se, stat, pvalue=p, padj_own=padj,
@@ -104,7 +116,7 @@ my_m <- my[, .(readout_class="myeloid_polarization", unit="Macrophages", feature
   stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
   n_per_arm=4L, n_samples_used=NA_integer_, dataset="Mutter_02", baseMean=NA_real_)]
 
-master <- rbindlist(list(comp_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m),
+master <- rbindlist(list(comp_m, sub_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m),
                     use.names = TRUE)
 
 # --- confirmatory tagging by frozen a-priori claims (not retro pattern-match) -----

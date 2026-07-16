@@ -469,6 +469,7 @@ rule assemble_results:
         mde     = "results/aggregate/power_mde.tsv",
         sets    = "results/data_model/pathway_sets.tsv",
         cov     = "results/data_model/gene_set_panel_coverage.tsv",
+        substate = "results/aggregate/engine/substate_engine.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -478,7 +479,7 @@ rule assemble_results:
     shell:
         "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.sets} {input.cov} {output.master} > {log} 2>&1"
+        "{input.mde} {input.sets} {input.cov} {input.substate} {output.master} > {log} 2>&1"
 # --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
 # technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
 # fraction shift is not a sensitivity/contamination artifact. ---
