@@ -12,6 +12,9 @@ configfile: "config/config.yaml"
 
 # --- interpreter (driver runs in basecamp; R steps in spatial-rads) ---
 RSCRIPT = "conda run -n spatial-rads Rscript"
+# muscat is not conda/BiocManager-installable on this host; the differential-detection
+# step runs in the prebuilt biocontainer via apptainer (bind the data disk).
+MUSCAT_SIF = f"{config['datadir']}/containers/muscat.sif"
 
 # --- paths: D_ data dirs, R_ repo locations ---
 D_DATA    = config["datadir"]
@@ -52,6 +55,7 @@ rule all:
         "results/aggregate/plots/composition_m01_timecourse.png",
         "results/aggregate/pseudobulk_qc.tsv",
         "results/aggregate/engine/de_engine.tsv",
+        "results/aggregate/differential_detection.tsv",
         "results/aggregate/gsea_pseudobulk_m02day2.tsv",
         "results/aggregate/pathway_scores_summary.tsv",
         "results/aggregate/pathway_test_m02day2.tsv",
@@ -155,6 +159,36 @@ rule de_engine:
     shell:
         "{RSCRIPT} {input.script} {input.se} mutter02_day2 {input.comp} {input.params} "
         "{output.stats} {output.skipped} > {log} 2>&1"
+# --- Track 3 differential detection: fraction-of-cells-expressing change (muscat) ---
+# dd_prep exports an SCE from merged.rds (main env has Seurat/arrow); dd_muscat runs
+# muscat's num.detected aggregation + edgeR pbDS INSIDE the biocontainer (aptainer).
+rule dd_prep:
+    message: "dd_prep: merged.rds -> SCE for muscat differential detection (M02 day2)"
+    input:
+        script  = f"{R_SCRIPTS}/dd_prep.R",
+        merged  = f"{D_FULL}/merged.rds",
+        samples = MASTER,
+    output:
+        sce = f"{D_FULL}/dd_sce.rds",
+    threads: 1
+    log:
+        f"{D_LOGS}/dd_prep.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.merged} {input.samples} {output.sce} > {log} 2>&1"
+
+rule dd_muscat:
+    message: "dd_muscat: muscat differential detection (num.detected + edgeR pbDS) in container"
+    input:
+        script = f"{R_SCRIPTS}/dd_muscat.R",
+        sce    = f"{D_FULL}/dd_sce.rds",
+    output:
+        tsv = "results/aggregate/differential_detection.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/dd_muscat.log",
+    shell:
+        "apptainer exec --bind {D_DATA} {MUSCAT_SIF} "
+        "Rscript {input.script} {input.sce} {output.tsv} > {log} 2>&1"
 # --- Track 2 pathway: GSEA on pseudobulk stat-ranked genes (primary + Hallmark) ---
 rule gsea:
     message: "gsea: GSEA on pseudobulk stat-ranked genes (primary + Hallmark)"
@@ -470,6 +504,7 @@ rule assemble_results:
         sets    = "results/data_model/pathway_sets.tsv",
         cov     = "results/data_model/gene_set_panel_coverage.tsv",
         substate = "results/aggregate/engine/substate_engine.tsv",
+        dd      = "results/aggregate/differential_detection.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -479,7 +514,7 @@ rule assemble_results:
     shell:
         "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.sets} {input.cov} {input.substate} {output.master} > {log} 2>&1"
+        "{input.mde} {input.sets} {input.cov} {input.substate} {input.dd} {output.master} > {log} 2>&1"
 # --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
 # technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
 # fraction shift is not a sensitivity/contamination artifact. ---

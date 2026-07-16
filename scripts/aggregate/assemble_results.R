@@ -29,7 +29,7 @@ source("scripts/aggregate/fdr_helpers.R")   # add_gatekeeping()
 
 a <- commandArgs(trailingOnly = TRUE)
 comp_p <- a[1]; de_p <- a[2]; gsea_p <- a[3]; pw_p <- a[4]; ni_p <- a[5]
-mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; sub_p <- a[11]; out_p <- a[12]
+mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; sub_p <- a[11]; ddet_p <- a[12]; out_p <- a[13]
 
 # Panel coverage table for the symmetric per-program coverage columns below.
 cov_dt <- fread(cov_p)                                   # set, tier, source, n_total, n_panel, usable, thin
@@ -116,7 +116,16 @@ my_m <- my[, .(readout_class="myeloid_polarization", unit="Macrophages", feature
   stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
   n_per_arm=4L, n_samples_used=NA_integer_, dataset="Mutter_02", baseMean=NA_real_)]
 
-master <- rbindlist(list(comp_m, sub_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m),
+# --- differential detection (muscat: fraction of cells expressing gene changed) ------
+# Detection-only descriptor (never composition-vs-regulation); always exploratory.
+dd <- fread(ddet_p)
+dd_m <- dd[, .(readout_class="detection", unit=cell_type, feature=gene, contrast,
+  effect=dd_log2fc, effect_type="detection_log2fc", ci_low=NA_real_, ci_high=NA_real_,
+  se=NA_real_, stat=NA_real_, pvalue=dd_p, padj_own=dd_padj,
+  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=NA_integer_,
+  dataset="Mutter_02", baseMean=NA_real_)]
+
+master <- rbindlist(list(comp_m, sub_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m, dd_m),
                     use.names = TRUE)
 
 # --- confirmatory tagging by frozen a-priori claims (not retro pattern-match) -----
