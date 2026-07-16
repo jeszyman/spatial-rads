@@ -29,7 +29,7 @@ source("scripts/aggregate/fdr_helpers.R")   # add_gatekeeping()
 
 a <- commandArgs(trailingOnly = TRUE)
 comp_p <- a[1]; de_p <- a[2]; gsea_p <- a[3]; pw_p <- a[4]; ni_p <- a[5]
-mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; det_p <- a[11]; out_p <- a[12]
+mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; out_p <- a[11]
 
 # Panel coverage table for the symmetric per-program coverage columns below.
 cov_dt <- fread(cov_p)                                   # set, tier, source, n_total, n_panel, usable, thin
@@ -153,15 +153,6 @@ mm <- mde_prog[match(paste(master$unit, master$feature)[ip], mde_prog$key)]
 master[ip, `:=`(mde = mm$mde, mde_scale = mm$mde_scale)]
 master[, abs_effect_lt_mde := is.finite(mde) & abs(effect) < mde]
 
-# --- detection-vs-level decomposition (Fix 2): tag every DE row regulation/fraction_shift/ambiguous ---
-dtl <- fread(det_p)
-master[, `:=`(detection_padj = NA_real_, level_padj = NA_real_,
-              mean_among_expr_max = NA_real_, call_class = NA_character_)]
-ide <- master$readout_class == "DE"
-mm  <- dtl[match(paste(master$feature, master$unit, master$contrast)[ide],
-                 paste(dtl$gene, dtl$cell_type, dtl$contrast))]
-master[ide, `:=`(detection_padj = mm$detection_padj, level_padj = mm$level_padj,
-                 mean_among_expr_max = mm$mean_among_expr_max, call_class = mm$call_class)]
 
 # --- magnitude-floored trend call + clears-MDE (devils-advocate fix) -------------
 # A direction is only a "trend" when |effect| >= MDE_FLOOR * mde; below that it is

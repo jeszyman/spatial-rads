@@ -52,7 +52,6 @@ rule all:
         "results/aggregate/plots/composition_m01_timecourse.png",
         "results/aggregate/pseudobulk_qc.tsv",
         "results/aggregate/engine/de_engine.tsv",
-        "results/aggregate/detection_test_m02day2.tsv",
         "results/aggregate/gsea_pseudobulk_m02day2.tsv",
         "results/aggregate/pathway_scores_summary.tsv",
         "results/aggregate/pathway_test_m02day2.tsv",
@@ -156,19 +155,6 @@ rule de_engine:
     shell:
         "{RSCRIPT} {input.script} {input.se} mutter02_day2 {input.comp} {input.params} "
         "{output.stats} {output.skipped} > {log} 2>&1"
-# --- Track 2: detection-vs-level decomposition + sparsity-aware call_class (Fix 2) ---
-rule detection_test:
-    message: "detection_test: detection-vs-level decomposition + sparsity-aware call_class"
-    input:
-        script = f"{R_SCRIPTS}/detection_test.R",
-        se     = f"{D_AGG}/pseudobulk_se.rds",
-    output:
-        det = "results/aggregate/detection_test_m02day2.tsv",
-    threads: 1
-    log:
-        f"{D_LOGS}/detection_test.log",
-    shell:
-        "{RSCRIPT} {input.script} {input.se} {output.det} > {log} 2>&1"
 # --- Track 2 pathway: GSEA on pseudobulk stat-ranked genes (primary + Hallmark) ---
 rule gsea:
     message: "gsea: GSEA on pseudobulk stat-ranked genes (primary + Hallmark)"
@@ -483,7 +469,6 @@ rule assemble_results:
         mde     = "results/aggregate/power_mde.tsv",
         sets    = "results/data_model/pathway_sets.tsv",
         cov     = "results/data_model/gene_set_panel_coverage.tsv",
-        det     = "results/aggregate/detection_test_m02day2.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -493,7 +478,7 @@ rule assemble_results:
     shell:
         "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.sets} {input.cov} {input.det} {output.master} > {log} 2>&1"
+        "{input.mde} {input.sets} {input.cov} {output.master} > {log} 2>&1"
 # --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
 # technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
 # fraction shift is not a sensitivity/contamination artifact. ---
