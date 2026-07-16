@@ -15,11 +15,25 @@ out_summary <- args[4]; out_test <- args[5]; out_conc <- args[6]
 
 MIN_CELLS <- 10L; MIN_SAMPLES <- 3L; CONDS <- c("Control", "MBRT_day2", "SBRT_day2")
 UCELL_CORES <- 8L; AMS_NBIN <- 24L; AMS_CTRL <- 20L; SEED <- 42L
+# maxRank ~ median genes detected per cell (58/950 on this panel). The UCell default
+# 1500 is tuned for ~20k-gene scRNA-seq and never truncates the zero-tail on a 950-gene
+# panel, washing out sparse-signature scores (UCell/pyUCell 2026, CosMx guidance).
+UCELL_MAXRANK <- 58L
 dir.create(dirname(out_summary), recursive = TRUE, showWarnings = FALSE)
 
 gs_long  <- fread(sets_path)                            # set, tier, source, gene
 all_sets <- lapply(split(gs_long$gene, gs_long$set), unique)
+# Myeloid M1/M2 polarization marker sets (macrophage state programs) scored alongside
+# the curated pathway sets so the myeloid_M2 hypothesis has pathway evidence. Markers
+# match scripts/aggregate/myeloid_polarization.R; UCell intersects with the panel.
+all_sets[["M1_polarization"]] <- c("Nos2","Tnf","Il6","Il1b","Il12b","Cxcl9","Cxcl10",
+  "Cxcl11","Cd86","Cd80","Tlr2","Tlr4","Stat1","Irf5","Hif1a","Nfkb1")
+all_sets[["M2_polarization"]] <- c("Cd163","Mrc1","Arg1","Il4ra","Mgl2","Retnla","Chi3l3",
+  "Ym1","Stab1","Vegfa","Ccl22","Mmp9","Tgfb1","Stat6","Klf4","Cd206")
 set_meta <- unique(gs_long[, .(pathway = set, pathway_source = source, tier)])
+set_meta <- rbind(set_meta, data.table(
+  pathway = c("M1_polarization","M2_polarization"),
+  pathway_source = "myeloid_markers", tier = "primary"))
 set_meta[, n_set_genes := vapply(all_sets[pathway], length, integer(1))]
 
 o   <- readRDS(merged_path)
@@ -39,6 +53,7 @@ cat(sprintf("gene sets: %d total, %d scored, %d dropped (0 panel genes)\n",
 
 set.seed(SEED)
 o <- AddModuleScore_UCell(o, features = sets_p, assay = "RNA", slot = "data",
+                          maxRank = UCELL_MAXRANK,
                           ncores = UCELL_CORES, name = "__UC", force.gc = TRUE)
 o <- AddModuleScore(o, features = sets_p, name = "__AMS",
                     nbin = AMS_NBIN, ctrl = AMS_CTRL, seed = SEED, assay = "RNA")
