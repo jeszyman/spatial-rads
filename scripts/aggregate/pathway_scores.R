@@ -15,10 +15,13 @@ out_summary <- args[4]; out_test <- args[5]; out_conc <- args[6]
 
 MIN_CELLS <- 10L; MIN_SAMPLES <- 3L; CONDS <- c("Control", "MBRT_day2", "SBRT_day2")
 UCELL_CORES <- 8L; AMS_NBIN <- 24L; AMS_CTRL <- 20L; SEED <- 42L
-# maxRank ~ median genes detected per cell (58/950 on this panel). The UCell default
-# 1500 is tuned for ~20k-gene scRNA-seq and never truncates the zero-tail on a 950-gene
-# panel, washing out sparse-signature scores (UCell/pyUCell 2026, CosMx guidance).
-UCELL_MAXRANK <- 58L
+# maxRank truncates the zero-tail (genes ranked below it are treated as unexpressed).
+# UCell requires maxRank >= the largest signature; Fibrosis_remodeling has 136 on-panel
+# genes, so 136 is the floor. The default 1500 is tuned for ~20k-gene scRNA-seq and never
+# truncates on this 950-gene panel (washing out sparse scores); UCell's spatial guidance
+# is "at most the number of probes in the panel". 136 is the tightest valid truncation
+# without altering the frozen gene sets (UCell/pyUCell 2026 CosMx guidance).
+UCELL_MAXRANK <- 136L
 dir.create(dirname(out_summary), recursive = TRUE, showWarnings = FALSE)
 
 gs_long  <- fread(sets_path)                            # set, tier, source, gene
@@ -40,6 +43,21 @@ o   <- readRDS(merged_path)
 lab <- as.data.table(read_parquet(labels_path))[, .(cell, cell_subtype)]
 lv  <- setNames(lab$cell_subtype, lab$cell)
 o$cell_type <- unname(lv[colnames(o)])
+
+# The rebuilt merged.rds already carries condition/treatment/timepoint_h/dataset
+# (dataset = "Mutter_01"/"Mutter_02") but is MISSING slide_id (not a norm.rds column).
+# Join only slide_id from the sample sheet; do NOT overwrite the existing columns
+# (samples.tsv uses dataset_id = dat0001/dat0002, which would break the "Mutter_02" filter).
+ss <- fread("results/data_model/samples.tsv")
+scol <- names(ss)[grepl("sample", names(ss), ignore.case = TRUE)][1]
+smeta <- unique(ss[, .(sample_id = get(scol), slide_id)])
+o$slide_id <- smeta$slide_id[match(o$sample_id, smeta$sample_id)]
+# Fail-fast: assert EVERY column the downstream limma block needs is populated AND the
+# M02 day-2 filter will be non-empty, NOW (seconds) not after the ~5h scoring.
+stopifnot(!anyNA(o$sample_id), !anyNA(o$condition), !anyNA(o$slide_id),
+          !anyNA(o$dataset), !anyNA(o$cell_type),
+          sum(o$dataset == "Mutter_02" & o$condition %in% CONDS) > 0)
+
 o <- subset(o, cells = colnames(o)[!is.na(o$cell_type) & o$cell_type != "unassigned"])
 panel  <- rownames(o)
 sets_p <- lapply(all_sets, intersect, panel)
