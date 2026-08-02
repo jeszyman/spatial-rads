@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Whole-slide descriptive log2FC tables for the three M01 4h treatment-arm
+# Sample-level descriptive log2FC tables for the three M01 4h treatment-arm
 # contrasts (MBRT_vs_Ctrl, SBRT_vs_Ctrl, MBRT_vs_SBRT) x 4 compartment cuts
 # (all/tumor/stroma/immune). n=1 per arm (no replicates at 4h), so this
 # pseudobulk-sums the raw counts per arm and runs edgeR's fixed-dispersion
@@ -144,7 +144,7 @@ for (cname in names(contrasts)) {
     # Sort by absolute log2FC descending
     out <- out[order(-abs(log2FC))]
 
-    fname <- sprintf("wholeslide_%s_%s.tsv", cname, comp)
+    fname <- sprintf("sample_level_%s_%s.tsv", cname, comp)
     fwrite(out, file.path(OUTDIR, fname), sep = "\t")
     cat(sprintf("    Wrote %s (%d genes, %d/%d cells)\n",
                 fname, nrow(out), length(keep1), length(keep2)))
