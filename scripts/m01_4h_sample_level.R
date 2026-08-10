@@ -144,7 +144,7 @@ for (cname in names(contrasts)) {
     # Sort by absolute log2FC descending
     out <- out[order(-abs(log2FC))]
 
-    fname <- sprintf("sample_level_%s_%s.tsv", cname, comp)
+    fname <- sprintf("arm_%s_%s.tsv", cname, comp)
     fwrite(out, file.path(OUTDIR, fname), sep = "\t")
     cat(sprintf("    Wrote %s (%d genes, %d/%d cells)\n",
                 fname, nrow(out), length(keep1), length(keep2)))

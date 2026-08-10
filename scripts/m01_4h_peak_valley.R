@@ -16,7 +16,8 @@ suppressPackageStartupMessages({
   library(limma)
   library(edgeR)
   library(qvalue)
-  library(RANN)
+  library(yaml)
+  library(IHW)
 })
 
 DATADIR    <- "/mnt/data/projects/spatial-rads/processing/norm"
@@ -26,15 +27,57 @@ OUTDIR     <- "results/aggregate/m01_4h"
 SAMPLE_ID  <- "sam0003"  # MBRT_4h
 PEAK_THR   <- 0.10   # mm, core band peak
 VALLEY_THR <- 0.40   # mm, core band valley
+MIN_CELLS  <- 20     # minimum cells per FOV-zone pseudobulk unit
 
 dir.create(OUTDIR, recursive = TRUE, showWarnings = FALSE)
 
-# DDR genes excluded from DE (this module was used to fit the stripe model
-# upstream; testing it here would be circular). Not all 18 are on this
-# 950-gene panel -- setdiff() below only drops the ones actually present.
-DDR_EXCLUDE <- c("Cdkn1a", "Gadd45a", "Gadd45b", "Mdm2", "Bax", "Pmaip1",
-                 "Bbc3", "Ddit3", "Atm", "Atr", "Chek1", "Chek2", "Rad51",
-                 "Brca1", "Brca2", "Xrcc5", "Xrcc6", "Parp1")
+# --- Hypothesis-restricted FDR ---
+# Map coarse compartments to the cell subtypes in hypotheses.yaml so we can
+# tag genes and recompute BH within the confirmatory set per compartment.
+HYPO_FILE <- "config/hypotheses.yaml"
+hypo_raw  <- read_yaml(HYPO_FILE)
+
+COMP_TO_SUBTYPES <- list(
+  tumor  = c("Tumor"),
+  stroma = c("Fibroblast", "SmoothMuscle", "Adipocyte", "Endothelial"),
+  immune = c("T cells", "NK cells", "ILC", "Plasma cells", "Macrophages",
+             "DC", "Mast cells", "Neutrophils")
+)
+
+build_confirmatory_genes <- function(hypo_list, subtypes) {
+  genes <- character(0)
+  for (h in hypo_list$hypotheses) {
+    if (any(h$cell_types %in% subtypes)) {
+      for (prog in h$programs) {
+        genes <- c(genes, prog$genes)
+      }
+    }
+  }
+  unique(genes)
+}
+
+tag_confirmatory <- function(dt, comp) {
+  if (comp == "all") {
+    subtypes <- unlist(COMP_TO_SUBTYPES, use.names = FALSE)
+  } else {
+    subtypes <- COMP_TO_SUBTYPES[[comp]]
+  }
+  if (is.null(subtypes)) {
+    dt[, `:=`(confirmatory = FALSE, padj_confirmatory = NA_real_)]
+    return(dt)
+  }
+  conf_genes <- build_confirmatory_genes(hypo_raw, subtypes)
+  dt[, confirmatory := gene %in% conf_genes]
+  conf_p <- dt[confirmatory == TRUE & !is.na(p), p]
+  dt[, padj_confirmatory := NA_real_]
+  if (length(conf_p) > 0) {
+    dt[confirmatory == TRUE & !is.na(p),
+       padj_confirmatory := p.adjust(p, method = "BH")]
+  }
+  dt
+}
+
+DDR_EXCLUDE <- character(0)
 
 compartments <- c("all", "tumor", "stroma", "immune")
 
@@ -95,6 +138,11 @@ for (comp in compartments) {
     cells_use <- meta[zone %in% c("peak", "valley") & compartment == comp, cell]
   }
   dt <- meta[cell %in% cells_use, .(cell, fov, zone)]
+
+  # Drop FOV-zones with too few cells for reliable pseudobulk
+  fov_zone_n <- dt[, .N, by = .(fov, zone)]
+  fov_zone_pass <- fov_zone_n[N >= MIN_CELLS]
+  dt <- dt[paste(fov, zone) %in% paste(fov_zone_pass$fov, fov_zone_pass$zone)]
 
   # FOVs with cells in both zones (paired design; unpaired FOVs are dropped)
   fov_both <- dt[, .(has_peak = any(zone == "peak"),
@@ -158,6 +206,7 @@ for (comp in compartments) {
 
   out_deseq <- data.table(
     gene          = res$gene,
+    baseMean      = res$baseMean,
     log2FC        = res$log2FoldChange,
     SE            = res$lfcSE,
     p             = res$pvalue,
@@ -165,6 +214,19 @@ for (comp in compartments) {
     qvalue_storey = res$qvalue_storey,
     compartment   = comp
   )[order(p)]
+
+  # IHW: baseMean as covariate, BH alpha
+  ihw_res <- tryCatch({
+    ihw(p ~ baseMean, data = out_deseq[!is.na(p)], alpha = 0.05)
+  }, error = function(e) { cat(sprintf("    IHW failed: %s\n", e$message)); NULL })
+  out_deseq[, padj_ihw := NA_real_]
+  if (!is.null(ihw_res)) {
+    out_deseq[!is.na(p), padj_ihw := adj_pvalues(ihw_res)]
+    n_ihw_sig <- sum(adj_pvalues(ihw_res) < 0.05, na.rm = TRUE)
+    cat(sprintf("    IHW: %d rejections at alpha=0.05\n", n_ihw_sig))
+  }
+
+  out_deseq <- tag_confirmatory(out_deseq, comp)
 
   fwrite(out_deseq, file.path(OUTDIR, sprintf("pv_deseq2_%s.tsv", comp)), sep = "\t")
   cat(sprintf("    DESeq2: %d genes, %d paired FOVs, KS p=%.3f (pi0=%.3f)\n",
@@ -201,6 +263,7 @@ for (comp in compartments) {
     qvalue_storey = tt$qvalue_storey,
     compartment   = comp
   )[order(p)]
+  out_voom <- tag_confirmatory(out_voom, comp)
 
   fwrite(out_voom, file.path(OUTDIR, sprintf("pv_voom_%s.tsv", comp)), sep = "\t")
   cat(sprintf("    Voom: %d genes\n", nrow(out_voom)))
@@ -319,114 +382,5 @@ pure_fov_results <- rbindlist(lapply(offsets_b, function(off) {
 
 fwrite(pure_fov_results, file.path(OUTDIR, "validation_pure_fov.tsv"), sep = "\t")
 cat(sprintf("  Pure-FOV: %d configurations\n", nrow(pure_fov_results)))
-
-# ============================================================
-# PART 4: Continuous distance regression
-# ============================================================
-cat("\n--- Part 4: Continuous distance regression ---\n")
-
-for (comp in compartments) {
-  cat(sprintf("  Compartment: %s\n", comp))
-
-  if (comp == "all") {
-    cells_use <- meta[!is.na(compartment), cell]
-  } else {
-    cells_use <- meta[compartment == comp, cell]
-  }
-
-  if (length(cells_use) < 50) {
-    cat("    Skipping: too few cells\n")
-    next
-  }
-
-  dt_reg <- meta[cell %in% cells_use, .(cell, fov, dist_to_peak)]
-  fov_fac <- factor(dt_reg$fov)
-  dtp_vec <- dt_reg$dist_to_peak
-
-  results_list <- lapply(gene_universe, function(g) {
-    expr <- as.numeric(raw_counts[g, dt_reg$cell])
-    fit <- tryCatch({
-      lm(expr ~ fov_fac + dtp_vec)
-    }, error = function(e) NULL)
-
-    if (is.null(fit)) return(NULL)
-    coefs <- summary(fit)$coefficients
-    if (!"dtp_vec" %in% rownames(coefs)) return(NULL)
-
-    data.table(
-      gene        = g,
-      coefficient = coefs["dtp_vec", "Estimate"],
-      SE          = coefs["dtp_vec", "Std. Error"],
-      p           = coefs["dtp_vec", "Pr(>|t|)"],
-      compartment = comp
-    )
-  })
-
-  out_reg <- rbindlist(results_list[!sapply(results_list, is.null)])
-  out_reg <- out_reg[order(p)]
-
-  fwrite(out_reg, file.path(OUTDIR, sprintf("pv_distance_%s.tsv", comp)), sep = "\t")
-  cat(sprintf("    %d genes regressed\n", nrow(out_reg)))
-}
-
-# --- Moran's I spatial autocorrelation check (tumor, representative) ---
-# spdep is not installed on this host (sf build failure). Reimplemented
-# manually: row-standardized k=15 nearest-neighbor weights via RANN (same
-# neighborhood the brief's nb2listw(style="W") would have used), Moran's I
-# computed directly from the neighbor-index matrix, and significance from a
-# permutation null (999 relabelings of the residual vector across the fixed
-# spatial locations) rather than the closed-form randomization variance,
-# which needs full pairwise weight-sum terms (S1/S2) a directed kNN graph
-# doesn't provide cleanly.
-cat("\n--- Moran's I spatial autocorrelation check (tumor) ---\n")
-
-moran_i_knn <- function(x, coords, k = 15, n_perm = 999, seed = 42) {
-  n <- length(x)
-  nn <- nn2(coords, k = k + 1)             # self + k neighbors
-  nb_idx <- nn$nn.idx[, -1, drop = FALSE]  # drop self column -> n x k
-
-  z <- x - mean(x)
-  denom <- sum(z^2)
-
-  # Row-standardized weights (w_ij = 1/k for each listed neighbor) give
-  # S0 = sum_i sum_j w_ij = n, so the usual n/S0 normalizer cancels to 1.
-  moran_stat <- function(zz) {
-    neighbor_sum <- rowSums(matrix(zz[nb_idx], nrow = n, ncol = k))
-    sum(zz * neighbor_sum) / (k * denom)
-  }
-
-  I_obs <- moran_stat(z)
-  set.seed(seed)
-  I_perm <- vapply(seq_len(n_perm), function(i) moran_stat(sample(z)), numeric(1))
-  p_val <- (1 + sum(abs(I_perm) >= abs(I_obs))) / (1 + n_perm)
-
-  list(I = I_obs, p = p_val)
-}
-
-tumor_cells <- meta[compartment == "tumor", cell]
-if (length(tumor_cells) > 500) {
-  set.seed(42)
-  sub_cells <- sample(tumor_cells, min(5000, length(tumor_cells)))
-
-  # Subsample FIRST, then derive every per-cell vector (coords, fov, expr)
-  # from that exact same cell ordering via match(). A %in%-filter on meta
-  # would silently return meta's own row order instead of sub_cells' order,
-  # desynchronizing the residual vector from the k-NN weight matrix.
-  sub_meta <- meta[match(sub_cells, cell)]
-  stopifnot(identical(sub_meta$cell, sub_cells))
-  coords_sub <- as.matrix(sub_meta[, .(x_slide_mm, y_slide_mm)])
-  fov_fac_sub <- factor(sub_meta$fov)
-
-  top_genes <- fread(file.path(OUTDIR, "pv_distance_tumor.tsv"))[1:5, gene]
-  moran_results <- rbindlist(lapply(top_genes, function(g) {
-    expr <- as.numeric(raw_counts[g, sub_cells])
-    resid_vec <- residuals(lm(expr ~ fov_fac_sub))
-    mt <- moran_i_knn(resid_vec, coords_sub, k = 15, n_perm = 999)
-    data.table(gene = g, moran_I = mt$I, moran_p = mt$p)
-  }))
-  cat("  Moran's I on top 5 distance-regression genes (tumor):\n")
-  print(moran_results)
-  fwrite(moran_results, file.path(OUTDIR, "validation_moran_tumor.tsv"), sep = "\t")
-}
 
 cat("\nScript 2 complete.\n")
