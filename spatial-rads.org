@@ -1,134 +1,3 @@
-* Spatial Rads Update
-:PROPERTIES:
-:ID:       8091391b-231a-441f-8670-c2d5ce47d84c
-:EXPORT_FILE_NAME: ./tmp/talk
-:EXPORT_TITLE: Spatial Rads Update
-:EXPORT_AUTHOR: Jeffrey Szymanski
-:EXPORT_DATE: \today
-:EXPORT_LATEX_CLASS: present
-:EXPORT_OPTIONS: toc:nil num:UNNUMBERED H:2 ^:{}
-:EXPORT_LATEX_HEADER: \usepackage{szymanski-present}
-:END:
-** Method Updates and Changes
-
-*** New Input Level QC
-**** Text                                                             :BMCOL:
-:PROPERTIES:
-:BEAMER_col: 0.5
-:END:
-
-#+latex: \ajycite{plummer2025spatial}
-
-#+latex: \vspace{\baselineskip}
-
-- Per-cell data quality across experiments
-- Per-cell data quality across cohorts
-- Bias
-- Between replicate concordance
-- Cell neighborhood purity
-
-**** Figure                                                           :BMCOL:
-:PROPERTIES:
-:BEAMER_col: 0.5
-:END:
-#+ATTR_LATEX: :height 0.8\textheight
-[[/home/jeszyman/repos/spatial-rads/resources/media/plummer2025pg1.png]]
-
-*** Per-cell Data Quality Across Experiments
-#+CAPTION: Per-sample metrics of CosMx capture across experiments. Sparsity, zeros of cell x gene counts; SNR, signal to noise; specificity FDR, expected false positives by background probe count. *Overall M_02 has more transcripts per cell.*
-#+ATTR_LATEX: :width 0.85\textwidth
-#+ATTR_ORG: :width 1000
-[[/home/jeszyman/repos/spatial-rads/results/processing/plots/sample_tech_metrics.svg]]
-
-#+latex: \note{First two are sensitivity, last 3 are specificity}
-
-*** Per-cell Data Quality Across M_02 Cohorts
-
-#+ATTR_LATEX: :height .75\textheight
-#+CAPTION: Per-sample metrics of CosMx capture across cohorts in Mutter_02 experiment. *Overall treatment does not affect CosMx quality.*
-#+ATTR_ORG: :width 1000
-[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_arm_balance.svg]]
-*** Bias and Between Replicate Concordance
-#+CAPTION: PCA of z-scored technical metrics show no pattern among replicates. Pseudobulk of all sample cells show within-cohort concordance.
-#+ATTR_LATEX: :height .75\textheight
-#+ATTR_ORG: :width 1000
-[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_reproducibility.svg]]
-*** Analysis Updates: Cell Identity
-**** Text                                                             :BMCOL:
-:PROPERTIES:
-:BEAMER_col: 0.5
-:END:
-
-- Original: Default CosMx
-  - InSituType maximum likelihood
-    vs CosMX ImmGen atlas
-- New: \ajycite{luecken2019}
-  - Unsupervised clustering of unlabeled cells (scVI + Leiden kNN), /then/ label the clusters
-  - True tumor / stroma separation
-
-#+latex: \note{ scVI makes the space, Leiden carves it into groups, UCell (plus SingleR/ImmGen for immune) puts names on the groups.}
-
-**** Figure                                                           :BMCOL:
-:PROPERTIES:
-:BEAMER_col: 0.5
-:END:
-
-#+ATTR_LATEX: :height 0.8\textheight
-file:/home/jeszyman/repos/spatial-rads/resources/media/sparsity.png
-*** Analysis Updates: Cell Identity
-#+CAPTION: Transcriptional neighborhood purity of the locked cell-type labels (fraction of k=30 scVI-latent neighbors sharing a cell's subtype). (A) Per-subtype purity by compartment; (B) median purity vs. cells assigned (log scale). Purity tracks positively with subtype abundance (Spearman rho ~0.82).
-#+ATTR_LATEX: :width .75\textwidth
-[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_neighborhood_purity.svg]]
-
-*** Analysis Updates: Cell Identity
-#+CAPTION: Cell identity between experiments. (A) All time points. (B) Only at 2d.
-#+ATTR_LATEX: :width .75\textwidth
-[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/composition_cohort_scatter.svg]]
-
-
-*** Analysis Updates: M_01 Peak and Valley
-**** Text
-:PROPERTIES:
-:BEAMER_col: 0.5
-:END:
-
-- ROI ID is still fine
-- Original DGE: Pseudobulk per cell as replicates - inflated by very high replicate count \ajycite{squair2021spatial}
-- New: \ajycite{merritt2020geomx}
-  - Per FOV
-  - Upfront check of cell abundence
-  - Narrow peak and valley bands
-
-**** Figure
-:PROPERTIES:
-:BEAMER_col: 0.5
-:END:
-
-#+ATTR_LATEX: :height 0.6\textheight
-file:/home/jeszyman/repos/spatial-rads/resources/media/peak-valley.png
-
-#+latex: \note{TMM scales library size, voom converts counts to log cpm weights test DESeq2 neg binomial and limma, agreement .95-.98}
-** Results
-*** No M_01 4hr Peak Valley Signature
-#+CAPTION: Peak-vs-valley FOV-pseudobulk DE at M_01 4h has no signature: p-value histograms are flat in all cells and every compartment.
-#+ATTR_LATEX: :width .7\textwidth
-[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/pv_phist_null.png]]
-*** Alternative confirmation of peak valley signature loss
-#+ATTR_LATEX: :height .8\textheight
-file:/home/jeszyman/repos/spatial-rads/dev/if_channel_check/pv_reconcile_figure.png
-*** Arm-level Day 2 Results: Composition
-#+ATTR_LATEX: :height \textheight
-file:~/repos/spatial-rads/results/aggregate/plots/composition_arm.svg
-
-*** Arm-level Day 2 Results: Pathway
-#+ATTR_LATEX: :height .9\textheight
-file:~/repos/spatial-rads/results/aggregate/plots/pathway_arm.svg
-** Slide generation reference                                      :noexport:
-#+begin_comment
-Export: python3 ~/repos/latex/scripts/emacs_export_header_to_latex.py --org_file /home/jeszyman/repos/spatial-rads/spatial-rads.org --node_id 8091391b-231a-441f-8670-c2d5ce47d84c
-#+end_comment
-
-
 * Spatial Radiomics                                           :sci_proj_repo:
 
 
@@ -223,88 +92,104 @@ Forward-looking dashboard for this project. Convention defined under [[id:f9628d
 
 *** Visualization
 
-#+begin_src dot :file project-map.svg :results file :exports results
+#+begin_src dot :file resources/media/project-map.svg :results file :exports results
 digraph spatial_rads {
   rankdir=TB;
-  ranksep=0.22;
-  fontname = "Helvetica";
-  node [shape=box, style=filled, fillcolor=white, fontname="Helvetica", fontsize=11];
-  edge [fontname="Helvetica", fontsize=9];
+  ranksep=0.40;
+  nodesep=0.45;
+  fontname="Helvetica";
+  bgcolor="white";
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+        penwidth=1.4, margin="0.20,0.12", color="#90a4ae", fillcolor=white];
+  edge [fontname="Helvetica", fontsize=9, color="#546e7a", arrowsize=0.8];
 
-  // --- BIOLOGICAL MODEL (top — experimental frame) ---
-  bio_model     [label="Biological model\n4T1 flank · MBRT vs SBRT\ntimepoints 1h/4h/d2/d6", shape=box, style=filled, fillcolor="#e8f0ff"];
+  // Role palette (fill / border): input #e3f2fd/#1565c0 · complete #e8f5e9/#2e7d32 · ongoing #fff8e1/#f9a825
 
-  // --- INPUT DATA (datasets produced by the experiment) ---
-  mutter01      [label="Mutter_01\n971K cells\n11 conditions", shape=cylinder, style=filled, fillcolor=lightgray];
-  mutter02_raw  [label="Mutter_02\n3 conditions × 3 reps × 4 slides\nday-2 only", shape=cylinder, style=filled, fillcolor=lightgray];
-  h2ax_ihc      [label="H2AX IHC (Block_21)\nanchors peak/valley to a\nsingle 4h block", shape=cylinder, style=filled, fillcolor=lightgray];
+  // --- INPUTS (blue): study design + peak/valley ground truth ---
+  design [shape=plaintext, label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="5" COLOR="#1565c0">
+      <TR><TD COLSPAN="6" BGCOLOR="#1565c0"><FONT COLOR="white"><B>Study design</B> &#183; 4T1 flank &#183; MBRT vs SBRT vs Control</FONT></TD></TR>
+      <TR>
+        <TD BGCOLOR="#e3f2fd"></TD>
+        <TD BGCOLOR="#e3f2fd"><B>1h</B></TD>
+        <TD BGCOLOR="#e3f2fd"><B>4h</B></TD>
+        <TD BGCOLOR="#e3f2fd"><B>day 2</B></TD>
+        <TD BGCOLOR="#e3f2fd"><B>day 6</B></TD>
+        <TD BGCOLOR="#e3f2fd"></TD>
+      </TR>
+      <TR>
+        <TD ALIGN="LEFT" BGCOLOR="#f5faff"><B>Control</B></TD>
+        <TD BGCOLOR="#f5faff"></TD>
+        <TD BGCOLOR="#f5faff"></TD>
+        <TD BGCOLOR="#90caf9"><B>4</B></TD>
+        <TD BGCOLOR="#f5faff"></TD>
+        <TD BGCOLOR="#fafafa"><FONT POINT-SIZE="9">0h: 1</FONT></TD>
+      </TR>
+      <TR>
+        <TD ALIGN="LEFT" BGCOLOR="#f5faff"><B>MBRT</B></TD>
+        <TD BGCOLOR="#f5faff">1</TD>
+        <TD BGCOLOR="#f5faff">1</TD>
+        <TD BGCOLOR="#90caf9"><B>4</B></TD>
+        <TD BGCOLOR="#f5faff">1</TD>
+        <TD BGCOLOR="#fafafa"></TD>
+      </TR>
+      <TR>
+        <TD ALIGN="LEFT" BGCOLOR="#f5faff"><B>SBRT</B></TD>
+        <TD BGCOLOR="#f5faff"></TD>
+        <TD BGCOLOR="#f5faff">1</TD>
+        <TD BGCOLOR="#90caf9"><B>4</B></TD>
+        <TD BGCOLOR="#f5faff">1</TD>
+        <TD BGCOLOR="#fafafa"></TD>
+      </TR>
+      <TR><TD COLSPAN="6" BGCOLOR="#f5faff"><FONT POINT-SIZE="9">n=1 kinetic series (971K cells) &#8195; <B>n=4/arm</B> day-2 replicated inference (2.35M cells)</FONT></TD></TR>
+    </TABLE>>];
 
-  // --- DATA MODEL (processing layer that structures inputs) ---
-  data_model    [label=<<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="3" BGCOLOR="#e8f0ff"><TR><TD COLSPAN="3" BGCOLOR="#c8d8f0"><B>metadata</B>  (11 × 9)</TD></TR><TR><TD ALIGN="LEFT">block_id</TD><TD ALIGN="LEFT">condition</TD><TD ALIGN="LEFT">slide</TD></TR><TR><TD ALIGN="LEFT">model</TD><TD ALIGN="LEFT">treatment</TD><TD ALIGN="LEFT">timepoint_h</TD></TR><TR><TD ALIGN="LEFT">tumor_cell_line</TD><TD ALIGN="LEFT">host_strain</TD><TD ALIGN="LEFT">tumor_type</TD></TR></TABLE>>, shape=plaintext];
+  node [fillcolor="#e3f2fd", color="#1565c0"];
+  h2ax [label="H2AX peak/valley ground truth\nsingle 4h block"];
 
-  // --- LEFT STREAM: cross-timepoint MBRT vs SBRT (primary), all [dev] = rounded ---
-  kinetics_m01  [label="MBRT vs SBRT comprehensive on Mutter_01\nDEGs · pathways · composition · spatial NN ·\ncell death · necrosis\n(5 findings landed; iteration continues)", shape=box, style="filled,rounded,bold", fillcolor=white];
-  morphology    [label="Cell morphology kinetics\n(nuclear & cell area, cross-timepoint)", shape=box, style="filled,rounded,bold", fillcolor=white];
-  m02_full      [label="Full Mutter_02 MBRT vs SBRT\nstatistical inference with biological replicates\n(gated on Yi insitutype labels)", shape=box, style="rounded,dashed,bold"];
+  // --- ANALYSIS COMPLETE (green) ---
+  node [fillcolor="#e8f5e9", color="#2e7d32"];
+  preproc    [label="Preprocessing\nharmonize panel · QC · normalize\n+ report-only technical QC"];
+  agg_typing [label="Merged-scale cell typing\n3.28M cells · scVI + Leiden, cluster-then-annotate\ntumor / stroma / immune + subtypes\nLOCKED"];
+  pv_class   [label="Peak/valley classification at 4h\n(H2AX-anchored)"];
+  tumor_sig  [label="Tumor peak/valley signature\nRESOLVED: artifact (cell-label/QC +\npseudoreplication); no dose-driven signal"];
+  finding    [label="Day-2 signal = SBRT stromal fibrosis\n(myofibroblast expansion; propeller composition)\nMBRT null at whole-compartment scale"];
 
-  // --- RIGHT STREAM: peak/valley (focused, 4h-bound), all [dev] = rounded ---
-  tumor_sig     [label="Tumor peak/valley signature\n(RESOLVED: artifact of cell-label/QC\n+ pseudoreplication; no signal)", shape=box, style="filled,rounded", fillcolor=white];
-  sig_project   [label="Peak/valley signature projection\nMutter_01 → Mutter_02\n(still 4h-bound)", shape=box, style="rounded,dashed"];
+  // --- ANALYSIS ONGOING (amber) ---
+  node [fillcolor="#fff8e1", color="#f9a825"];
+  agg_diff [label="MBRT vs SBRT vs Control differential\n6 pre-registered hypotheses (frozen registry)\npseudobulk DE (DESeq2 + limma-voom cross-check) · GSEA-gated pathway (UCell)\nmuscat differential-detection · composition / niches / mixing (propeller)\npooled-BH primary + gatekeeping / IHW auxiliary · n=4 at day-2"];
+  m01_pv   [label="Kinetic-cohort signature rebuild\non current labels (descriptive, n=1)"];
+  m02_pv   [label="Replication in day-2 cohort\n(gated on stripe re-detection)"];
+  paper    [label="First-in-field MBRT vs SBRT spatial paper"];
 
-  // --- DELIVERABLE ---
-  paper         [label="First-in-field MBRT vs SBRT spatial paper", shape=ellipse, style="filled,bold", fillcolor="#fff3b0"];
+  // Main pipeline
+  design     -> preproc;
+  preproc    -> agg_typing;
+  agg_typing -> agg_diff;
+  agg_diff   -> finding;
+  finding    -> paper;
 
-  // Hierarchy: biological model → input data → data model → analyses
-  bio_model    -> mutter01     [style=dashed, color=gray60, arrowhead=none];
-  bio_model    -> mutter02_raw [style=dashed, color=gray60, arrowhead=none];
-  bio_model    -> h2ax_ihc     [style=dashed, color=gray60, arrowhead=none];
-  mutter01     -> data_model;
-  mutter02_raw -> data_model;
+  // Peak/valley branch
+  h2ax       -> pv_class;
+  agg_typing -> tumor_sig [label="labels"];
+  pv_class   -> tumor_sig;
+  tumor_sig  -> m01_pv;
+  m01_pv     -> m02_pv;
+  m02_pv     -> paper;
+  tumor_sig  -> paper;
 
-  // Analysis flow (analyses consume the data model, plus raw inputs where direct access is needed)
-  data_model   -> kinetics_m01;
-  data_model   -> tumor_sig;
-  data_model   -> m02_full;
-  kinetics_m01 -> morphology;
-  kinetics_m01 -> m02_full [style=dashed, label="extends to"];
-  h2ax_ihc     -> tumor_sig;
-  tumor_sig    -> sig_project [style=dashed];
-  morphology -> paper;
-  m02_full -> paper [style=dashed];
-  tumor_sig -> paper;
-  sig_project -> paper [style=dashed];
+  {rank=same; design h2ax}
+  {rank=same; agg_diff tumor_sig}
+  {rank=same; finding m01_pv}
 
-  {rank=same; bio_model}
-  {rank=same; mutter01 mutter02_raw h2ax_ihc}
-  {rank=same; data_model}
-  {rank=same; kinetics_m01 tumor_sig}
-  {rank=same; morphology sig_project}
+  // --- Legend: 3 roles ---
+  lg_in   [label="inputs / data",     fillcolor="#e3f2fd", color="#1565c0", fontsize=9, margin="0.10,0.05"];
+  lg_done [label="analysis complete", fillcolor="#e8f5e9", color="#2e7d32", fontsize=9, margin="0.10,0.05"];
+  lg_on   [label="analysis ongoing",  fillcolor="#fff8e1", color="#f9a825", fontsize=9, margin="0.10,0.05"];
 
-  // --- Visual legend (single row at bottom, all 3 dimensions side-by-side) ---
-  // Maturity exemplars (shape)
-  lg_m_dev [label="[dev]",     shape=box,    style="rounded,filled", fillcolor=white, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
-  lg_m_tan [label="[tangled]", shape=box,    style=filled,            fillcolor=white, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
-  lg_m_smk [label="[smk]",     shape=box3d,  style=filled,            fillcolor=white, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
-  lg_m_frz [label="[frozen]",  shape=folder, style=filled,            fillcolor=white, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
-  // State exemplars (border)
-  lg_s_done [label="done",        shape=box, style=filled,        fillcolor=lightgray, fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
-  lg_s_prog [label="in-progress", shape=box, style="filled,bold", fillcolor=white,     fontsize=7, width=0.55, height=0.18, margin="0.02,0.01"];
-  lg_s_next [label="next",        shape=box, style="dashed,bold", fillcolor=white,     fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
-  // Role exemplars (fill)
-  lg_r_input [label="input/done",  shape=box,    style=filled,         fillcolor=lightgray, fontsize=7, width=0.55, height=0.18, margin="0.02,0.01"];
-  lg_r_act   [label="active",      shape=box,    style="filled,bold",  fillcolor=white,     fontsize=7, width=0.45, height=0.18, margin="0.02,0.01"];
-  lg_r_found [label="foundation",  shape=box,    style=filled,         fillcolor="#e8f0ff", fontsize=7, width=0.55, height=0.18, margin="0.02,0.01"];
-  lg_r_del   [label="deliverable", shape=ellipse,style="filled,bold",  fillcolor="#fff3b0", fontsize=7, width=0.6,  height=0.22, margin="0.02,0.01"];
-  // Group separators
-  lg_sep1 [label="|", shape=plaintext, fontsize=14, fontcolor=gray70];
-  lg_sep2 [label="|", shape=plaintext, fontsize=14, fontcolor=gray70];
-
-  // Single row at bottom — all 11 exemplars + 2 separators in one rank
-  {rank=sink; lg_m_dev lg_m_tan lg_m_smk lg_m_frz lg_sep1 lg_s_done lg_s_prog lg_s_next lg_sep2 lg_r_input lg_r_act lg_r_found lg_r_del}
-
-  // Anchor below paper, enforce left-to-right order with invisible chain
-  morphology -> lg_m_dev [style=invis];  // anchor legend to leftmost bottom-area node
-  lg_m_dev -> lg_m_tan -> lg_m_smk -> lg_m_frz -> lg_sep1 -> lg_s_done -> lg_s_prog -> lg_s_next -> lg_sep2 -> lg_r_input -> lg_r_act -> lg_r_found -> lg_r_del [style=invis, minlen=0];
+  {rank=sink; lg_in lg_done lg_on}
+  finding  -> lg_in [style=invis];
+  lg_in -> lg_done -> lg_on [style=invis, minlen=0];
 }
 #+end_src
 
@@ -1946,7 +1831,6 @@ CosMx data carry off-target "background" counts (~0.01–0.05 counts per plex pe
 Implementation: =scripts/probe_qc.R= is a *report-only diagnostic* (=results/processing/probe_qc_report.tsv=) flagging genes at/below the negative-control background in *both* Mutter_01 and Mutter_02 (signal-to-background ≤ 1). The analysis panel stays the full Mutter_01 ∩ Mutter_02 intersection — *no genes are dropped*; InSituType's per-cell background model handles background during cell typing.
 
 ***** TODO Review =probe_qc_report.tsv= flagged candidates; smooth (not drop) any confirmed failed lineage-marker probes
-
 *** Yi Mutter_01
 
 Yi Liu's secondary analysis of Mutter_01 comprised:
@@ -2441,6 +2325,7 @@ rule unify_labels:
         "{PYSCVI} {input.script} {input.coarse} {input.immune} {input.stroma} "
         "{output.labels} {output.summary} > {log} 2>&1"
 #+end_src
+***
 *** M1 Peak and valley analysis
 per cell DE does not work
 The principle (why FOV-pseudobulk is right, per-cell Wilcoxon wrong) — these are the
@@ -3838,6 +3723,25 @@ cat("DEG analysis complete.\n")
 #+end_src
 
 2,160 bulk DEG rows across all comparisons. Top MBRT vs SBRT findings: at 4h, MBRT upregulates myeloid recruitment genes (Ccl8 log2FC 1.59, Mrc1, Cd74, Arg1). At day 2, the myeloid signal amplifies (Ccl8 log2FC 2.43, Cd163 1.74) while SBRT upregulates Cxcl10 (-1.53, IFN-stimulated). At day 6, MBRT shows massive Igkc (log2FC 3.47, B/plasma cell signature) while SBRT has Nkg7 (-1.31, cytotoxic). Per-cell-type DEGs: 2,534 rows across 25 cell types.
+
+***** DONE Send Rob Mutter 4h CosMx DE tables (whole-slide + valley/peak/CRT contrasts) for R01
+CLOSED: [2026-08-03 Mon] DEADLINE: <2026-08-03 Mon>
+:PROPERTIES:
+:ID:       64721f83-c092-460c-abc1-52c496f833d4
+:END:
+[[https://mail.google.com/mail/u/0/#all/19fc2428d1cd6b8d][Mutter R01 DE request]]
+- [2026-08-03 Mon] Sent the 4h expression tables (16 at results/aggregate/m01_4h/: 12 arm-level pseudobulk + 4 peak-valley DESeq2 TSVs) with a methods walkthrough. Findings: both MBRT and SBRT show a clear acute IR response vs control at 4h (p21, HSPs, cytokines up; ECM/structural down); SBRT larger effect sizes but qualitatively identical; MBRT vs SBRT near-indistinguishable (only Ccl8 exceeds |log2FC| > 1); peak vs valley null at gene level (Cdkn1a peak/valley per-cell delta real but ~0.05 log-units, below between-FOV variance at 23 FOV-pairs, 17 tumor).
+
+***** TODO Fix Run 2 4h-timepoint mislabel, then rerun and reply to Mutter
+Who owes next: Jeff. Thread [[https://mail.google.com/mail/u/0/#all/19fc2428d1cd6b8d][Mutter R01]]. Reply drafted 8/12 (apology + fix-and-rerun, results in two parts).
+- ROOT ISSUE (found 8/12 from Rob's "CosMx Run 2 yH2AX" layout): Run 2 is a 2x2, not day-2-only. Slides 1-2 = 2d, slides 3-4 = 4h. build_metadata_xlsx.R hardcodes timepoint_h = 48 and maps every Run 2 block to _day2 (lines 67, 90), even though it transcribes Rob's block layout for positions/dose. So slides 3-4 (MBRT blocks 19/20, SBRT 16/18, controls 3/1) were mislabeled day-2. Rob was right; the earlier "n=1 at 4h" claim was wrong.
+- Corrected 4h counts, VERIFY on beast against raw CosMx metadata + wet-lab record before relying on them: MBRT 3 (Run1 blk21 + Run2 blk19/20), SBRT 3 (Run1 blk17 + Run2 blk16/18), Control 2 (Run2 slides 3-4, blocks 3 and 1; Run1 control is 0h). Control block 1 also sits on the 2d slide s1, so controls are a reused baseline set, not per-timepoint harvests.
+- Day-2 consequence: the "n=4/arm day-2" inference cohort is really n=2/arm at 2d (slides 1-2) + n=2/arm at 4h (slides 3-4) pooled as day-2, so the differential layer's day-2 result is timepoint-mixed and needs re-scoping (also update CLAUDE.md + comparisons.yaml, which still call M02 day-2/n=4).
+- FIX: replace the hardcoded 48h with real per-block timepoints (slides 1-2 = 2d, slides 3-4 = 4h), re-derive the data model, re-scope comparisons.yaml. Needs beast R env.
+- RERUN in two parts: (1) arm-level 4h contrasts (MBRT/SBRT/Control) on corrected metadata, quick, real replication (n=3 treated / n=2 control, slide as batch); (2) peak-vs-valley + prespecified damage/checkpoint/proliferation modules, which need NEW peak/valley zone calling on the Run 2 4h slides (register M02 H2AX beam tracks onto slides 3-4) before pseudobulk.
+- Rob Q2 (data): can send the current Run1 peak-valley FOV-zone pseudobulk count matrix in the interim; the rerun supersedes it.
+- Rob Q4 (aside): Ccl8 ties to his breast SPORE macrophage biology; one gene, do not over-read.
+- Yi (co-leads the CosMx core): agreed on program/module scoring for sparse CosMx (already our standard); reply to her directly to align on the separate SPORE TNBC 6K point, loop her in.
 
 **** DEG visualization
 :PROPERTIES:
@@ -6629,6 +6533,137 @@ Reports are generated programmatically from repository (repo) data and text file
 ......|---- src - contains validated code used in project \linebreak
 
 Upon report update, the entire repo is pushed to the shared Wustl Box folder.
+* Spatial Rads Update
+:PROPERTIES:
+:ID:       8091391b-231a-441f-8670-c2d5ce47d84c
+:EXPORT_FILE_NAME: ./tmp/talk
+:EXPORT_TITLE: Spatial Rads Update
+:EXPORT_AUTHOR: Jeffrey Szymanski
+:EXPORT_DATE: \today
+:EXPORT_LATEX_CLASS: present
+:EXPORT_OPTIONS: toc:nil num:UNNUMBERED H:2 ^:{}
+:EXPORT_LATEX_HEADER: \usepackage{szymanski-present}
+:END:
+** Method Updates and Changes
+
+*** New Input Level QC
+**** Text                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+#+latex: \ajycite{plummer2025spatial}
+
+#+latex: \vspace{\baselineskip}
+
+- Per-cell data quality across experiments
+- Per-cell data quality across cohorts
+- Bias
+- Between replicate concordance
+- Cell neighborhood purity
+
+**** Figure                                                           :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+#+ATTR_LATEX: :height 0.8\textheight
+[[/home/jeszyman/repos/spatial-rads/resources/media/plummer2025pg1.png]]
+
+*** Per-cell Data Quality Across Experiments
+#+CAPTION: Per-sample metrics of CosMx capture across experiments. Sparsity, zeros of cell x gene counts; SNR, signal to noise; specificity FDR, expected false positives by background probe count. *Overall M_02 has more transcripts per cell.*
+#+ATTR_LATEX: :width 0.85\textwidth
+#+ATTR_ORG: :width 1000
+[[/home/jeszyman/repos/spatial-rads/results/processing/plots/sample_tech_metrics.svg]]
+
+#+latex: \note{First two are sensitivity, last 3 are specificity}
+
+*** Per-cell Data Quality Across M_02 Cohorts
+
+#+ATTR_LATEX: :height .75\textheight
+#+CAPTION: Per-sample metrics of CosMx capture across cohorts in Mutter_02 experiment. *Overall treatment does not affect CosMx quality.*
+#+ATTR_ORG: :width 1000
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_arm_balance.svg]]
+*** Bias and Between Replicate Concordance
+#+CAPTION: PCA of z-scored technical metrics show no pattern among replicates. Pseudobulk of all sample cells show within-cohort concordance.
+#+ATTR_LATEX: :height .75\textheight
+#+ATTR_ORG: :width 1000
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_reproducibility.svg]]
+*** Analysis Updates: Cell Identity
+**** Text                                                             :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+- Original: Default CosMx
+  - InSituType maximum likelihood
+    vs CosMX ImmGen atlas
+- New: \ajycite{luecken2019}
+  - Unsupervised clustering of unlabeled cells (scVI + Leiden kNN), /then/ label the clusters
+  - True tumor / stroma separation
+
+#+latex: \note{ scVI makes the space, Leiden carves it into groups, UCell (plus SingleR/ImmGen for immune) puts names on the groups.}
+
+**** Figure                                                           :BMCOL:
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+#+ATTR_LATEX: :height 0.8\textheight
+file:/home/jeszyman/repos/spatial-rads/resources/media/sparsity.png
+*** Analysis Updates: Cell Identity
+#+CAPTION: Transcriptional neighborhood purity of the locked cell-type labels (fraction of k=30 scVI-latent neighbors sharing a cell's subtype). (A) Per-subtype purity by compartment; (B) median purity vs. cells assigned (log scale). Purity tracks positively with subtype abundance (Spearman rho ~0.82).
+#+ATTR_LATEX: :width .75\textwidth
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/qc_neighborhood_purity.svg]]
+
+*** Analysis Updates: Cell Identity
+#+CAPTION: Cell identity between experiments. (A) All time points. (B) Only at 2d.
+#+ATTR_LATEX: :width .75\textwidth
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/composition_cohort_scatter.svg]]
+
+
+*** Analysis Updates: M_01 Peak and Valley
+**** Text
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+- ROI ID is still fine
+- Original DGE: Pseudobulk per cell as replicates - inflated by very high replicate count \ajycite{squair2021spatial}
+- New: \ajycite{merritt2020geomx}
+  - Per FOV
+  - Upfront check of cell abundence
+  - Narrow peak and valley bands
+
+**** Figure
+:PROPERTIES:
+:BEAMER_col: 0.5
+:END:
+
+#+ATTR_LATEX: :height 0.6\textheight
+file:/home/jeszyman/repos/spatial-rads/resources/media/peak-valley.png
+
+#+latex: \note{TMM scales library size, voom converts counts to log cpm weights test DESeq2 neg binomial and limma, agreement .95-.98}
+** Results
+*** No M_01 4hr Peak Valley Signature
+#+CAPTION: Peak-vs-valley FOV-pseudobulk DE at M_01 4h has no signature: p-value histograms are flat in all cells and every compartment.
+#+ATTR_LATEX: :width .7\textwidth
+[[/home/jeszyman/repos/spatial-rads/results/aggregate/plots/pv_phist_null.png]]
+*** Alternative confirmation of peak valley signature loss
+#+ATTR_LATEX: :height .8\textheight
+file:/home/jeszyman/repos/spatial-rads/dev/if_channel_check/pv_reconcile_figure.png
+*** Arm-level Day 2 Results: Composition
+#+ATTR_LATEX: :height \textheight
+file:~/repos/spatial-rads/results/aggregate/plots/composition_arm.svg
+
+*** Arm-level Day 2 Results: Pathway
+#+ATTR_LATEX: :height .9\textheight
+file:~/repos/spatial-rads/results/aggregate/plots/pathway_arm.svg
+** Slide generation reference                                      :noexport:
+#+begin_comment
+Export: python3 ~/repos/latex/scripts/emacs_export_header_to_latex.py --org_file /home/jeszyman/repos/spatial-rads/spatial-rads.org --node_id 8091391b-231a-441f-8670-c2d5ce47d84c
+#+end_comment
+
+
 * Acronyms
 - MAD :: median absolute deviation
 - UCC :: universal cell characterization
