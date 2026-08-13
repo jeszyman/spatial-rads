@@ -88,6 +88,7 @@ rule all:
         "results/aggregate/qc_reproducibility.tsv",
         "results/aggregate/qc_panel_sparsity.tsv",
         "results/aggregate/celltype_neighborhood_purity.tsv",
+        "results/aggregate/smide_validation.tsv",
 # --- Track 1: cell-type composition (M02 day2 propeller test + M01 descriptive) ---
 rule composition:
     message: "composition: cell-type composition M02 day2 propeller test + M01 descriptive"
@@ -558,6 +559,29 @@ rule overlap_ratio_qc:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} "
         "{output.tsv} > {log} 2>&1"
+# --- Validation: smiDE per-cell DE on confirmatory hits -- runs AFTER assemble_results
+# (consumes results_master.tsv for the confirmatory gene x cell_type list), so it is a
+# standalone validation side-output, not fed back into the master. Checks whether the
+# confirmatory pseudobulk DE hits (plus Cdkn1a across its cell types) survive the same
+# RankNorm(otherct_expr) segmentation-error correction as overlap_ratio_qc. ---
+rule smide_validation:
+    message: "smide_validation: smiDE per-cell DE on confirmatory hits + Cdkn1a (segmentation-corrected)"
+    input:
+        script = f"{R_SCRIPTS}/smide_validation.R",
+        rds    = MERGED,
+        labels = LABELS,
+        coords = f"{D_AGG}/coords_necrosis.parquet",
+        obs    = OBS,
+        master = "results/aggregate/results_master.tsv",
+        comp   = "results/data_model/comparisons.tsv",
+    output:
+        tsv = "results/aggregate/smide_validation.tsv",
+    threads: 4
+    log:
+        f"{D_LOGS}/smide_validation.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
+        "{input.master} {input.comp} {output.tsv} > {log} 2>&1"
 # --- QC: replicate reproducibility -- per-arm pseudobulk concordance (SpatialQM getCorrelation) +
 # technical-metric PCA over the n=4/arm M02 day-2 cohort; flags an outlier slide driving an arm. ---
 rule agg_qc_reproducibility:
