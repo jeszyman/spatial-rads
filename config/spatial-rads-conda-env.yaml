@@ -31,6 +31,7 @@ dependencies:
   # Harmony kNN graph) -- see scripts/aggregate/embed_celltype.R.
   # --- Spatial niche (aggregate.smk) ---
   - bioconductor-banksy            # spatial niche embedding
+  - r-mclust               # model-based niche clustering (BIC K selection)
   - bioconductor-spatialexperiment # SPE container for Banksy
   # --- Composition / DE / pathway inference (aggregate.smk) ---
   - bioconductor-speckle  # propeller composition test

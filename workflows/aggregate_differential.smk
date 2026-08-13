@@ -309,9 +309,9 @@ rule celltype_qc:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.markers} "
         "{output.dotplot} > {log} 2>&1"
-# --- T9: data-driven spatial niches (k=20 NN composition -> K=6 k-means) ---
+# --- T9: data-driven spatial niches (k=50 NN composition, SPIN 50%, Mclust BIC K selection) ---
 rule niches:
-    message: "niches: data-driven spatial niches (k=20 NN composition -> K=6 k-means)"
+    message: "niches: data-driven spatial niches (k=50 NN composition, SPIN 50%, Mclust BIC K selection)"
     input:
         script = f"{R_SCRIPTS}/niches.R",
         labels = LABELS,
@@ -347,9 +347,9 @@ rule niche_engine:
     shell:
         "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 niche "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
-# --- T10: tumor-immune spatial mixing (immune-neighbour fraction + Keren score) ---
+# --- T10: tumor-immune spatial mixing (k=50 NN, immune-neighbour fraction + Keren score) ---
 rule spatial_mixing:
-    message: "spatial_mixing: tumor-immune spatial mixing (immune-neighbour fraction + Keren score)"
+    message: "spatial_mixing: tumor-immune spatial mixing (k=50 NN)"
     input:
         script = f"{R_SCRIPTS}/spatial_mixing.R",
         labels = LABELS,
