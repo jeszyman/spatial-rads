@@ -87,6 +87,7 @@ rule all:
         "results/aggregate/qc_arm_balance_samples.tsv",
         "results/aggregate/qc_reproducibility.tsv",
         "results/aggregate/qc_panel_sparsity.tsv",
+        "results/aggregate/qc_fov_signal.tsv",
         "results/aggregate/celltype_neighborhood_purity.tsv",
         "results/aggregate/smide_validation.tsv",
 # --- Track 1: cell-type composition (M02 day2 propeller test + M01 descriptive) ---
@@ -614,6 +615,26 @@ rule agg_qc_panel_sparsity:
         f"{D_LOGS}/qc_panel_sparsity.log",
     shell:
         "{RSCRIPT} {input.script} {input.merged} {input.labels} {input.samples} "
+        "{output.tsv} > {log} 2>&1"
+
+# --- QC: per-FOV signal-loss screening -- flags FOVs whose mean RNA count falls below
+# 40% of the slide's median per-FOV mean (>60% signal loss), a CosMx best-practice check
+# for degraded-signal regions (e.g. focal plane / staining dropout). Report-only: does not
+# exclude cells. Verifies flagged FOVs do not concentrate in one treatment arm. ---
+rule qc_fov_signal:
+    message: "qc_fov_signal: per-FOV signal-loss screening (report-only)"
+    input:
+        script = f"{R_SCRIPTS}/qc_fov_signal.R",
+        rds    = MERGED,
+        labels = LABELS,
+        obs    = OBS,
+    output:
+        tsv = "results/aggregate/qc_fov_signal.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/qc_fov_signal.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.obs} "
         "{output.tsv} > {log} 2>&1"
 
 # --- QC: transcriptional neighborhood purity (Plummer et al. Nat Biotechnol 2025, Fig 4d) --
