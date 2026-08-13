@@ -65,18 +65,17 @@ per_sample <- dm[, {
 setorder(per_sample, dataset, sample_id)
 fwrite(per_sample, out_ps, sep = "\t")
 
-# --- engine input: long (sample_id, feature_id, value, condition, slide_id), M02 day2. The
-# arm test on these per-sample metrics now runs in the shared lm_engine (matrix/identity path,
-# non-robust eBayes), so this producer only builds the feature matrix. ---
+# --- engine input: long (sample_id, feature_id, value, condition, slide_id), all flank
+# samples. The lm_engine applies cohort_samples.tsv whitelist filtering. ---
 metrics <- c("mixing_score", "mean_immune_frac", "immune_per_tumor", "enrichment_over_random")
-m2 <- per_sample[dataset == "Mutter_02" & timepoint_h == 48L]
-m2[, condition := factor(condition, levels = c("Control", "MBRT_day2", "SBRT_day2"))]
-lm_input <- melt(m2[, c("sample_id", "condition", "slide_id", metrics), with = FALSE],
+flank <- per_sample[!grepl("^Tongue", condition)]
+lm_input <- melt(flank[, c("sample_id", "condition", "slide_id", metrics), with = FALSE],
                  id.vars = c("sample_id", "condition", "slide_id"),
                  variable.name = "feature_id", value.name = "value")
 fwrite(lm_input, out_lm_input, sep = "\t")
 
 # --- plot: mixing score + immune-neighbour fraction by arm ----------------------
+m2 <- per_sample[dataset == "Mutter_02" & timepoint_h == 48L]
 pd <- melt(m2[, c("sample_id", "condition", "mixing_score", "mean_immune_frac")],
            id.vars = c("sample_id", "condition"), variable.name = "metric", value.name = "value")
 p <- ggplot(pd, aes(condition, value, fill = condition)) +
@@ -84,10 +83,9 @@ p <- ggplot(pd, aes(condition, value, fill = condition)) +
   geom_point(size = 1, position = position_jitter(width = 0.12)) +
   facet_wrap(~ metric, scales = "free_y") +
   scale_fill_brewer(palette = "Set1") +
-  labs(x = NULL, y = NULL, title = "M02 day2 tumor-immune mixing by arm (n=4/arm)") +
+  labs(x = NULL, y = NULL, title = "M02 day-2 tumor-immune mixing by arm (n=2/arm)") +
   theme_bw(base_size = 10) + theme(axis.text.x = element_text(angle = 20, hjust = 1))
 ggsave(plot_mix, p, width = 8, height = 4.5, dpi = 150)
 
-cat(sprintf("mixing: %d samples | lm input %d rows (%d metrics x %d M02 samples) | mixing_score range %.3f-%.3f\n",
-            nrow(per_sample), nrow(lm_input), length(metrics), nrow(m2),
-            min(m2$mixing_score), max(m2$mixing_score)))
+cat(sprintf("mixing: %d samples | lm input %d rows (%d metrics x %d flank samples)\n",
+            nrow(per_sample), nrow(lm_input), length(metrics), nrow(flank)))

@@ -5,10 +5,12 @@
 # two ways: (1) pseudobulk Spearman concordance of each sample to its arm-mates (SpatialQM getCorrelation
 # -- per-sample gene pseudobulk, cell types collapsed); (2) a PCA of the scaled per-sample technical
 # metrics (paper Fig 3a) -- a sample sitting apart from its arm is a candidate batch/outlier.
-# Args: <pseudobulk_se.rds> <sample_tech_metrics.tsv> <out.tsv> <out.png>
-suppressPackageStartupMessages({library(SummarizedExperiment); library(tidyverse); library(patchwork)})
+# Tabular terminus (per-sample concordance + PCA coords + PC variance-explained columns);
+# plotting lives in scripts/fig_qc_reproducibility.R.
+# Args: <pseudobulk_se.rds> <sample_tech_metrics.tsv> <out.tsv>
+suppressPackageStartupMessages({library(SummarizedExperiment); library(tidyverse)})
 a <- commandArgs(trailingOnly = TRUE)
-SE <- a[1]; TECH <- a[2]; OUT_TSV <- a[3]; OUT_PNG <- a[4]
+SE <- a[1]; TECH <- a[2]; OUT_TSV <- a[3]
 
 se  <- readRDS(SE)
 cd  <- as.data.frame(colData(se))
@@ -41,29 +43,11 @@ out <- tibble(sample_id = colnames(pb),
               mean_r_armmates = mate_r) %>%
   left_join(pcd, by = "sample_id") %>%
   mutate(r_outlier = mean_r_armmates < median(mean_r_armmates) - 2 * mad(mean_r_armmates),
-         arm = factor(arm, levels = c("Control", "MBRT", "SBRT"))) %>%
+         arm = factor(arm, levels = c("Control", "MBRT", "SBRT")),
+         pc1_ve = ve[1], pc2_ve = ve[2]) %>%          # PC variance-explained for the figure axis labels
   arrange(mean_r_armmates)
 write_tsv(out, OUT_TSV)
 
-arm_cols <- c(Control = "#4a86e8", MBRT = "#e69138", SBRT = "#cc0000")
-p1 <- ggplot(out, aes(PC1, PC2, color = arm)) +
-  geom_point(size = 3) +
-  ggrepel::geom_text_repel(aes(label = slide_id), size = 3, show.legend = FALSE, max.overlaps = 20) +
-  scale_color_manual(values = arm_cols) +
-  labs(x = sprintf("PC1 (%.0f%%)", ve[1]), y = sprintf("PC2 (%.0f%%)", ve[2]),
-       title = "Technical-metric PCA", color = NULL) +
-  theme_bw(base_size = 12) + theme(panel.grid.minor = element_blank())
-p2 <- ggplot(out, aes(arm, mean_r_armmates, color = arm)) +
-  geom_jitter(width = 0.12, height = 0, size = 3) +
-  scale_color_manual(values = arm_cols, guide = "none") +
-  labs(x = NULL, y = "mean Spearman r to arm-mates", title = "Pseudobulk replicate concordance") +
-  theme_bw(base_size = 12) + theme(panel.grid.minor = element_blank())
-p <- (p1 | p2) +
-  plot_annotation(title = "M02 day-2 replicate reproducibility (n=4/arm)",
-                  subtitle = "Outlier check: a sample apart in PCA or low-concordant to its arm-mates could drive an arm effect")
-
-ggsave(OUT_PNG, p, width = 11, height = 5, dpi = 300)
-
 cat("per-arm mean within-replicate Spearman:\n")
 print(tapply(out$mean_r_armmates, out$arm, mean), digits = 3)
-cat(sprintf("r-outliers flagged: %d; wrote %s + %s\n", sum(out$r_outlier), OUT_TSV, OUT_PNG))
+cat(sprintf("r-outliers flagged: %d; wrote %s\n", sum(out$r_outlier), OUT_TSV))

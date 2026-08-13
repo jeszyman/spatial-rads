@@ -6,7 +6,7 @@
 
 count_engine:
   min_cells: 10          # per (sample x cell_type): usable-replicate threshold
-  min_samples: 3         # usable replicates required per condition (abundance floor)
+  min_samples: 2         # usable replicates required per condition (DESeq2 floor; inference reliability gated by registry inference_capable)
   gene_min_count: 10     # a gene is kept if it has >= this many counts ...
   gene_min_samples: 4    # ... in >= this many samples
   shrinkage: apeglm      # lfcShrink type; apeglm accepts only coef=, hence the two-fit pattern

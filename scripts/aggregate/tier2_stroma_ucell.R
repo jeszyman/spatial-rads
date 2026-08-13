@@ -70,7 +70,7 @@ clu[, `:=`(top_lineage = top_lin,
            top_score = round(top_score, 4),
            second_score = round(second_score, 4),
            margin = round(margin, 4),
-           stroma_subtype = fifelse(keep, top_lin, "unassigned"))]
+           stroma_subtype = fifelse(keep, top_lin, "stroma_unresolved"))]
 setorder(clu, -n_cells)
 fwrite(clu, file.path(outdir, "stroma_subcluster_ucell.tsv"), sep = "\t")
 print(clu)

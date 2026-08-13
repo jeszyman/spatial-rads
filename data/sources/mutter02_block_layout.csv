@@ -1,0 +1,13 @@
+block,slide,condition,timepoint_h,mouse_id,timepoint_source,notes
+1,1,Control,48,TBD_ctrl_block1,yh2ax_layout_pptx_slide12_2d,block 1 also on slide 4 (4h) — verify with Fazzari whether same mouse
+34,1,MBRT,48,TBD_mbrt_block34,yh2ax_layout_pptx_slide1_2d,
+28,1,SBRT,48,TBD_sbrt_block28,yh2ax_layout_pptx_slide12_2d,
+2,2,Control,48,TBD_ctrl_block2,yh2ax_layout_pptx_slide12_2d,
+35,2,MBRT,48,TBD_mbrt_block35,yh2ax_layout_pptx_slide2_2d,
+30,2,SBRT,48,TBD_sbrt_block30,yh2ax_layout_pptx_slide12_2d,
+3,3,Control,4,TBD_ctrl_block3,yh2ax_layout_pptx_slide34_4h,
+19,3,MBRT,4,TBD_mbrt_block19,yh2ax_layout_pptx_slide3_4h,
+16,3,SBRT,4,TBD_sbrt_block16,yh2ax_layout_pptx_slide34_4h,
+1,4,Control,4,TBD_ctrl_block1,yh2ax_layout_pptx_slide34_4h,block 1 also on slide 1 (2d) — verify with Fazzari whether same mouse
+20,4,MBRT,4,TBD_mbrt_block20,yh2ax_layout_pptx_slide4_4h,
+18,4,SBRT,4,TBD_sbrt_block18,yh2ax_layout_pptx_slide34_4h,

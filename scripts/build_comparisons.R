@@ -20,7 +20,10 @@ ss[, timepoint_h := suppressWarnings(as.integer(timepoint_h))]
 # cohort label -> row filter on the samplesheet
 cohort_rows <- function(cohort) {
   switch(cohort,
-    mutter02_day2   = ss[name == "Mutter_02"],
+    mutter02_day2   = ss[name == "Mutter_02" & timepoint_h == 48],
+    mutter02_4h     = ss[name == "Mutter_02" & timepoint_h == 4],
+    combined_4h     = ss[timepoint_h == 4 & model == "flank"],
+    combined_4h_treated = ss[timepoint_h == 4 & model == "flank" & treatment != "NT"],
     mutter01_flank  = ss[name == "Mutter_01" & model == "flank"],
     mutter01_tongue = ss[name == "Mutter_01" & model == "tongue"],
     mutter01_mbrt_4h= ss[name == "Mutter_01" & treatment == "MBRT" & timepoint_h == 4],
@@ -65,8 +68,9 @@ for (e in reg) {
     unit <- e$unit %||% "sample"
     nu1  <- if (unit == "mouse") uniqueN(g1$mouse_id) else nrow(g1)
     nu2  <- if (unit == "mouse") uniqueN(g2$mouse_id) else nrow(g2)
+    min_n <- e$min_samples %||% 3L
     inf  <- (e$tier %||% "") %in% c("confirmatory","exploratory") &&
-            e$kind %in% c("sample","region") && nu1 >= 2 && nu2 >= 2
+            e$kind %in% c("sample","region") && nu1 >= min_n && nu2 >= min_n
     gate <- if (!is.null(e$requires)) "unchecked" else NA_character_
     rows[[length(rows)+1]] <- data.table(
       name = e$name, kind = e$kind, cohort = as.character(ch),
@@ -118,5 +122,14 @@ if (!is.null(committed)) {
 
 dir.create(dirname(out_p), recursive = TRUE, showWarnings = FALSE)
 fwrite(out, out_p, sep = "\t")
+
+## ---- emit per-cohort sample lists (consumed by engines for SE filtering) ----
+cohort_samples <- rbindlist(lapply(unique(na.omit(out$cohort)), function(ch) {
+  d <- cohort_rows(ch)
+  data.table(cohort = ch, sample_id = d$sample_id)
+}))
+cohort_samples_path <- file.path(dirname(out_p), "cohort_samples.tsv")
+fwrite(cohort_samples, cohort_samples_path, sep = "\t")
+
 cat(sprintf("comparisons: %d rows from %d registry entries\n", nrow(out), length(reg)))
 print(out[, .(name, cohort, resolution, n_mouse_group1, n_mouse_group2, resid_df, inference_capable, gate)])

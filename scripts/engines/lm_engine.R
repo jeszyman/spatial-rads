@@ -30,13 +30,24 @@ formula_str <- fam$formula[1]
 stopifnot(!is.na(formula_str))
 unit_val <- fam$unit[1]
 
+## ---- condition levels for cohort filtering ----
+CONDS <- unique(c(fam$contrast_num_level, fam$contrast_den_level))
+
+## ---- cohort sample whitelist (prevents cross-dataset condition-name leakage) ----
+cohort_samples_path <- file.path(dirname(comp_path), "cohort_samples.tsv")
+COHORT_SAMPLES <- if (file.exists(cohort_samples_path)) {
+  fread(cohort_samples_path)[cohort == coh, sample_id]
+} else character()
+
 ## ---- readout-specific eBayes robust flag (reproduces each source script) ----
 params <- read_yaml(params_path)
 robust <- isTRUE(params$lm_engine$robust[[readout]])
 
 ## ---- build the (feature x sample) matrix + the sample design table ----
 if (input_kind == "proportion") {
-  d <- fread(input_path)                       # per-cell: sample_id, label, condition, slide_id
+  d <- fread(input_path)
+  if (length(COHORT_SAMPLES) > 0) d <- d[sample_id %in% COHORT_SAMPLES]
+  d <- d[condition %in% CONDS]                 # filter to cohort conditions
   props <- getTransformedProps(clusters = d$label, sample = d$sample_id, transform = "logit")
   mat   <- props$TransformedProps              # celltype x sample, natural-log logit
   nonfinite <- apply(mat, 1, function(r) any(!is.finite(r)))
@@ -45,7 +56,9 @@ if (input_kind == "proportion") {
   est_scale <- ln2                             # report on log2-logit scale (composition.R)
   ftype <- "cell_type_proportion"
 } else if (input_kind == "matrix") {
-  d <- fread(input_path)                        # long: sample_id, feature_id, value, condition, slide_id
+  d <- fread(input_path)
+  if (length(COHORT_SAMPLES) > 0) d <- d[sample_id %in% COHORT_SAMPLES]
+  d <- d[condition %in% CONDS]                  # filter to cohort conditions
   w <- dcast(d, feature_id ~ sample_id, value.var = "value")
   mat <- as.matrix(w[, -1]); rownames(mat) <- w$feature_id
   mat <- mat[complete.cases(mat), , drop = FALSE]

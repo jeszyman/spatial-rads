@@ -2,7 +2,7 @@
 # Unify the aggregate typing tiers into one per-cell label table for all downstream analysis.
 # Left-joins tier-1 coarse (compartment) + tier-2 immune-rescued + tier-2 stroma-rescued onto
 # the full 3.27M-cell cohort, then resolves a single `cell_subtype` keyed by compartment:
-#   immune -> immune_subtype | stroma -> stroma_subtype | tumor -> "Tumor" | else "unassigned".
+#   immune -> immune_subtype | stroma -> stroma_subtype | tumor -> "Tumor" | else "stroma_unresolved".
 # Tumor carries no finer subtype by design (single 4T1 clone; de-novo subtyping rejected as
 # panel noise -- see plan-aggregate.md). Asserts every immune/stroma compartment cell has a
 # tier-2 label (the tier-2 tables are exact subsets of their compartment by construction).
@@ -29,7 +29,7 @@ assert df.loc[imm_cells,  "_imm"].notna().all(),  "immune cell(s) without a tier
 assert df.loc[strm_cells, "_strm"].notna().all(), "stroma cell(s) without a tier-2 stroma label"
 
 # resolve single fine label keyed by compartment
-df["cell_subtype"] = "unassigned"
+df["cell_subtype"] = "stroma_unresolved"
 df.loc[df["compartment"].eq("tumor"), "cell_subtype"] = "Tumor"
 df.loc[imm_cells,  "cell_subtype"] = df.loc[imm_cells,  "_imm"].to_numpy()
 df.loc[strm_cells, "cell_subtype"] = df.loc[strm_cells, "_strm"].to_numpy()

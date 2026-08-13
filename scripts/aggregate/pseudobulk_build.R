@@ -5,7 +5,7 @@
 # SummarizedExperiment with quality columns. No filtering here -- the abundance
 # floor and gene filter are applied downstream in deg_pseudobulk.R so the choice
 # is explicit and auditable. Per plan-aggregate.md Track 2 inference.
-# Args: <merged_typed.rds> <full_labels.parquet> <out_se.rds> <out_qc.tsv>
+# Args: <merged_typed.rds> <full_labels.parquet> <samples.tsv> <out_se.rds> <out_qc.tsv>
 suppressPackageStartupMessages({
   library(Seurat)
   library(Matrix)
@@ -17,14 +17,20 @@ suppressPackageStartupMessages({
 args        <- commandArgs(trailingOnly = TRUE)
 merged      <- args[1]
 labels_path <- args[2]
-out_se      <- args[3]
-out_qc      <- args[4]
+samples_tsv <- args[3]
+out_se      <- args[4]
+out_qc      <- args[5]
 
 o   <- readRDS(merged)
 md  <- o@meta.data
 lab <- as.data.table(read_parquet(labels_path))[, .(cell, cell_subtype)]
 md$cell_type <- lab$cell_subtype[match(rownames(md), lab$cell)]   # unified labels (full_labels.parquet)
-keep <- which(md$dataset == "Mutter_02" & !is.na(md$cell_type))
+ss <- fread(samples_tsv)[, .(sample_id, condition, timepoint_h)]
+md_cond <- ss$condition[match(md$sample_id, ss$sample_id)]
+md$condition <- ifelse(is.na(md_cond), md$condition, md_cond)
+md$timepoint_h <- ifelse(is.na(md_cond), md$timepoint_h,
+                         ss$timepoint_h[match(md$sample_id, ss$sample_id)])
+keep <- which(!is.na(md$cell_type) & md$model == "flank")
 stopifnot(length(keep) > 0)
 
 cnt <- LayerData(o, assay = "RNA", layer = "counts")[, keep, drop = FALSE]  # 950 x Nm2

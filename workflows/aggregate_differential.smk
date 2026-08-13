@@ -39,13 +39,15 @@ PYSCVI = "conda run -n spatial-rads-scvi python"
 # --- cohort: flank only ---
 _s    = pd.read_csv(MASTER, sep="\t")
 FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
+DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
+LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
 rule all:
     input:
         "results/aggregate/composition_by_sample.tsv",
         "results/aggregate/composition_test_m02day2.tsv",
         "results/aggregate/composition_unassigned_sensitivity.tsv",
-        "results/aggregate/engine/composition_engine.tsv",
-        "results/aggregate/engine/de_engine.tsv",
+        expand("results/aggregate/engine/composition_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/de_engine_{coh}.tsv", coh=DE_COHORTS),
         "results/aggregate/engine/niche_engine.tsv",
         "results/aggregate/engine/mixing_engine.tsv",
         "results/aggregate/engine/myeloid_engine.tsv",
@@ -54,7 +56,6 @@ rule all:
         "results/aggregate/plots/composition_m02day2_forest.png",
         "results/aggregate/plots/composition_m01_timecourse.png",
         "results/aggregate/pseudobulk_qc.tsv",
-        "results/aggregate/engine/de_engine.tsv",
         "results/aggregate/differential_detection.tsv",
         "results/aggregate/gsea_pseudobulk_m02day2.tsv",
         "results/aggregate/pathway_scores_summary.tsv",
@@ -111,27 +112,28 @@ rule composition:
         "{output.timecourse} {output.sensitivity} {output.lm_input} > {log} 2>&1"
 # --- engine: composition arm test (propeller/logit path) on the per-cell labels ---
 rule composition_engine:
-    message: "composition_engine: lm_engine proportion test on cell-type composition (M02 day2)"
+    message: "composition_engine: lm_engine proportion test ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         cells  = "results/aggregate/engine_inputs/composition_cells.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/composition_engine.tsv",
+        stats = "results/aggregate/engine/composition_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/composition_engine.log",
+        f"{D_LOGS}/composition_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 composition "
+        "{RSCRIPT} {input.script} {input.cells} proportion {wildcards.cohort} composition "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
-# --- Track 2: pseudobulk construction (M02 day2, sample x cell_type count sums) ---
+# --- Track 2: pseudobulk construction (all flank, sample x cell_type count sums) ---
 rule pseudobulk_build:
-    message: "pseudobulk_build: sample x cell_type pseudobulk count sums (M02 day2)"
+    message: "pseudobulk_build: sample x cell_type pseudobulk count sums (all flank)"
     input:
         script = f"{R_SCRIPTS}/pseudobulk_build.R",
-        rds    = MERGED,   # re-pointed off the deleted merged_typed.rds (count-only consumer; labels from full_labels.parquet)
+        rds    = MERGED,
         labels = LABELS,
+        ss     = MASTER,
     output:
         se = f"{D_AGG}/pseudobulk_se.rds",
         qc = "results/aggregate/pseudobulk_qc.tsv",
@@ -139,25 +141,25 @@ rule pseudobulk_build:
     log:
         f"{D_LOGS}/pseudobulk_build.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.se} {output.qc} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.ss} {output.se} {output.qc} > {log} 2>&1"
 # --- Track 2 inference: pseudobulk NB DE via the count engine (M02 day2, abundance-floored,
 # apeglm two-fit). Sole pseudobulk-DE source: feeds results_master, gsea, and concordance.
 # (Superseded the standalone deg_pseudobulk.R -- retired 2026-07-13, output bit-identical.) ---
 rule de_engine:
-    message: "de_engine: count_engine pseudobulk NB DE (apeglm two-fit) -> sufficient stats"
+    message: "de_engine: count_engine pseudobulk NB DE ({wildcards.cohort}) -> sufficient stats"
     input:
         script = "scripts/engines/count_engine.R",
         se     = f"{D_AGG}/pseudobulk_se.rds",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats   = "results/aggregate/engine/de_engine.tsv",
-        skipped = "results/aggregate/engine/de_engine_skipped.tsv",
+        stats   = "results/aggregate/engine/de_engine_{cohort}.tsv",
+        skipped = "results/aggregate/engine/de_engine_{cohort}_skipped.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/de_engine.log",
+        f"{D_LOGS}/de_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.se} mutter02_day2 {input.comp} {input.params} "
+        "{RSCRIPT} {input.script} {input.se} {wildcards.cohort} {input.comp} {input.params} "
         "{output.stats} {output.skipped} > {log} 2>&1"
 # --- Track 3 differential detection: fraction-of-cells-expressing change (muscat) ---
 # dd_prep exports an SCE from merged.rds (main env has Seurat/arrow); dd_muscat runs
@@ -194,7 +196,7 @@ rule gsea:
     message: "gsea: GSEA on pseudobulk stat-ranked genes (primary + Hallmark)"
     input:
         script = f"{R_SCRIPTS}/gsea.R",
-        degs   = "results/aggregate/engine/de_engine.tsv",
+        degs   = "results/aggregate/engine/de_engine_mutter02_day2.tsv",
         sets   = "results/data_model/pathway_sets.tsv",
     output:
         gsea = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
@@ -420,7 +422,7 @@ rule concordance_m01_m02:
         script = f"{R_SCRIPTS}/concordance_m01_m02.R",
         rds    = MERGED,
         labels = LABELS,
-        degs   = "results/aggregate/engine/de_engine.tsv",
+        degs   = "results/aggregate/engine/de_engine_mutter02_day2.tsv",
     output:
         tsv     = "results/aggregate/concordance_m01_m02.tsv",
         scatter = "results/aggregate/plots/concordance_scatter.png",
@@ -493,8 +495,8 @@ rule assemble_results:
     message: "assemble_results: tier-tagged master results table with confirmatory-family FDR"
     input:
         script  = f"{R_SCRIPTS}/assemble_results.R",
-        comp    = "results/aggregate/engine/composition_engine.tsv",
-        degs    = "results/aggregate/engine/de_engine.tsv",
+        comp    = "results/aggregate/engine/composition_engine_mutter02_day2.tsv",
+        degs    = "results/aggregate/engine/de_engine_mutter02_day2.tsv",
         gsea    = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
         pathway = "results/aggregate/pathway_test_m02day2.tsv",
         niche   = "results/aggregate/engine/niche_engine.tsv",

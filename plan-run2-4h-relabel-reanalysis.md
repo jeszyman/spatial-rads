@@ -1,5 +1,7 @@
 # Run 2 timepoint relabel and 4h re-analysis — implementation plan
 
+**Status: Phases 0-5 COMPLETE (2026-08-13). Phase 6 (peak/valley modules) gated on H2AX. Phase 7 COMPLETE (2026-08-13): design figure re-rendered, CLAUDE.md corrected, corrected day-2 GSEA, 4h pathway test (null), 4h concordance (null at n=1 M01), memory updated. Post-plan fixes (2026-08-13): arm table padj changed from pooled BH to per-cell_type BH (field-standard per muscat); "unassigned" stroma renamed to "stroma_unresolved" in scripts, parquets, and docs; producer scripts generalized to all-flank.**
+
 ## Context
 
 `build_metadata_xlsx.R` hardcodes all M02 samples as 48h harvest. The yH2AX layout doc shows slides 3-4 are 4h. Fix the labels and re-run the 4h analysis with all three MBRT animals (1 from Run 1, 2 from Run 2) integrated.

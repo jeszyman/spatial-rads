@@ -63,11 +63,9 @@ freq[, frac := n / sum(n), by = sample_id]
 setorder(freq, dataset, sample_id, niche)
 fwrite(freq, out_freq, sep = "\t")
 
-# --- engine input: per-cell niche labels (cell, sample_id, label, condition, slide_id), M02
-# day2. The propeller arm test on niche frequency now runs in the shared lm_engine
-# (proportion/logit path, robust eBayes); this producer only assigns the niche labels. ---
-m2 <- d[dataset == "Mutter_02"]
-lm_input <- m2[, .(cell, sample_id, label = niche, condition, slide_id)]
+# --- engine input: per-cell niche labels (cell, sample_id, label, condition, slide_id), all
+# flank samples. The lm_engine applies cohort_samples.tsv whitelist filtering. ---
+lm_input <- d[!grepl("^Tongue", condition), .(cell, sample_id, label = niche, condition, slide_id)]
 fwrite(lm_input, out_lm_input, sep = "\t")
 
 # --- plots ----------------------------------------------------------------------
@@ -80,15 +78,14 @@ p_heat <- ggplot(cent_long, aes(cell_subtype, niche, fill = mean_frac)) +
 ggsave(plot_heat, p_heat, width = 9, height = 4.5, dpi = 150)
 
 m2f <- freq[dataset == "Mutter_02"]
-m2f[, condition := factor(condition, levels = c("Control", "MBRT_day2", "SBRT_day2"))]
 p_freq <- ggplot(m2f, aes(niche, frac, fill = condition)) +
   geom_boxplot(outlier.size = 0.5, position = position_dodge(width = 0.8)) +
   geom_point(size = 0.7, position = position_dodge(width = 0.8)) +
   scale_fill_brewer(palette = "Set1") +
   labs(x = NULL, y = "niche fraction of sample",
-       title = "M02 day2 niche frequency by arm (n=4/arm)") +
+       title = "M02 niche frequency by arm") +
   theme_bw(base_size = 10)
 ggsave(plot_freq, p_freq, width = 8, height = 4.5, dpi = 150)
 
-cat(sprintf("niches: %d cells, K=%d | cluster sizes %s | lm input %d M02 cells\n",
+cat(sprintf("niches: %d cells, K=%d | cluster sizes %s | lm input %d flank cells\n",
             nrow(d), K, paste(km$size, collapse = "/"), nrow(lm_input)))

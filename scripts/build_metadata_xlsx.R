@@ -47,8 +47,11 @@ slides_m02 <- tibble(
 slides <- bind_rows(slides_m01, slides_m02)
 barcode2sld <- setNames(slides_m01$slide_id, slides_m01$physical_barcode)
 
-## Mutter_02 sample layout (Jenn Fazzari 2026-04-09; from 00_load_data_mutter02.R:40-62)
+## Mutter_02 sample layout: block-to-slide positions from Jenn Fazzari (2026-04-09),
+## timepoints from the yH2AX layout doc (slides 1-2 = 2d, slides 3-4 = 4h).
 ## rank by descending y_slide_mm: 1=top=Control, 2=mid=MBRT, 3=bottom=SBRT
+LAYOUT_CSV <- "data/sources/mutter02_block_layout.csv"
+layout     <- read.csv(LAYOUT_CSV)
 m02 <- tribble(
   ~slide_num, ~rank, ~region_id, ~treatment,
   1, 1, 1,  "Control",
@@ -64,7 +67,17 @@ m02 <- tribble(
   4, 2, 20, "MBRT",
   4, 3, 18, "SBRT"
 )
-cond_map_m02 <- c(Control = "Control", MBRT = "MBRT_day2", SBRT = "SBRT_day2")
+## Join timepoint from the layout CSV (keyed on block + slide)
+m02 <- m02 %>%
+  left_join(layout %>% select(block, slide, timepoint_h),
+            by = c("region_id" = "block", "slide_num" = "slide"))
+stopifnot(!anyNA(m02$timepoint_h),
+          length(unique(m02$timepoint_h)) > 1)
+stopifnot(all(layout$block %in% m02$region_id))
+## Condition suffix encodes timepoint: MBRT_4h / MBRT_day2 etc; Control stays Control
+cond_suffix  <- ifelse(m02$timepoint_h == 4, "_4h", "_day2")
+cond_map_m02 <- ifelse(m02$treatment == "Control", "Control",
+                       paste0(m02$treatment, cond_suffix))
 dose_m02     <- c(Control = 0, MBRT = NA_real_, SBRT = 20)  # SBRT 20 Gy per layout note; MBRT peak dose TBD
 
 ## samples
@@ -81,13 +94,13 @@ samples_m01 <- flat %>% transmute(
   strain          = coalesce(strain,          if_else(treatment == "NT", "Balb/c", NA_character_))
 )
 samples_m02 <- m02 %>%
-  mutate(  # derive dose/condition from raw label, THEN harmonize control to NT (matches Mutter_01)
+  mutate(
     dose_gy   = unname(dose_m02[treatment]),
-    condition = unname(cond_map_m02[treatment]),
+    condition = cond_map_m02,
     treatment = if_else(treatment == "Control", "NT", treatment)
   ) %>% transmute(
     block_label = paste0("s", slide_num, "_region", region_id),
-    condition, treatment, timepoint_h = 48,
+    condition, treatment, timepoint_h,
     model = "flank", tumor_cell_line = "4T1",
     tumor_type = "mammary carcinoma, TNBC/claudin-low", strain = "Balb/c",
     slide_id = slides_m02$slide_id[slide_num],

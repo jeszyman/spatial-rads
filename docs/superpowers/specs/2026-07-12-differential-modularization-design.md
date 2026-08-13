@@ -1,8 +1,10 @@
 # Modularizing the differential layer — design
 
-> **Status: settled design, 2026-07-12.** Self-contained handoff for a fresh agent: act on
-> this without the originating conversation. It states the target architecture as decisions.
-> Next step is `superpowers:writing-plans` (the design choices below are already made).
+> **Status: IMPLEMENTED + validated 2026-07-13.** Built per
+> `docs/superpowers/plans/2026-07-12-differential-modularization.md`; the convergent run passed
+> run-once scientific validation and the results master is byte-identical to pre-refactor. The
+> architecture below is now the live code (engines in `scripts/engines/`, correction consolidated
+> in `assemble_results.R`). Implementation notes and gotchas: memory `project_differential_modularization`.
 
 ## Goal
 

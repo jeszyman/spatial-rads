@@ -28,6 +28,12 @@ P <- read_yaml(params_path)$count_engine
 MIN_CELLS <- P$min_cells; MIN_SAMPLES <- P$min_samples
 GENE_MIN_CT <- P$gene_min_count; GENE_MIN_SMP <- P$gene_min_samples
 
+## ---- cohort sample whitelist (prevents cross-dataset condition-name leakage) ----
+cohort_samples_path <- file.path(dirname(comp_path), "cohort_samples.tsv")
+COHORT_SAMPLES <- if (file.exists(cohort_samples_path)) {
+  fread(cohort_samples_path)[cohort == coh, sample_id]
+} else character()
+
 ## ---- contrasts from the registry: name -> (num, den=ref) ----
 comp <- fread(comp_path)
 fam  <- comp[cohort == coh & kind == "sample" & !is.na(contrast_num_level)]
@@ -47,9 +53,15 @@ dir.create(dirname(out_degs), recursive = TRUE, showWarnings = FALSE)
 se <- readRDS(se_path)
 cd <- as.data.table(as.data.frame(colData(se)), keep.rownames = "col")
 
+if (length(COHORT_SAMPLES) > 0) {
+  keep_cols <- cd$col[cd$sample_id %in% COHORT_SAMPLES]
+  se <- se[, keep_cols]
+  cd <- cd[sample_id %in% COHORT_SAMPLES]
+}
+
 deg_rows <- list(); skip_rows <- list()
-usable   <- cd[n_cells >= MIN_CELLS, .(n_pass = .N), by = .(cell_type, condition)]
-all_types <- sort(unique(cd$cell_type))
+usable   <- cd[condition %in% CONDS & n_cells >= MIN_CELLS, .(n_pass = .N), by = .(cell_type, condition)]
+all_types <- sort(unique(cd[condition %in% CONDS, cell_type]))
 
 for (ct in all_types) {
   u  <- usable[cell_type == ct]
@@ -68,7 +80,7 @@ for (ct in all_types) {
     next
   }
 
-  cols <- cd[cell_type == ct & n_cells >= MIN_CELLS, col]
+  cols <- cd[cell_type == ct & condition %in% CONDS & n_cells >= MIN_CELLS, col]
   sub  <- se[, cols]
   colData(sub)$condition <- factor(colData(sub)$condition, levels = CONDS)
   colData(sub)$slide_id  <- factor(colData(sub)$slide_id)

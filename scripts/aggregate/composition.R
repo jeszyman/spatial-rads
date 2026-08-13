@@ -56,11 +56,11 @@ fwrite(by_sample, out_by_sample, sep = "\t")
 # The canonical composition arm test that enters results_master runs in the shared lm_engine
 # (proportion/logit path, robust eBayes) on this; the inline propeller below stays only for
 # this producer's forest plot + unassigned-sensitivity diagnostics. ---
-lm_input <- m[dataset == "Mutter_02", .(cell, sample_id, label = cell_type, condition, slide_id)]
+lm_input <- m[!grepl("^Tongue", condition), .(cell, sample_id, label = cell_type, condition, slide_id)]
 fwrite(lm_input, out_lm_input, sep = "\t")
 
-# --- M02 day2 propeller test ----------------------------------------------
-m2 <- m[dataset == "Mutter_02"]
+# --- M02 day2 propeller test (inline, retained for forest plot only) -------
+m2 <- m[dataset == "Mutter_02" & as.integer(timepoint_h) == 48L]
 m2[, condition := factor(condition, levels = c("Control", "MBRT_day2", "SBRT_day2"))]
 
 props <- getTransformedProps(clusters = m2$cell_type, sample = m2$sample_id,
@@ -108,7 +108,8 @@ test <- rbindlist(lapply(colnames(cm), function(cn) {
     pvalue       = tt$P.Value)
 }))
 test[, padj := p.adjust(pvalue, method = "BH")]                # global across all rows
-test[, `:=`(method = "propeller", n_samples_per_group = 4L,
+nmin <- min(table(unique(m2[, .(sample_id, condition)])$condition))
+test[, `:=`(method = "propeller", n_samples_per_group = as.integer(nmin),
             mean_n_cells = round(mean_n_cells[cell_type], 1), dataset = "Mutter_02")]
 setcolorder(test, c("cell_type", "contrast", "log2FC_logit", "ci_low_log2",
                     "ci_high_log2", "t_stat", "pvalue", "padj", "method",
@@ -145,7 +146,7 @@ cat(sprintf("unassigned sensitivity: %d labelled-type rows, %d flip inclusion re
             nrow(sens), sens[flip == TRUE, .N]))
 
 # --- plot 1: M02 stacked composition bars (top-15 types + Other) ----------
-m2_bys <- by_sample[dataset == "Mutter_02"]
+m2_bys <- by_sample[dataset == "Mutter_02" & as.integer(timepoint_h) == 48L]
 top15  <- m2_bys[, .(tot = sum(n_cells)), by = cell_type][order(-tot)][1:15, cell_type]
 m2_bys[, ct_lab := ifelse(cell_type %in% top15, cell_type, "Other")]
 lvls   <- c(top15, "Other")

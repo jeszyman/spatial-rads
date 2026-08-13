@@ -5,7 +5,7 @@
 # Pre-registered: tier + hypotheses are frozen (git-HEAD freeze check, like pathway sets).
 
 comparisons:
-  # ---- sample-level, day-2 inference cohort (n=4, formal) ----
+  # ---- sample-level, day-2 inference cohort (n=2/arm after relabel) ----
   - name: SBRT_vs_Ctrl
     kind: sample
     resolution: [whole, compartment]
@@ -53,12 +53,61 @@ comparisons:
     view:
       differential_response_scatter: true
 
+  # ---- sample-level, 4h arm contrasts (M01+M02 combined) ----
+  - name: MBRT_vs_SBRT_4h
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: combined_4h_treated
+    group1: {treatment: MBRT, timepoint_h: 4, model: flank}
+    group2: {treatment: SBRT, timepoint_h: 4, model: flank}
+    unit: mouse
+    formula: "~0 + condition"
+    contrast_levels: {num: MBRT_4h, den: SBRT_4h}
+    transform: logit
+    tier: exploratory
+    dose_confounded: true
+    notes: >
+      Combined M01+M02 cohort (n=3 MBRT, n=3 SBRT). Own 2-condition cohort
+      without controls so the DESeq2 sample-count floor does not block the contrast.
+      No slide_id covariate: each slide contributes exactly one section per arm.
+
+  - name: MBRT_vs_Ctrl_4h
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: combined_4h
+    group1: {treatment: MBRT, timepoint_h: 4, model: flank}
+    group2: {treatment: NT,   timepoint_h: 4, model: flank}
+    unit: mouse
+    formula: "~0 + condition"
+    contrast_levels: {num: MBRT_4h, den: Control}
+    transform: logit
+    tier: exploratory
+    min_samples: 2
+    notes: >
+      Control n=2 (M02 only, M01 has no 4h control). Treat as independent
+      pending Fazzari mouse-to-block confirmation. Low-powered.
+
+  - name: SBRT_vs_Ctrl_4h
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: combined_4h
+    group1: {treatment: SBRT, timepoint_h: 4, model: flank}
+    group2: {treatment: NT,   timepoint_h: 4, model: flank}
+    unit: mouse
+    formula: "~0 + condition"
+    contrast_levels: {num: SBRT_4h, den: Control}
+    transform: logit
+    tier: exploratory
+    min_samples: 2
+    notes: >
+      Control n=2 (M02 only). Same caveat as MBRT_vs_Ctrl_4h.
+
   # ---- region-level, within-sample ----
   - name: MBRT_peak_vs_valley
     kind: region
     axis: dist_to_peak
     test: periodicity_rotation_null
-    cohorts: [mutter01_mbrt_4h, mutter02_day2]
+    cohorts: [mutter01_mbrt_4h, mutter02_4h]
     unit: mouse
     pairing: within_mouse
     requires: h2ax_registration
@@ -67,7 +116,7 @@ comparisons:
 
   - name: MBRT_valley_vs_SBRT
     kind: region
-    cohorts: [mutter02_day2]
+    cohorts: [mutter02_4h]
     unit: mouse
     requires: h2ax_registration
     tier: exploratory

@@ -16,7 +16,6 @@ a <- commandArgs(trailingOnly = TRUE)
 merged_path <- a[1]; labels_path <- a[2]
 out_scores <- a[3]; out_lm_input <- a[4]; plot_m02 <- a[5]
 SEED <- 42L; UCELL_CORES <- 8L
-CONDS <- c("Control", "MBRT_day2", "SBRT_day2")
 
 m1_markers <- c("Nos2","Tnf","Il6","Il1b","Il12b","Cxcl9","Cxcl10","Cxcl11","Cd86",
                 "Cd80","Tlr2","Tlr4","Stat1","Irf5","Hif1a","Nfkb1")
@@ -53,18 +52,17 @@ score <- md[!is.na(M1_score) & !is.na(M2_score),
 setorder(score, dataset, timepoint_h, sample_id)
 fwrite(score, out_scores, sep = "\t")
 
-# --- engine input: long (sample_id, feature_id, value, condition, slide_id), M02 day2. The
-# arm test on these per-sample macrophage metrics now runs in the shared lm_engine
-# (matrix/identity path, non-robust eBayes); this producer only builds the feature matrix. ---
+# --- engine input: long (sample_id, feature_id, value, condition, slide_id), all flank
+# samples. The lm_engine applies cohort_samples.tsv whitelist filtering. ---
 metrics <- c("M1_mean", "M2_mean", "M2_M1_ratio")
-m2 <- score[dataset == "Mutter_02" & timepoint_h == 48L]
-m2[, condition := factor(condition, levels = CONDS)]
-lm_input <- melt(m2[, c("sample_id", "condition", "slide_id", metrics), with = FALSE],
+flank <- score[!grepl("^Tongue", condition)]
+lm_input <- melt(flank[, c("sample_id", "condition", "slide_id", metrics), with = FALSE],
                  id.vars = c("sample_id", "condition", "slide_id"),
                  variable.name = "feature_id", value.name = "value")
 fwrite(lm_input, out_lm_input, sep = "\t")
 
 # --- plot: M1 / M2 / ratio by arm (M02 day2) -----------------------------------
+m2 <- score[dataset == "Mutter_02" & timepoint_h == 48L]
 pd <- melt(m2[, c("sample_id", "condition", metrics), with = FALSE],
            id.vars = c("sample_id", "condition"),
            variable.name = "metric", value.name = "value")
@@ -74,10 +72,9 @@ p <- ggplot(pd, aes(condition, value, fill = condition)) +
   facet_wrap(~ metric, scales = "free_y") +
   scale_fill_brewer(palette = "Set1") +
   labs(x = NULL, y = NULL,
-       title = "M02 day2 macrophage M1/M2 polarization by arm (n=4/arm)") +
+       title = "M02 day-2 macrophage M1/M2 polarization by arm (n=2/arm)") +
   theme_bw(base_size = 10) + theme(axis.text.x = element_text(angle = 20, hjust = 1))
 ggsave(plot_m02, p, width = 8, height = 4.5, dpi = 150)
 
-cat(sprintf("myeloid M1/M2: %d samples | lm input %d rows (%d metrics x %d M02 samples) | M2/M1 range %.3f-%.3f\n",
-            nrow(score), nrow(lm_input), length(metrics), nrow(m2),
-            min(m2$M2_M1_ratio), max(m2$M2_M1_ratio)))
+cat(sprintf("myeloid M1/M2: %d samples | lm input %d rows (%d metrics x %d flank samples)\n",
+            nrow(score), nrow(lm_input), length(metrics), nrow(flank)))
