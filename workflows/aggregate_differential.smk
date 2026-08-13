@@ -82,6 +82,7 @@ rule all:
         "results/aggregate/substate_gate_report.tsv",
         "results/aggregate/detectability_summary.tsv",
         "results/aggregate/results_master.tsv",
+        "results/aggregate/overlap_ratio_qc.tsv",
         "results/aggregate/qc_arm_balance.tsv",
         "results/aggregate/qc_arm_balance_samples.tsv",
         "results/aggregate/qc_reproducibility.tsv",
@@ -507,6 +508,7 @@ rule assemble_results:
         cov     = "results/data_model/gene_set_panel_coverage.tsv",
         substate = "results/aggregate/engine/substate_engine.tsv",
         dd      = "results/aggregate/differential_detection.tsv",
+        overlap = "results/aggregate/overlap_ratio_qc.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -516,7 +518,8 @@ rule assemble_results:
     shell:
         "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.sets} {input.cov} {input.substate} {input.dd} {output.master} > {log} 2>&1"
+        "{input.mde} {input.sets} {input.cov} {input.substate} {input.dd} "
+        "{input.overlap} {output.master} > {log} 2>&1"
 # --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
 # technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
 # fraction shift is not a sensitivity/contamination artifact. ---
@@ -536,6 +539,25 @@ rule agg_qc_arm_balance:
     shell:
         "{RSCRIPT} {input.script} {input.tech} {input.contam} {input.samples} "
         "{output.tsv} {output.samples} > {log} 2>&1"
+# --- QC: smiDE overlap ratio -- per-gene, per-cell_subtype segmentation-contamination
+# metric (avg self expression vs avg neighbor-othertype expression within radius). Joined
+# onto results_master as contamination_ratio so a DE hit's segmentation risk is legible
+# alongside its effect size. ---
+rule overlap_ratio_qc:
+    message: "overlap_ratio_qc: smiDE per-gene per-cell_subtype segmentation contamination metric"
+    input:
+        script = f"{R_SCRIPTS}/overlap_ratio_qc.R",
+        rds    = MERGED,
+        labels = LABELS,
+        coords = f"{D_AGG}/coords_necrosis.parquet",
+    output:
+        tsv = "results/aggregate/overlap_ratio_qc.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/overlap_ratio_qc.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} "
+        "{output.tsv} > {log} 2>&1"
 # --- QC: replicate reproducibility -- per-arm pseudobulk concordance (SpatialQM getCorrelation) +
 # technical-metric PCA over the n=4/arm M02 day-2 cohort; flags an outlier slide driving an arm. ---
 rule agg_qc_reproducibility:

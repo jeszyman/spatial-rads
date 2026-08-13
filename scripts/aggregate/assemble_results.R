@@ -15,7 +15,7 @@
 # The six pre-registered hypotheses and their evidence live in config/hypotheses.yaml
 # (biological definition) + config/confirmatory_claims.yaml (readout->confirmatory map).
 # Args: <composition_test> <degs> <gsea> <pathway_test> <niche_test> <mixing_test>
-#       <myeloid_test> <power_mde> <pathway_sets.tsv> <out_master>
+#       <myeloid_test> <power_mde> <pathway_sets.tsv> <overlap_ratio_qc> <out_master>
 suppressPackageStartupMessages({ library(data.table) })
 
 # --- gatekeeping (secondary FDR view) -------------------------------------------
@@ -29,7 +29,8 @@ source("scripts/aggregate/fdr_helpers.R")   # add_gatekeeping()
 
 a <- commandArgs(trailingOnly = TRUE)
 comp_p <- a[1]; de_p <- a[2]; gsea_p <- a[3]; pw_p <- a[4]; ni_p <- a[5]
-mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; sub_p <- a[11]; ddet_p <- a[12]; out_p <- a[13]
+mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; sub_p <- a[11]; ddet_p <- a[12]
+overlap_p <- a[13]; out_p <- a[14]
 
 # Panel coverage table for the symmetric per-program coverage columns below.
 cov_dt <- fread(cov_p)                                   # set, tier, source, n_total, n_panel, usable, thin
@@ -127,6 +128,17 @@ dd_m <- dd[, .(readout_class="detection", unit=cell_type, feature=gene, contrast
 
 master <- rbindlist(list(comp_m, sub_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m, dd_m),
                     use.names = TRUE)
+
+# --- segmentation-contamination QC (smiDE overlap ratio) -------------------------
+# Per-gene, per-cell_subtype: does neighboring-cell-type expression exceed self
+# expression (ratio >= 1 = contamination-dominated in that cell type)? Only
+# applies to per-gene per-cell-type readouts (DE rows); all other readout_classes
+# (composition, niche, mixing, pathway, GSEA) get contamination_ratio = NA.
+orm <- fread(overlap_p)
+setnames(orm, old = c("gene", "cell_subtype", "ratio"),
+         new = c("feature", "unit", "contamination_ratio"),
+         skip_absent = TRUE)
+master <- orm[, .(feature, unit, contamination_ratio)][master, on = .(feature, unit)]
 
 # --- confirmatory tagging by frozen a-priori claims (not retro pattern-match) -----
 # Producers emit hypothesis=NA; the frozen results-tier config declares which

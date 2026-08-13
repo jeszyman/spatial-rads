@@ -49,3 +49,11 @@ dependencies:
   - r-magick
   # --- Parallel ---
   - r-future
+  # --- Segmentation-contamination QC (overlap_ratio_qc.R) ---
+  # smiDE itself is GitHub-only (Nanostring-Biostats/CosMx-Analysis-Scratch-Space,
+  # subdir _code/smiDE) -- not installable via conda, so it is NOT listed here;
+  # install with remotes::install_github(..., ref = "Main"). r-sf/r-spdep are its
+  # compiled geospatial dependencies, which fail building from CRAN source (missing
+  # GDAL/GEOS/PROJ headers) unless pulled as prebuilt conda-forge binaries first.
+  - r-sf
+  - r-spdep
