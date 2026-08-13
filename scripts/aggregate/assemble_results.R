@@ -15,7 +15,7 @@
 # The six pre-registered hypotheses and their evidence live in config/hypotheses.yaml
 # (biological definition) + config/confirmatory_claims.yaml (readout->confirmatory map).
 # Args: <composition_test> <degs> <gsea> <pathway_test> <niche_test> <mixing_test>
-#       <myeloid_test> <power_mde> <pathway_sets.tsv> <overlap_ratio_qc> <out_master>
+#       <myeloid_test> <power_mde> <pathway_sets.tsv> <overlap_ratio_qc> <smide_de> <out_master>
 suppressPackageStartupMessages({ library(data.table) })
 
 # --- gatekeeping (secondary FDR view) -------------------------------------------
@@ -30,7 +30,7 @@ source("scripts/aggregate/fdr_helpers.R")   # add_gatekeeping()
 a <- commandArgs(trailingOnly = TRUE)
 comp_p <- a[1]; de_p <- a[2]; gsea_p <- a[3]; pw_p <- a[4]; ni_p <- a[5]
 mx_p <- a[6]; my_p <- a[7]; mde_p <- a[8]; sets_p <- a[9]; cov_p <- a[10]; sub_p <- a[11]; ddet_p <- a[12]
-overlap_p <- a[13]; out_p <- a[14]
+overlap_p <- a[13]; smide_p <- a[14]; out_p <- a[15]
 
 # Panel coverage table for the symmetric per-program coverage columns below.
 cov_dt <- fread(cov_p)                                   # set, tier, source, n_total, n_panel, usable, thin
@@ -126,7 +126,24 @@ dd_m <- dd[, .(readout_class="detection", unit=cell_type, feature=gene, contrast
   hypothesis=NA_character_, n_per_arm=4L, n_samples_used=NA_integer_,
   dataset="Mutter_02", baseMean=NA_real_)]
 
-master <- rbindlist(list(comp_m, sub_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m, dd_m),
+# --- smiDE genome-wide per-cell NB mixed-model DE (co-primary with pseudobulk) -----
+smide <- fread(smide_p)
+if (nrow(smide) > 0) {
+  smide[, padj := p.adjust(p, "BH"), by = .(unit, contrast)]
+  smide_m <- smide[, .(readout_class="smiDE", unit=unit, feature=feature_id, contrast,
+    effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
+    ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
+    hypothesis=NA_character_, n_per_arm=4L, n_samples_used=NA_integer_,
+    dataset="Mutter_02", baseMean=NA_real_)]
+} else {
+  smide_m <- data.table(readout_class=character(), unit=character(), feature=character(),
+    contrast=character(), effect=numeric(), effect_type=character(), ci_low=numeric(),
+    ci_high=numeric(), se=numeric(), stat=numeric(), pvalue=numeric(), padj_own=numeric(),
+    hypothesis=character(), n_per_arm=integer(), n_samples_used=integer(),
+    dataset=character(), baseMean=numeric())
+}
+
+master <- rbindlist(list(comp_m, sub_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m, dd_m, smide_m),
                     use.names = TRUE)
 
 # --- segmentation-contamination QC (smiDE overlap ratio) -------------------------

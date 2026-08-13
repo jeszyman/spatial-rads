@@ -89,7 +89,7 @@ rule all:
         "results/aggregate/qc_panel_sparsity.tsv",
         "results/aggregate/qc_fov_signal.tsv",
         "results/aggregate/celltype_neighborhood_purity.tsv",
-        "results/aggregate/smide_validation.tsv",
+        "results/aggregate/engine/smide_de_mutter02_day2.tsv",
 # --- Track 1: cell-type composition (M02 day2 propeller test + M01 descriptive) ---
 rule composition:
     message: "composition: cell-type composition M02 day2 propeller test + M01 descriptive"
@@ -511,6 +511,7 @@ rule assemble_results:
         substate = "results/aggregate/engine/substate_engine.tsv",
         dd      = "results/aggregate/differential_detection.tsv",
         overlap = "results/aggregate/overlap_ratio_qc.tsv",
+        smide   = "results/aggregate/engine/smide_de_mutter02_day2.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -521,7 +522,7 @@ rule assemble_results:
         "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
         "{input.mde} {input.sets} {input.cov} {input.substate} {input.dd} "
-        "{input.overlap} {output.master} > {log} 2>&1"
+        "{input.overlap} {input.smide} {output.master} > {log} 2>&1"
 # --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
 # technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
 # fraction shift is not a sensitivity/contamination artifact. ---
@@ -560,29 +561,28 @@ rule overlap_ratio_qc:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} "
         "{output.tsv} > {log} 2>&1"
-# --- Validation: smiDE per-cell DE on confirmatory hits -- runs AFTER assemble_results
-# (consumes results_master.tsv for the confirmatory gene x cell_type list), so it is a
-# standalone validation side-output, not fed back into the master. Checks whether the
-# confirmatory pseudobulk DE hits (plus Cdkn1a across its cell types) survive the same
-# RankNorm(otherct_expr) segmentation-error correction as overlap_ratio_qc. ---
-rule smide_validation:
-    message: "smide_validation: smiDE per-cell DE on confirmatory hits + Cdkn1a (segmentation-corrected)"
+# --- genome-wide smiDE per-cell NB mixed-model DE (M02 day-2) ---
+# Co-primary with pseudobulk DESeq2: per-cell NB GLMM via nebula with neighbor-
+# expression covariate (segmentation-error correction) + sample-level random effect
+# (pseudoreplication correction). Emits engine-format sufficient statistics; joined
+# into results_master as readout_class="smiDE". Runs BEFORE assemble_results.
+rule smide_de:
+    message: "smide_de: genome-wide per-cell NB GLMM (smiDE/nebula, M02 day-2)"
     input:
-        script = f"{R_SCRIPTS}/smide_validation.R",
+        script = f"{R_SCRIPTS}/smide_de.R",
         rds    = MERGED,
         labels = LABELS,
         coords = f"{D_AGG}/coords_necrosis.parquet",
         obs    = OBS,
-        master = "results/aggregate/results_master.tsv",
         comp   = "results/data_model/comparisons.tsv",
     output:
-        tsv = "results/aggregate/smide_validation.tsv",
+        tsv = "results/aggregate/engine/smide_de_mutter02_day2.tsv",
     threads: 4
     log:
-        f"{D_LOGS}/smide_validation.log",
+        f"{D_LOGS}/smide_de.log",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
-        "{input.master} {input.comp} {output.tsv} > {log} 2>&1"
+        "{input.comp} {output.tsv} > {log} 2>&1"
 # --- QC: replicate reproducibility -- per-arm pseudobulk concordance (SpatialQM getCorrelation) +
 # technical-metric PCA over the n=4/arm M02 day-2 cohort; flags an outlier slide driving an arm. ---
 rule agg_qc_reproducibility:
