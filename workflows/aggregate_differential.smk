@@ -90,6 +90,8 @@ rule all:
         "results/aggregate/qc_fov_signal.tsv",
         "results/aggregate/celltype_neighborhood_purity.tsv",
         "results/aggregate/engine/smide_de_mutter02_day2.tsv",
+        "results/aggregate/insitucor_modules.tsv",
+        "results/aggregate/insitucor_module_summary.tsv",
 # --- Track 1: cell-type composition (M02 day2 propeller test + M01 descriptive) ---
 rule composition:
     message: "composition: cell-type composition M02 day2 propeller test + M01 descriptive"
@@ -523,6 +525,28 @@ rule assemble_results:
         "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
         "{input.mde} {input.sets} {input.cov} {input.substate} {input.dd} "
         "{input.overlap} {input.smide} {output.master} > {log} 2>&1"
+# ============================================================================
+# Spatial discovery: de novo spatial gene-gene co-expression modules, independent
+# of the curated pathway sets. Discovery input for the planned peak/valley signature
+# work. Runs on 4h timepoint cells only (all datasets, all arms).
+# ============================================================================
+rule insitucor_discovery:
+    message: "insitucor_discovery: spatial gene-correlation modules on 4h cells (InSituCor k=100)"
+    input:
+        script = f"{R_SCRIPTS}/insitucor_discovery.R",
+        rds    = MERGED,
+        labels = LABELS,
+        coords = f"{D_AGG}/coords_necrosis.parquet",
+        obs    = OBS,
+    output:
+        modules = "results/aggregate/insitucor_modules.tsv",
+        summary = "results/aggregate/insitucor_module_summary.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/insitucor_discovery.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
+        "{output.modules} {output.summary} > {log} 2>&1"
 # --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
 # technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
 # fraction shift is not a sensitivity/contamination artifact. ---
