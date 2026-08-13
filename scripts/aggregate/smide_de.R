@@ -29,7 +29,7 @@ EMPTY_OUT <- function() {
 }
 
 comp <- fread(comp_path)
-cohort_comp <- comp[name == "mutter02_day2" & !is.na(contrast_num_level)]
+cohort_comp <- comp[cohort == "mutter02_day2" & !is.na(contrast_num_level)]
 if (nrow(cohort_comp) == 0) {
   cat("smide_de: no mutter02_day2 comparisons found\n")
   fwrite(EMPTY_OUT(), out_tsv, sep = "\t")
