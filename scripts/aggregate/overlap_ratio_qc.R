@@ -56,7 +56,13 @@ orm <- overlap_ratio_metric(
   radius       = RADIUS_MM,
   split_neighbors_by_colname = "sample_id"
 )
-setnames(orm, c("target", "cell_subtype"), c("gene", "cell_subtype"), skip_absent = TRUE)
+# smiDE's native names (verified against installed smiDE 0.0.2.5, see the Step 1b
+# prototype in the task brief): target/avg_cluster/avg_neighbor_othercluster.
+# `all_data` is a constant provenance flag ("all_cells"), dropped below -- one row
+# per gene x cell_subtype already carries all the information it would add.
+setnames(orm, old = c("target", "avg_cluster", "avg_neighbor_othercluster"),
+         new = c("gene", "avg_self", "avg_neighbor_othertype"), skip_absent = TRUE)
+orm <- orm[, .(gene, cell_subtype, avg_self, avg_neighbor_othertype, ratio)]
 fwrite(orm, out_tsv, sep = "\t")
 
 n_contaminated <- sum(orm$ratio >= 1, na.rm = TRUE)
