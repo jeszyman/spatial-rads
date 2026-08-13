@@ -202,7 +202,7 @@ Cross-timepoint MBRT vs SBRT is the primary thread (broader, transferable, where
 *** Project foundation
 
 - [[id:ba78a9a7-f35f-478e-b47d-44e60ef306b2][Biological model]] — 4T1 flank tumor model, MBRT (microbeam) vs SBRT (uniform), timepoints 1h / 4h / d2 / d6, peak/valley anatomy from H2AX IHC ground truth on Block_21
-- [[id:5ece068f-b135-4897-9892-834aaa321d8b][Data model]] — =metadata.xlsx= as single source of truth, preprocessed into =data/data_model.rda= via =make_data_model.R=; subjects / samples / sequencing schema
+- Data model — =metadata.xlsx= as single source of truth, preprocessed into =data/data_model.rda= via =make_data_model.R=; subjects / samples / sequencing schema
 
 *** Branches
 
@@ -2325,7 +2325,6 @@ rule unify_labels:
         "{PYSCVI} {input.script} {input.coarse} {input.immune} {input.stroma} "
         "{output.labels} {output.summary} > {log} 2>&1"
 #+end_src
-***
 *** M1 Peak and valley analysis
 per cell DE does not work
 The principle (why FOV-pseudobulk is right, per-cell Wilcoxon wrong) — these are the
@@ -5778,6 +5777,8 @@ An /engine/ here is just the generic test executor. You hand it a table and a co
 
 The *count engine* ([[file:scripts/engines/count_engine.R]]) handles gene-level differential expression on the CosMx counts. It is negative-binomial pseudobulk DESeq2: raw counts are summed within each (sample x cell type) group into one profile per sample, then modelled per cell type. This is the field-standard method for per-cell-type differential expression on imaging-based spatial data, where per-cell counts are too sparse to model directly. It preserves the existing apeglm shrinkage exactly, including the two-fit pattern (one fit with Control as reference for the versus-Control contrasts, a second releveled to SBRT for MBRT-versus-SBRT), because apeglm accepts only a single coefficient, not an arbitrary contrast vector.
 
+The 4h MBRT-versus-SBRT contrast runs in its own 2-condition cohort (MBRT and SBRT only, no controls) rather than the 3-condition model used by the versus-Control contrasts. Pooling untreated controls into the MBRT-versus-SBRT fit was tested (2026-08-13) and rejected: the controls inflated the residual variance (untreated tissue has different dispersion from irradiated tissue), dropping significant hits from 10 to 4 despite the gain from 1 extra residual degree of freedom (df 2 to 3). The dedicated 2-condition fit preserves the variance estimate relevant to the treated-versus-treated comparison.
+
 The *linear-model engine* ([[file:scripts/engines/lm_engine.R]]) does NOT touch transcript counts. It runs a limma moderated-t test on /sample-level derived features/: one number per sample obtained by collapsing that sample's cells. Its primary use is cell-type composition. Stating that fibroblasts are 42% of a sample's cells needs no model; the model exists to /test whether that proportion differs between arms/, computing an effect size, 95% confidence interval, and p-value on the logit-transformed fraction while adjusting for slide, at n=4 mice per arm. That specific test is propeller ([[https://doi.org/10.1093/bioinformatics/btac582][Phipson et al. 2022]]), which is limma applied to logit-transformed cell-type proportions and is a recognized standard for single-cell and spatial composition testing. The same engine runs the analogous arm-comparison test for the other per-sample readouts (pathway module scores, tumor-immune mixing scores, myeloid M1/M2 ratio) via an identity transform; those are sound general-purpose sample-level statistics rather than a CosMx-specific named method, and none of them are new to this refactor, which only relocates code that already existed. The engine reproduces each source script's exact procedure, including whether =eBayes= used its robust variant, verified per engine against the pre-refactor output to floating-point tolerance.
 
 A thin /producer/ script per readout builds the feature table (proportions, niche frequencies, mixing scores) and hands it to the appropriate engine; a single /results/ step then assigns the pre-registered hypotheses (H1 immune, H2 vascular, H3 stromal), applies the cross-family multiple-testing correction, and writes the tier-tagged master table. This is a code-architecture refactor only: the methods and the reported science are unchanged, and the within-tumor peak/valley spatial contrast (a permutation rotation-null test, gated on absent staining) is explicitly out of scope and would need a third engine family it does not preclude.
@@ -6492,7 +6493,7 @@ rule agg_celltype_purity:
   - https://gitlab.com/-/ide/project/salotz/Lotz2017sEHTPPUUnbinding/tree/master/-/drafts/draft1_salotz.pdf/
   - https://github.com/spacegraphcats/2018-paper-spacegraphcats
 - https://twitter.com/nicholaszaorsky/status/1479549305623035904?s=21
-- [[id:6475bbfa-39b8-4223-b511-67e91c0d144a][org-mark-readonly and org-remove-readonly]]
+- org-mark-readonly and org-remove-readonly
 *** CosMx
 :PROPERTIES:
 :ID:       ae921bef-9995-4e74-9a09-36dcbb2d5fe3
