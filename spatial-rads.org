@@ -6131,9 +6131,9 @@ rule celltype_qc:
 
 #+name: aggregate-differential-niches
 #+begin_src snakemake
-# --- T9: data-driven spatial niches (k=20 NN composition -> K=6 k-means) ---
+# --- T9: data-driven spatial niches (k=50 NN, SPIN 50%, Mclust BIC K selection) ---
 rule niches:
-    message: "niches: data-driven spatial niches (k=20 NN composition -> K=6 k-means)"
+    message: "niches: data-driven spatial niches (k=50 NN, SPIN 50%, Mclust BIC K selection)"
     input:
         script = f"{R_SCRIPTS}/niches.R",
         labels = LABELS,
@@ -6177,9 +6177,9 @@ rule niche_engine:
 
 #+name: aggregate-differential-spatial-mixing
 #+begin_src snakemake
-# --- T10: tumor-immune spatial mixing (immune-neighbour fraction + Keren score) ---
+# --- T10: tumor-immune spatial mixing (k=50 NN, immune-neighbour fraction + Keren score) ---
 rule spatial_mixing:
-    message: "spatial_mixing: tumor-immune spatial mixing (immune-neighbour fraction + Keren score)"
+    message: "spatial_mixing: tumor-immune spatial mixing (k=50 NN, immune-neighbour fraction + Keren score)"
     input:
         script = f"{R_SCRIPTS}/spatial_mixing.R",
         labels = LABELS,
