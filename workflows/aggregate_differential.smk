@@ -48,10 +48,10 @@ rule all:
         "results/aggregate/composition_unassigned_sensitivity.tsv",
         expand("results/aggregate/engine/composition_engine_{coh}.tsv", coh=LM_COHORTS),
         expand("results/aggregate/engine/de_engine_{coh}.tsv", coh=DE_COHORTS),
-        "results/aggregate/engine/niche_engine.tsv",
-        "results/aggregate/engine/mixing_engine.tsv",
-        "results/aggregate/engine/myeloid_engine.tsv",
-        "results/aggregate/engine/substate_engine.tsv",
+        expand("results/aggregate/engine/niche_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/mixing_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/myeloid_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/substate_engine_{coh}.tsv", coh=LM_COHORTS),
         "results/aggregate/plots/composition_m02day2_bars.png",
         "results/aggregate/plots/composition_m02day2_forest.png",
         "results/aggregate/plots/composition_m01_timecourse.png",
@@ -338,19 +338,19 @@ rule niches:
         "{output.heatmap} {output.freq_plot} > {log} 2>&1"
 # --- engine: niche frequency arm test (propeller/logit path) ---
 rule niche_engine:
-    message: "niche_engine: lm_engine proportion test on niche frequency (M02 day2)"
+    message: "niche_engine: lm_engine proportion test on niche frequency ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         cells  = "results/aggregate/engine_inputs/niche_cells.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/niche_engine.tsv",
+        stats = "results/aggregate/engine/niche_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/niche_engine.log",
+        f"{D_LOGS}/niche_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 niche "
+        "{RSCRIPT} {input.script} {input.cells} proportion {wildcards.cohort} niche "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 # --- T10: tumor-immune spatial mixing (k=50 NN, immune-neighbour fraction + Keren score) ---
 rule spatial_mixing:
@@ -373,19 +373,19 @@ rule spatial_mixing:
         "{output.per_sample} {output.lm_input} {output.per_cell} {output.plot} > {log} 2>&1"
 # --- engine: tumor-immune mixing arm test (matrix/identity path, non-robust) ---
 rule mixing_engine:
-    message: "mixing_engine: lm_engine identity test on spatial mixing metrics (M02 day2)"
+    message: "mixing_engine: lm_engine identity test on spatial mixing metrics ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         matrix = "results/aggregate/engine_inputs/mixing_metrics.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/mixing_engine.tsv",
+        stats = "results/aggregate/engine/mixing_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/mixing_engine.log",
+        f"{D_LOGS}/mixing_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 mixing "
+        "{RSCRIPT} {input.script} {input.matrix} matrix {wildcards.cohort} mixing "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 # --- T11: myeloid M1/M2 polarization (UCell M1/M2 panels -> per-sample ratio) ---
 # threads: 8 -- AddModuleScore_UCell forks UCELL_CORES=8 workers (BiocParallel, not
@@ -408,19 +408,19 @@ rule myeloid_polarization:
         "{output.lm_input} {output.plot} > {log} 2>&1"
 # --- engine: myeloid M1/M2 arm test (matrix/identity path, non-robust) ---
 rule myeloid_engine:
-    message: "myeloid_engine: lm_engine identity test on macrophage M1/M2 metrics (M02 day2)"
+    message: "myeloid_engine: lm_engine identity test on macrophage M1/M2 metrics ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         matrix = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/myeloid_engine.tsv",
+        stats = "results/aggregate/engine/myeloid_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/myeloid_engine.log",
+        f"{D_LOGS}/myeloid_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 myeloid "
+        "{RSCRIPT} {input.script} {input.matrix} matrix {wildcards.cohort} myeloid "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 # --- T12: M01<->M02 day-2 effect-size concordance on the unified labels ---
 rule concordance_m01_m02:
@@ -472,19 +472,19 @@ rule substate_composition:
         "{RSCRIPT} {input.script} {input.obs} {input.labels} {input.substate} {output.lm_input} > {log} 2>&1"
 # --- engine: fibroblast sub-state composition arm test (propeller/logit path) ---
 rule substate_engine:
-    message: "substate_engine: lm_engine proportion test on fibroblast sub-state composition (M02 day2)"
+    message: "substate_engine: lm_engine proportion test on fibroblast sub-state composition ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         cells  = "results/aggregate/engine_inputs/substate_cells.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/substate_engine.tsv",
+        stats = "results/aggregate/engine/substate_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/substate_engine.log",
+        f"{D_LOGS}/substate_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 substate "
+        "{RSCRIPT} {input.script} {input.cells} proportion {wildcards.cohort} substate "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 rule geneset_overlap:
     message: "geneset_overlap: pairwise gene-set overlap for the curated pathway sets"
