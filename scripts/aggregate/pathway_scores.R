@@ -45,14 +45,19 @@ lab <- as.data.table(read_parquet(labels_path))[, .(cell, cell_subtype)]
 lv  <- setNames(lab$cell_subtype, lab$cell)
 o$cell_type <- unname(lv[colnames(o)])
 
-# The rebuilt merged.rds already carries condition/treatment/timepoint_h/dataset
-# (dataset = "Mutter_01"/"Mutter_02") but is MISSING slide_id (not a norm.rds column).
-# Join only slide_id from the sample sheet; do NOT overwrite the existing columns
-# (samples.tsv uses dataset_id = dat0001/dat0002, which would break the "Mutter_02" filter).
+# samples.tsv is the single source of truth for sample-level metadata (condition,
+# timepoint, dataset, slide). merged.rds is a heavy intermediate rebuilt independently of
+# it and its baked-in condition/timepoint_h/dataset/slide_id copies can drift out of sync;
+# join all four from samples.tsv by sample_id (dataset = its "name" column, values
+# "Mutter_01"/"Mutter_02") and overwrite the merged object's copies rather than trust them.
 ss <- fread("results/data_model/samples.tsv")
 scol <- names(ss)[grepl("sample", names(ss), ignore.case = TRUE)][1]
-smeta <- unique(ss[, .(sample_id = get(scol), slide_id)])
-o$slide_id <- smeta$slide_id[match(o$sample_id, smeta$sample_id)]
+smeta <- unique(ss[, .(sample_id = get(scol), condition, timepoint_h, dataset = name, slide_id)])
+midx <- match(o$sample_id, smeta$sample_id)
+o$condition   <- smeta$condition[midx]
+o$timepoint_h <- smeta$timepoint_h[midx]
+o$dataset     <- smeta$dataset[midx]
+o$slide_id    <- smeta$slide_id[midx]
 # Fail-fast: assert EVERY column the downstream arm test (pathway_arm_test.R) needs is
 # populated, NOW (seconds) not after the ~5h scoring.
 stopifnot(!anyNA(o$sample_id), !anyNA(o$condition), !anyNA(o$slide_id),

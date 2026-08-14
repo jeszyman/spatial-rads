@@ -37,6 +37,16 @@ COHORT_SAMPLES <- if (file.exists(cohort_samples_path)) {
 } else character()
 
 summ <- fread(summary_path)
+## ---- sample-level metadata is authoritative from samples.tsv, not the summary cache.
+## The summary's own condition/slide_id/dataset columns are whatever was baked into
+## merged.rds at pathway_scores.R's last run and can drift out of sync with samples.tsv
+## (the declared single source of truth for sample metadata); drop them and rejoin. ----
+ss    <- fread("results/data_model/samples.tsv")
+scol  <- names(ss)[grepl("sample", names(ss), ignore.case = TRUE)][1]
+smeta <- unique(ss[, .(sample_id = get(scol), condition, slide_id, dataset = name)])
+summ[, c("condition", "slide_id", "dataset") := NULL]
+summ  <- merge(summ, smeta, by = "sample_id", sort = FALSE)
+
 d <- summ
 if (length(COHORT_SAMPLES) > 0) d <- d[sample_id %in% COHORT_SAMPLES]
 d <- d[condition %in% CONDS]
