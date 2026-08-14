@@ -518,20 +518,26 @@ rule assemble_results:
     message: "assemble_results: tier-tagged master results table with confirmatory-family FDR"
     input:
         script  = f"{R_SCRIPTS}/assemble_results.R",
-        comp    = "results/aggregate/engine/composition_engine_mutter02_day2.tsv",
-        degs    = "results/aggregate/engine/de_engine_mutter02_day2.tsv",
-        gsea    = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
-        pathway = "results/aggregate/pathway_test_mutter02_day2.tsv",
-        niche   = "results/aggregate/engine/niche_engine.tsv",
-        mixing  = "results/aggregate/engine/mixing_engine.tsv",
-        myeloid = "results/aggregate/engine/myeloid_engine.tsv",
-        mde     = "results/aggregate/power_mde.tsv",
-        sets    = "results/data_model/pathway_sets.tsv",
-        cov     = "results/data_model/gene_set_panel_coverage.tsv",
-        substate = "results/aggregate/engine/substate_engine.tsv",
-        dd      = "results/aggregate/differential_detection.tsv",
-        overlap = "results/aggregate/overlap_ratio_qc.tsv",
-        smide   = "results/aggregate/engine/smide_de_mutter02_day2.tsv",
+        # Declared expand()-ed lists give Snakemake DAG tracking over the full cohort
+        # roster; assemble_results.R itself globs the per-cohort filename pattern out of
+        # results/aggregate (and results/aggregate/engine) rather than taking one path
+        # per cohort, so this list only needs to be complete, not individually threaded
+        # through to the shell command.
+        comp     = expand("results/aggregate/engine/composition_engine_{coh}.tsv", coh=LM_COHORTS),
+        degs     = expand("results/aggregate/engine/de_engine_{coh}.tsv", coh=DE_COHORTS),
+        gsea     = expand("results/aggregate/gsea_pseudobulk_{coh}.tsv", coh=DE_COHORTS),
+        pathway  = expand("results/aggregate/pathway_test_{coh}.tsv", coh=LM_COHORTS),
+        niche    = expand("results/aggregate/engine/niche_engine_{coh}.tsv", coh=LM_COHORTS),
+        mixing   = expand("results/aggregate/engine/mixing_engine_{coh}.tsv", coh=LM_COHORTS),
+        myeloid  = expand("results/aggregate/engine/myeloid_engine_{coh}.tsv", coh=LM_COHORTS),
+        substate = expand("results/aggregate/engine/substate_engine_{coh}.tsv", coh=LM_COHORTS),
+        smide    = expand("results/aggregate/engine/smide_de_{coh}.tsv", coh=LM_COHORTS),
+        reg      = "results/data_model/comparisons.tsv",
+        mde      = "results/aggregate/power_mde.tsv",
+        sets     = "results/data_model/pathway_sets.tsv",
+        cov      = "results/data_model/gene_set_panel_coverage.tsv",
+        dd       = "results/aggregate/differential_detection.tsv",
+        overlap  = "results/aggregate/overlap_ratio_qc.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -539,10 +545,8 @@ rule assemble_results:
     log:
         f"{D_LOGS}/assemble_results.log",
     shell:
-        "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
-        "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.sets} {input.cov} {input.substate} {input.dd} "
-        "{input.overlap} {input.smide} {output.master} > {log} 2>&1"
+        "{RSCRIPT} {input.script} results/aggregate {input.reg} {input.mde} {input.sets} "
+        "{input.cov} {input.dd} {input.overlap} {output.master} > {log} 2>&1"
 # ============================================================================
 # Spatial discovery: de novo spatial gene-gene co-expression modules, independent
 # of the curated pathway sets. Discovery input for the planned peak/valley signature
