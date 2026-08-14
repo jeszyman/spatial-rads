@@ -408,9 +408,10 @@ rule mixing_engine:
 rule myeloid_polarization:
     message: "myeloid_polarization: myeloid M1/M2 polarization (UCell M1/M2 panels -> per-sample ratio)"
     input:
-        script = f"{R_SCRIPTS}/myeloid_polarization.R",
-        rds    = MERGED,
-        labels = LABELS,
+        script  = f"{R_SCRIPTS}/myeloid_polarization.R",
+        rds     = MERGED,
+        labels  = LABELS,
+        samples = MASTER,
     output:
         scores = "results/aggregate/myeloid_m1m2_scores.tsv",
         lm_input = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
@@ -419,8 +420,8 @@ rule myeloid_polarization:
     log:
         f"{D_LOGS}/myeloid_polarization.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.scores} "
-        "{output.lm_input} {output.plot} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.samples} "
+        "{output.scores} {output.lm_input} {output.plot} > {log} 2>&1"
 # --- engine: myeloid M1/M2 arm test (matrix/identity path, non-robust) ---
 rule myeloid_engine:
     message: "myeloid_engine: lm_engine identity test on macrophage M1/M2 metrics ({wildcards.cohort})"
