@@ -102,6 +102,74 @@ comparisons:
     notes: >
       Control n=2 (M02 only). Same caveat as MBRT_vs_Ctrl_4h.
 
+  # ---- sample-level, pooled-control sensitivity arm (all 4 M02 controls pooled
+  # across harvest times; vs-Control only, no MBRT_vs_SBRT variant since that
+  # contrast has no controls) ----
+  - name: MBRT_vs_Ctrl_d2pooled
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: mutter02_day2_pooledctrl
+    group1: {treatment: MBRT, model: flank}
+    group2: {treatment: NT,   model: flank}
+    unit: mouse
+    formula: "~0 + condition"
+    contrast_levels: {num: MBRT_day2, den: Control}
+    transform: logit
+    tier: exploratory
+    notes: >
+      Control-pooling sensitivity arm: pools all 4 M02 control samples (2 day-2 +
+      2 4h-slide) against the day-2 MBRT arm (n=2). No slide_id term -- the added
+      4h-slide controls are unpaired, so a slide covariate would be estimable only
+      from single-control samples and would consume exactly the df pooling adds.
+
+  - name: SBRT_vs_Ctrl_d2pooled
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: mutter02_day2_pooledctrl
+    group1: {treatment: SBRT, model: flank}
+    group2: {treatment: NT,   model: flank}
+    unit: mouse
+    formula: "~0 + condition"
+    contrast_levels: {num: SBRT_day2, den: Control}
+    transform: logit
+    tier: exploratory
+    notes: >
+      Control-pooling sensitivity arm: pools all 4 M02 control samples (2 day-2 +
+      2 4h-slide) against the day-2 SBRT arm (n=2). No slide_id term -- see
+      MBRT_vs_Ctrl_d2pooled.
+
+  - name: MBRT_vs_Ctrl_4h_pooled
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: combined_4h_pooledctrl
+    group1: {treatment: MBRT, model: flank}
+    group2: {treatment: NT,   model: flank}
+    unit: mouse
+    formula: "~0 + condition"
+    contrast_levels: {num: MBRT_4h, den: Control}
+    transform: logit
+    tier: exploratory
+    notes: >
+      Control-pooling sensitivity arm: pools all 4 M02 control samples (2 4h-slide +
+      2 day-2) against the combined M01+M02 4h MBRT arm (n=3). No slide_id term --
+      the added day-2-slide controls are unpaired.
+
+  - name: SBRT_vs_Ctrl_4h_pooled
+    kind: sample
+    resolution: [whole, compartment]
+    cohort: combined_4h_pooledctrl
+    group1: {treatment: SBRT, model: flank}
+    group2: {treatment: NT,   model: flank}
+    unit: mouse
+    formula: "~0 + condition"
+    contrast_levels: {num: SBRT_4h, den: Control}
+    transform: logit
+    tier: exploratory
+    notes: >
+      Control-pooling sensitivity arm: pools all 4 M02 control samples (2 4h-slide +
+      2 day-2) against the combined M01+M02 4h SBRT arm (n=3). No slide_id term --
+      see MBRT_vs_Ctrl_4h_pooled.
+
   # ---- region-level, within-sample ----
   - name: MBRT_peak_vs_valley
     kind: region

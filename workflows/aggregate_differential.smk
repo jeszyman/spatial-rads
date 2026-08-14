@@ -39,8 +39,8 @@ PYSCVI = "conda run -n spatial-rads-scvi python"
 # --- cohort: flank only ---
 _s    = pd.read_csv(MASTER, sep="\t")
 FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
-DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
-LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
+DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
+LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
 rule all:
     input:
         "results/aggregate/composition_by_sample.tsv",
