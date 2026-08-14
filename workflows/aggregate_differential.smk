@@ -59,7 +59,7 @@ rule all:
         "results/aggregate/differential_detection.tsv",
         expand("results/aggregate/gsea_pseudobulk_{coh}.tsv", coh=DE_COHORTS),
         "results/aggregate/pathway_scores_summary.tsv",
-        "results/aggregate/pathway_test_m02day2.tsv",
+        expand("results/aggregate/pathway_test_{coh}.tsv", coh=LM_COHORTS),
         "results/aggregate/pathway_ucell_ams_concordance.tsv",
         "results/aggregate/plots/pathway_heatmap_m02day2.png",
         "results/aggregate/plots/pathway_timecourse_m01.png",
@@ -212,10 +212,10 @@ rule gsea:
         f"{D_LOGS}/gsea_{{cohort}}.log",
     shell:
         "{RSCRIPT} {input.script} {input.degs} {input.sets} {output.gsea} > {log} 2>&1"
-# --- Track 2 pathway: per-cell UCell + AddModuleScore scoring + M02 limma test ---
+# --- Track 2 pathway: per-cell UCell + AddModuleScore scoring (cohort-agnostic compute) ---
 # threads: 4 -- UCell runs ncores=4 fork (BiocParallel) parallelism, not BLAS.
 rule pathway_scores:
-    message: "pathway_scores: per-cell UCell + AddModuleScore scoring + M02 limma test"
+    message: "pathway_scores: per-cell UCell + AddModuleScore scoring"
     input:
         script = f"{R_SCRIPTS}/pathway_scores.R",
         rds    = MERGED,   # count-only consumer; labels from full_labels.parquet
@@ -223,21 +223,36 @@ rule pathway_scores:
         sets   = "results/data_model/pathway_sets.tsv",
     output:
         summary = "results/aggregate/pathway_scores_summary.tsv",
-        test    = "results/aggregate/pathway_test_m02day2.tsv",
         conc    = "results/aggregate/pathway_ucell_ams_concordance.tsv",
     threads: 4
     log:
         f"{D_LOGS}/pathway_scores.log",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.sets} "
-        "{output.summary} {output.test} {output.conc} > {log} 2>&1"
+        "{output.summary} {output.conc} > {log} 2>&1"
+# Per-cohort arm test: reads the cached summary TSV, cheap, parameterized by the comparison
+# registry (no hardcoded day-2 literals) so it runs for every LM_COHORTS entry.
+rule pathway_arm_test:
+    message: "pathway_arm_test: UCell pathway arm test ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/pathway_arm_test.R",
+        summary = "results/aggregate/pathway_scores_summary.tsv",
+        comp    = "results/data_model/comparisons.tsv",
+    output:
+        test = "results/aggregate/pathway_test_{cohort}.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/pathway_arm_test_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.summary} {input.comp} {wildcards.cohort} "
+        "{output.test} > {log} 2>&1"
 # Plot half: reads the cached score/test TSVs so a plot bug can't roll back the ~5h compute.
 rule pathway_plots:
     message: "pathway_plots: pathway heatmap/timecourse/concordance plots from cached scores"
     input:
         script  = f"{R_SCRIPTS}/pathway_plots.R",
         summary = "results/aggregate/pathway_scores_summary.tsv",
-        test    = "results/aggregate/pathway_test_m02day2.tsv",
+        test    = "results/aggregate/pathway_test_mutter02_day2.tsv",
     output:
         heatmap    = "results/aggregate/plots/pathway_heatmap_m02day2.png",
         timecourse = "results/aggregate/plots/pathway_timecourse_m01.png",
@@ -505,7 +520,7 @@ rule assemble_results:
         comp    = "results/aggregate/engine/composition_engine_mutter02_day2.tsv",
         degs    = "results/aggregate/engine/de_engine_mutter02_day2.tsv",
         gsea    = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
-        pathway = "results/aggregate/pathway_test_m02day2.tsv",
+        pathway = "results/aggregate/pathway_test_mutter02_day2.tsv",
         niche   = "results/aggregate/engine/niche_engine.tsv",
         mixing  = "results/aggregate/engine/mixing_engine.tsv",
         myeloid = "results/aggregate/engine/myeloid_engine.tsv",
