@@ -1,18 +1,43 @@
 #!/usr/bin/env Rscript
 # Pseudobulk vs smiDE concordance analysis. Reads results_master.tsv (which
 # contains both readout_class="DE" and readout_class="smiDE" rows) and compares
-# effect sizes, hit overlap, and contamination-ratio enrichment.
-# Args: <results_master.tsv> <overlap_ratio_qc.tsv> <out_concordance.tsv> <out_plot.png>
+# effect sizes, hit overlap, and contamination-ratio enrichment, scoped to one
+# cohort (mutter02_day2 / combined_4h / combined_4h_treated).
+# Args: <results_master.tsv> <overlap_ratio_qc.tsv> <cohort> <out_concordance.tsv> <out_plot.png>
 suppressPackageStartupMessages({
   library(data.table); library(ggplot2)
 })
 a <- commandArgs(trailingOnly = TRUE)
-master_path <- a[1]; overlap_path <- a[2]; out_tsv <- a[3]; out_plot <- a[4]
+master_path <- a[1]; overlap_path <- a[2]; cohort <- a[3]; out_tsv <- a[4]; out_plot <- a[5]
 
 dir.create(dirname(out_tsv), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(out_plot), recursive = TRUE, showWarnings = FALSE)
 
-master <- fread(master_path)
+master_raw <- fread(master_path)
+# Engine outputs (composition/DE/niche/mixing/myeloid/substate/smiDE/pathway/gsea)
+# all carry a `comparison` column set to the cohort name; once results_master.tsv
+# is assembled from all cohorts it carries the same column. A master table built
+# before cross-cohort assembly has no `comparison` column and is implicitly
+# mutter02_day2-only.
+has_comparison <- "comparison" %in% names(master_raw)
+if (has_comparison) {
+  master <- master_raw[comparison == cohort]
+} else if (cohort == "mutter02_day2") {
+  master <- master_raw
+} else {
+  master <- master_raw[0]
+}
+
+if (nrow(master) == 0) {
+  reason <- if (has_comparison) {
+    sprintf("no rows with comparison == '%s'", cohort)
+  } else {
+    sprintf("results_master.tsv has no comparison column (single-cohort, mutter02_day2-only) but cohort '%s' was requested", cohort)
+  }
+  cat(sprintf("smide_concordance: no results_master.tsv data for cohort '%s' -- %s\n", cohort, reason))
+  quit(save = "no", status = 1)
+}
+
 pb <- master[readout_class == "DE", .(unit, feature, contrast,
   pb_effect = effect, pb_pvalue = pvalue, pb_padj = padj_own)]
 sm <- master[readout_class == "smiDE", .(unit, feature, contrast,
@@ -106,7 +131,7 @@ p <- ggplot(pd, aes(pb_effect, sm_effect, color = hit_class)) +
   scale_color_manual(values = c(both = "grey30", pseudobulk_only = "#E41A1C",
                                 smide_only = "#377EB8", neither = "grey80")) +
   labs(x = "Pseudobulk DESeq2 log2FC", y = "smiDE NB GLMM log2FC",
-       title = "Pseudobulk vs smiDE effect-size concordance (M02 day-2)") +
+       title = sprintf("Pseudobulk vs smiDE effect-size concordance (%s)", cohort)) +
   theme_bw(base_size = 10)
 ggsave(out_plot, p, width = 10, height = 4, dpi = 150)
 

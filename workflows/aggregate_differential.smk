@@ -90,8 +90,8 @@ rule all:
         "results/aggregate/qc_fov_signal.tsv",
         "results/aggregate/celltype_neighborhood_purity.tsv",
         expand("results/aggregate/engine/smide_de_{coh}.tsv", coh=LM_COHORTS),
-        "results/aggregate/smide_concordance.tsv",
-        "results/aggregate/plots/smide_concordance.png",
+        expand("results/aggregate/smide_concordance_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/plots/smide_concordance_{coh}.png", coh=LM_COHORTS),
         "results/aggregate/insitucor_modules.tsv",
         "results/aggregate/insitucor_module_summary.tsv",
 # --- Track 1: cell-type composition (M02 day2 propeller test + M01 descriptive) ---
@@ -628,21 +628,22 @@ rule smide_de:
         "{input.comp} {input.samples} {wildcards.cohort} {output.tsv} > {log} 2>&1"
 # --- QC: pseudobulk vs smiDE concordance -- effect-size correlation, hit overlap,
 # contamination-ratio enrichment in discordant hits, confirmatory hit survival. Runs
-# after both assemble_results (results_master.tsv) and overlap_ratio_qc. ---
+# after both assemble_results (results_master.tsv) and overlap_ratio_qc, scoped to
+# one cohort at a time (results_master.tsv rows are filtered by `comparison`). ---
 rule smide_concordance:
-    message: "smide_concordance: pseudobulk vs smiDE effect-size concordance"
+    message: "smide_concordance: pseudobulk vs smiDE effect-size concordance ({wildcards.cohort})"
     input:
         script  = f"{R_SCRIPTS}/smide_concordance.R",
         master  = "results/aggregate/results_master.tsv",
         overlap = "results/aggregate/overlap_ratio_qc.tsv",
     output:
-        tsv  = "results/aggregate/smide_concordance.tsv",
-        plot = "results/aggregate/plots/smide_concordance.png",
+        tsv  = "results/aggregate/smide_concordance_{cohort}.tsv",
+        plot = "results/aggregate/plots/smide_concordance_{cohort}.png",
     threads: 1
     log:
-        f"{D_LOGS}/smide_concordance.log",
+        f"{D_LOGS}/smide_concordance_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.master} {input.overlap} "
+        "{RSCRIPT} {input.script} {input.master} {input.overlap} {wildcards.cohort} "
         "{output.tsv} {output.plot} > {log} 2>&1"
 # --- QC: replicate reproducibility -- per-arm pseudobulk concordance (SpatialQM getCorrelation) +
 # technical-metric PCA over the n=4/arm M02 day-2 cohort; flags an outlier slide driving an arm. ---
