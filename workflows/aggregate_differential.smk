@@ -57,7 +57,7 @@ rule all:
         "results/aggregate/plots/composition_m01_timecourse.png",
         "results/aggregate/pseudobulk_qc.tsv",
         "results/aggregate/differential_detection.tsv",
-        "results/aggregate/gsea_pseudobulk_m02day2.tsv",
+        expand("results/aggregate/gsea_pseudobulk_{coh}.tsv", coh=DE_COHORTS),
         "results/aggregate/pathway_scores_summary.tsv",
         "results/aggregate/pathway_test_m02day2.tsv",
         "results/aggregate/pathway_ucell_ams_concordance.tsv",
@@ -200,16 +200,16 @@ rule dd_muscat:
         "Rscript {input.script} {input.sce} {output.tsv} > {log} 2>&1"
 # --- Track 2 pathway: GSEA on pseudobulk stat-ranked genes (primary + Hallmark) ---
 rule gsea:
-    message: "gsea: GSEA on pseudobulk stat-ranked genes (primary + Hallmark)"
+    message: "gsea: GSEA on pseudobulk stat-ranked genes ({wildcards.cohort})"
     input:
         script = f"{R_SCRIPTS}/gsea.R",
-        degs   = "results/aggregate/engine/de_engine_mutter02_day2.tsv",
+        degs   = "results/aggregate/engine/de_engine_{cohort}.tsv",
         sets   = "results/data_model/pathway_sets.tsv",
     output:
-        gsea = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
+        gsea = "results/aggregate/gsea_pseudobulk_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/gsea.log",
+        f"{D_LOGS}/gsea_{{cohort}}.log",
     shell:
         "{RSCRIPT} {input.script} {input.degs} {input.sets} {output.gsea} > {log} 2>&1"
 # --- Track 2 pathway: per-cell UCell + AddModuleScore scoring + M02 limma test ---
