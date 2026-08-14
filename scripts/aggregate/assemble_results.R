@@ -23,11 +23,13 @@
 # below re-verifies that invariant at run time rather than trusting it silently.
 #
 # Primary confirmatory FDR = pooled BH over the confirmatory family -> padj_confirmatory.
-# Two auxiliary FDR views ride alongside: gatekeeping (gate_padj/padj_gated) and IHW
-# (padj_ihw). Effect size + 95% CI carried through; the matching n=4 MDE from
-# power_mde.tsv is joined (by unit only -- day-2-derived, applied uniformly across
-# cohorts sharing a unit name), and abs_effect_lt_mde flags underpowered confirmatory
-# nulls.
+# Two auxiliary FDR views ride alongside: gatekeeping (gate_padj/padj_gated) and IHW,
+# fit per comparison (padj_ihw). Effect size + 95% CI carried through; the matching
+# n=4 MDE from power_mde.tsv is day-2-derived (a different design from the 4h cohorts),
+# so it is joined by unit only within CONFIRMATORY_COHORTS rows -- every other cohort's
+# rows get NA mde/abs_effect_lt_mde/clears_mde/trend_call rather than a mislabeled floor.
+# n_per_arm and dataset are likewise derived per (comparison, contrast) from the
+# registry / cohort_samples.tsv rather than assumed uniform across the cohort roster.
 #
 # The six pre-registered hypotheses and their evidence live in config/hypotheses.yaml
 # (biological definition) + config/confirmatory_claims.yaml (readout->confirmatory map).
@@ -114,8 +116,7 @@ comp_m <- comp[, .(comparison, readout_class="composition", unit=feature_id, fea
   contrast, effect=estimate, effect_type="log2FC_logit",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
   se, stat, pvalue=p, padj_own=padj,
-  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=NA_integer_,
-  dataset="Mutter_02", baseMean=NA_real_)]
+  hypothesis=NA_character_, n_samples_used=NA_integer_, baseMean=NA_real_)]
 
 # --- substate composition (Fibroblast resting/activated; lm_engine proportion path) --
 # Same schema as composition; unit is the sub-state label (e.g. Fibroblast_activated),
@@ -126,8 +127,7 @@ sub_m <- sub[, .(comparison, readout_class="substate_composition", unit=feature_
   contrast, effect=estimate, effect_type="log2FC_logit",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
   se, stat, pvalue=p, padj_own=padj,
-  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=NA_integer_,
-  dataset="Mutter_02", baseMean=NA_real_)]
+  hypothesis=NA_character_, n_samples_used=NA_integer_, baseMean=NA_real_)]
 
 # --- pseudobulk DE (count_engine; unit=cell_type, feature_id=gene; Wald CI from se) ----
 de <- read_cohort_family(engine_p, "de_engine_", "DE")
@@ -135,8 +135,7 @@ de[, padj := p.adjust(p, "BH"), by = .(comparison, unit, contrast)]  # DESeq2 gr
 de_m <- de[, .(comparison, readout_class="DE", unit=unit, feature=feature_id, contrast,
   effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
   ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
-  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=n_samples_used,
-  dataset="Mutter_02", baseMean=baseMean)]
+  hypothesis=NA_character_, n_samples_used=n_samples_used, baseMean=baseMean)]
 
 # --- pathway program scores (UCell primary; limma estimate, normal CI) -----------
 # padj_bh is already correctly scoped: pathway_arm_test.R computes it once per cohort
@@ -146,8 +145,7 @@ pw <- read_cohort_family(agg_p, "pathway_test_", "pathway")[score_type == "UCell
 pw_m <- pw[, .(comparison, readout_class="pathway", unit=cell_type, feature=pathway_name, contrast,
   effect=estimate, effect_type="limma_score_estimate", ci_low=estimate-1.96*se,
   ci_high=estimate+1.96*se, se, stat=t_stat, pvalue, padj_own=padj_bh,
-  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=n_samples_per_group,
-  dataset, baseMean=NA_real_)]
+  hypothesis=NA_character_, n_samples_used=n_samples_per_group, baseMean=NA_real_)]
 
 # --- GSEA (Hallmark sweep, always exploratory; NES, no CI) -----------------------
 # padj_bh is already correctly scoped: fgsea corrects within each (cell_type x
@@ -156,7 +154,7 @@ gsea <- read_cohort_family(agg_p, "gsea_pseudobulk_", "gsea")
 gsea_m <- gsea[, .(comparison, readout_class="gsea", unit=cell_type, feature=pathway_name, contrast,
   effect=NES, effect_type="NES", ci_low=NA_real_, ci_high=NA_real_, se=NA_real_,
   stat=NES, pvalue, padj_own=padj_bh, hypothesis=NA_character_,
-  n_per_arm=NA_integer_, n_samples_used=NA_integer_, dataset, baseMean=NA_real_)]
+  n_samples_used=NA_integer_, baseMean=NA_real_)]
 
 # --- niche composition (lm_engine proportion path; exploratory) -----------------
 ni <- read_cohort_family(engine_p, "niche_engine_", "niche_composition")
@@ -164,8 +162,8 @@ ni[, padj := p.adjust(p, "BH"), by = comparison]          # niches.R used global
 ni_m <- ni[, .(comparison, readout_class="niche_composition", unit=as.character(feature_id),
   feature=NA_character_, contrast, effect=estimate, effect_type="log2FC_logit",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se,
-  se, stat, pvalue=p, padj_own=padj, hypothesis=NA_character_, n_per_arm=4L,
-  n_samples_used=NA_integer_, dataset="Mutter_02", baseMean=NA_real_)]
+  se, stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
+  n_samples_used=NA_integer_, baseMean=NA_real_)]
 
 # --- spatial mixing + myeloid polarization (lm_engine identity path; exploratory) --
 mx <- read_cohort_family(engine_p, "mixing_engine_", "spatial_mixing")
@@ -174,14 +172,14 @@ mx_m <- mx[, .(comparison, readout_class="spatial_mixing", unit="global", featur
   effect=estimate, effect_type="limma_estimate",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se, se,
   stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
-  n_per_arm=4L, n_samples_used=NA_integer_, dataset="Mutter_02", baseMean=NA_real_)]
+  n_samples_used=NA_integer_, baseMean=NA_real_)]
 my <- read_cohort_family(engine_p, "myeloid_engine_", "myeloid_polarization")
 my[, padj := p.adjust(p, "BH"), by = comparison]
 my_m <- my[, .(comparison, readout_class="myeloid_polarization", unit="Macrophages", feature=feature_id,
   contrast, effect=estimate, effect_type="limma_estimate",
   ci_low=estimate - qt(0.975, df)*se, ci_high=estimate + qt(0.975, df)*se, se,
   stat, pvalue=p, padj_own=padj, hypothesis=NA_character_,
-  n_per_arm=4L, n_samples_used=NA_integer_, dataset="Mutter_02", baseMean=NA_real_)]
+  n_samples_used=NA_integer_, baseMean=NA_real_)]
 
 # --- differential detection (muscat: fraction of cells expressing gene changed) ------
 # Detection-only descriptor (never composition-vs-regulation); always exploratory.
@@ -190,8 +188,7 @@ dd <- fread(ddet_p)
 dd_m <- dd[, .(comparison="mutter02_day2", readout_class="detection", unit=cell_type, feature=gene, contrast,
   effect=dd_log2fc, effect_type="detection_log2fc", ci_low=NA_real_, ci_high=NA_real_,
   se=NA_real_, stat=NA_real_, pvalue=dd_p, padj_own=dd_padj,
-  hypothesis=NA_character_, n_per_arm=4L, n_samples_used=NA_integer_,
-  dataset="Mutter_02", baseMean=NA_real_)]
+  hypothesis=NA_character_, n_samples_used=NA_integer_, baseMean=NA_real_)]
 
 # --- smiDE genome-wide per-cell NB mixed-model DE (co-primary with pseudobulk) -----
 smide <- read_cohort_family(engine_p, "smide_de_", "smiDE")
@@ -200,19 +197,48 @@ if (nrow(smide) == 0 || !all(NEED_SMIDE_COLS %in% names(smide))) {
   smide_m <- data.table(comparison=character(), readout_class=character(), unit=character(),
     feature=character(), contrast=character(), effect=numeric(), effect_type=character(),
     ci_low=numeric(), ci_high=numeric(), se=numeric(), stat=numeric(), pvalue=numeric(),
-    padj_own=numeric(), hypothesis=character(), n_per_arm=integer(), n_samples_used=integer(),
-    dataset=character(), baseMean=numeric())
+    padj_own=numeric(), hypothesis=character(), n_samples_used=integer(), baseMean=numeric())
 } else {
   smide[, padj := p.adjust(p, "BH"), by = .(comparison, unit, contrast)]
   smide_m <- smide[, .(comparison, readout_class="smiDE", unit=unit, feature=feature_id, contrast,
     effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
     ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
-    hypothesis=NA_character_, n_per_arm=4L, n_samples_used=NA_integer_,
-    dataset="Mutter_02", baseMean=NA_real_)]
+    hypothesis=NA_character_, n_samples_used=NA_integer_, baseMean=NA_real_)]
 }
 
 master <- rbindlist(list(comp_m, sub_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m, dd_m, smide_m),
                     use.names = TRUE)
+
+# --- n_per_arm + dataset: derived per (comparison, contrast) / cohort, not hardcoded --
+# n_per_arm was a blanket 4L (the day-2 n before the 2026-08-13 M02 relabel correction)
+# on every readout family; each cohort now has its own registry-declared arm size
+# (day-2 n=2/arm, combined_4h n=2, combined_4h_treated n=3, pooled variants n=2/n=3).
+# Joined from the registry's `sample`-kind rows, deduped across the whole/compartment
+# resolution duplicates (which always carry identical n_group1/n_group2).
+reg_n <- unique(REG[kind == "sample", .(comparison = cohort, contrast = name, n_group1, n_group2)])
+stopifnot(!anyDuplicated(reg_n, by = c("comparison", "contrast")))
+master <- reg_n[master, on = .(comparison, contrast)]
+master[, n_per_arm := pmin(n_group1, n_group2)]
+master[, c("n_group1", "n_group2") := NULL]
+n_no_reg_n <- master[is.na(n_per_arm), .N]
+if (n_no_reg_n > 0)
+  cat(sprintf("assemble_results: %d row(s) had no registry (comparison,contrast) match -- n_per_arm left NA\n",
+              n_no_reg_n))
+
+# dataset was a blanket "Mutter_02"; the combined_4h* cohorts actually pool samples
+# from both raw datasets. Derived from which raw dataset(s) contributed samples to
+# each cohort (cohort_samples.tsv -> samples.tsv$name), so it reflects cohort
+# composition directly rather than a per-readout-family assertion.
+cohort_samples <- fread("results/data_model/cohort_samples.tsv")
+samp_names <- fread("results/data_model/samples.tsv")[, .(sample_id, name)]
+cohort_dataset <- unique(samp_names[cohort_samples, on = "sample_id"][
+  , .(dataset = paste(sort(unique(name)), collapse = "+")), by = cohort])
+setnames(cohort_dataset, "cohort", "comparison")
+master <- cohort_dataset[master, on = "comparison"]
+n_no_dataset <- master[is.na(dataset), .N]
+if (n_no_dataset > 0)
+  cat(sprintf("assemble_results: %d row(s) had no cohort_samples.tsv entry -- dataset left NA\n",
+              n_no_dataset))
 
 # --- segmentation-contamination QC (smiDE overlap ratio) -------------------------
 # Per-gene, per-cell_subtype: does neighboring-cell-type expression exceed self
@@ -269,32 +295,45 @@ master <- add_gatekeeping(master, CLAIMS, HYP)
 # --- IHW auxiliary FDR (keyed on DE baseMean; padj_confirmatory stays primary) ----
 master <- add_ihw(master)
 
-# --- join the matching n=4 MDE from power_mde.tsv -------------------------------
+# --- join the matching n=4 MDE from power_mde.tsv --------------------------------
+# power_mde.tsv is day-2-derived (n=2/arm after the relabel correction, ~0+condition+
+# slide_id). The 4h cohorts share unit names with day-2 but are a different design
+# (n=2-3/arm, no slide_id blocking, different formula/resid_df) -- joining by unit
+# alone would silently mislabel their MDE floors with a design that isn't theirs. So
+# the join (and everything derived from it: abs_effect_lt_mde/clears_mde/trend_call)
+# is restricted to CONFIRMATORY_COHORTS (mutter02_day2); every other cohort's rows
+# get NA for all four MDE-derived columns, not a spurious floor/label.
 mde <- fread(mde_p)
 mde_comp <- mde[readout_class == "composition",   .(unit=cell_type, mde, mde_scale)]
 mde_de   <- mde[readout_class == "pseudobulk_DE", .(unit=cell_type, mde, mde_scale)]
 mde_prog <- mde[readout_class == "program_score",
                 .(key=paste(cell_type, detail), mde, mde_scale)]
 master[, `:=`(mde = NA_real_, mde_scale = NA_character_)]
-ic <- master$readout_class == "composition"
+is_conf_cohort <- master$comparison %in% CONFIRMATORY_COHORTS
+ic <- is_conf_cohort & master$readout_class == "composition"
 mm <- mde_comp[match(master$unit[ic], mde_comp$unit)]
 master[ic, `:=`(mde = mm$mde, mde_scale = mm$mde_scale)]
-id <- master$readout_class == "DE"
+id <- is_conf_cohort & master$readout_class == "DE"
 mm <- mde_de[match(master$unit[id], mde_de$unit)]
 master[id, `:=`(mde = mm$mde, mde_scale = mm$mde_scale)]
-ip <- master$readout_class == "pathway"
+ip <- is_conf_cohort & master$readout_class == "pathway"
 mm <- mde_prog[match(paste(master$unit, master$feature)[ip], mde_prog$key)]
 master[ip, `:=`(mde = mm$mde, mde_scale = mm$mde_scale)]
-master[, abs_effect_lt_mde := is.finite(mde) & abs(effect) < mde]
+master[, abs_effect_lt_mde := NA]
+master[is.finite(mde), abs_effect_lt_mde := abs(effect) < mde]
 
 
 # --- magnitude-floored trend call + clears-MDE (devils-advocate fix) -------------
 # A direction is only a "trend" when |effect| >= MDE_FLOOR * mde; below that it is
-# noise, not signal (sub-MDE direction coherence is noise coherence).
+# noise, not signal (sub-MDE direction coherence is noise coherence). Rows with no
+# MDE (non-confirmatory cohorts) get NA, not "below-floor" -- that label asserts a
+# floor was checked, which didn't happen here.
 MDE_FLOOR <- 0.5
-master[, clears_mde := is.finite(mde) & abs(effect) >= mde]
-master[, trend_call := fifelse(!is.finite(mde) | abs(effect) < MDE_FLOOR * mde, "below-floor",
-                        fifelse(effect > 0, "up", "down"))]
+master[, clears_mde := NA]
+master[is.finite(mde), clears_mde := abs(effect) >= mde]
+master[, trend_call := NA_character_]
+master[is.finite(mde), trend_call := fifelse(abs(effect) < MDE_FLOOR * mde, "below-floor",
+                                      fifelse(effect > 0, "up", "down"))]
 master[is.na(effect), trend_call := "na"]
 
 # --- symmetric panel coverage on every program / gsea row (no set silently protected) ---
@@ -318,7 +357,8 @@ fwrite(master, out_p, sep = "\t")
 
 # --- detectability summary (the transparent decision-gate: what is/isn't detectable) ---
 det <- master[, .(n = .N, n_clears_mde = sum(clears_mde, na.rm = TRUE),
-                  n_trend_up = sum(trend_call == "up"), n_trend_down = sum(trend_call == "down")),
+                  n_trend_up = sum(trend_call == "up", na.rm = TRUE),
+                  n_trend_down = sum(trend_call == "down", na.rm = TRUE)),
               by = .(comparison, readout_class, contrast, hypothesis, tier)]
 setorder(det, comparison, tier, readout_class, contrast, hypothesis, na.last = TRUE)
 fwrite(det, sub("results_master", "detectability_summary", out_p), sep = "\t")

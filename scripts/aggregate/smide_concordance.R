@@ -48,6 +48,14 @@ merged <- pb[sm, on = .(unit, feature, contrast), nomatch = NULL]
 if (nrow(merged) == 0) {
   cat("smide_concordance: 0 shared rows between pseudobulk and smiDE\n")
   fwrite(data.table(metric = character(), value = numeric()), out_tsv, sep = "\t")
+  # Snakemake declares out_plot a rule output; a missing file is a
+  # MissingOutputException even on an intentional early exit, so write a minimal
+  # placeholder in place of the effect-size scatter.
+  p <- ggplot() +
+    annotate("text", x = 0, y = 0,
+             label = sprintf("No shared pseudobulk/smiDE rows for cohort '%s'", cohort)) +
+    theme_void()
+  ggsave(out_plot, p, width = 10, height = 4, dpi = 150)
   quit(save = "no")
 }
 
