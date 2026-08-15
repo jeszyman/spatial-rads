@@ -102,15 +102,22 @@ read_inputs <- function(labels_pq, coords_pq, obs_pq, samples_tsv, cohort_tsv, c
   lab <- as.data.table(read_parquet(labels_pq,
                                     col_select = c("cell", "cell_subtype", "compartment")))
   req_cols(lab, c("cell", "cell_subtype", "compartment"), basename(labels_pq))
+  # Epithelial cells (1,180 cohort-wide) is a small marker-rescue alias of Tumor in
+  # full_labels.parquet; collapse to the single-Tumor roster used elsewhere (verify_arm_tables.R
+  # retired list) so it is not analysed as a near-empty separate cell group.
+  lab[cell_subtype == "Epithelial cells", cell_subtype := "Tumor"]
 
   co <- as.data.table(read_parquet(coords_pq,
-                                   col_select = c("cell", "x_slide_mm", "y_slide_mm")))
-  req_cols(co, c("cell", "x_slide_mm", "y_slide_mm"), basename(coords_pq))
+                                   col_select = c("cell", "x_slide_mm", "y_slide_mm", "necrosis_zone")))
+  req_cols(co, c("cell", "x_slide_mm", "y_slide_mm", "necrosis_zone"), basename(coords_pq))
 
   d <- merge(obs[, .(cell, sample_id)], lab, by = "cell")
   d <- merge(d, co, by = "cell")
   d <- merge(d, smp, by = "sample_id")
-  d <- d[!is.na(cell_subtype) & !is.na(x_slide_mm) & !is.na(y_slide_mm)]
+  # Inferred signaling from necrotic tissue is not interpretable; drop before any other filter.
+  n_necrotic <- sum(d$necrosis_zone, na.rm = TRUE)
+  d <- d[!is.na(cell_subtype) & !is.na(x_slide_mm) & !is.na(y_slide_mm) & !necrosis_zone]
+  say("cohort '%s': dropped %d necrotic cell(s) (necrosis_zone == TRUE)\n", coh, n_necrotic)
   nonempty(d, sprintf("cohort '%s' cell table", coh))
   if (uniqueN(d$arm) < 2L)
     stop(sprintf("cohort '%s' resolves to %d arm(s) (%s); the cross-arm comparison needs >= 2",
