@@ -79,24 +79,111 @@ meta[, totalcounts := Matrix::colSums(counts)]
 
 genes <- rownames(counts)
 subtypes <- sort(unique(meta$cell_subtype))
+sample_ids <- unique(meta$sample_id)
 
 cat(sprintf("smide_de: %d cells, %d genes, %d subtypes, %d samples\n",
-            ncol(counts), length(genes), length(subtypes), uniqueN(meta$sample_id)))
+            ncol(counts), length(genes), length(subtypes), length(sample_ids)))
 
-pde <- pre_de(
-  adjacencies_only = FALSE,
-  metadata = meta,
-  ref_celltype = subtypes,
-  cell_type_metadata_colname = "cell_subtype",
-  cellid_colname = "cell",
-  sdimx_colname = "x_slide_mm",
-  sdimy_colname = "y_slide_mm",
-  split_neighbors_by_colname = "sample_id",
-  mm_radius = RADIUS_MM,
-  counts = counts,
-  normalized_data = NULL,
-  aggregation = "sum"
+## pre_de() over the whole cohort in a single call peaks over 100GB and OOM-
+## kills on cohorts above ~1.7M cells (kernel-killed during "Measuring
+## neighbor expression" for the largest cell type, where the full-cohort
+## adjacency/expression matrices and the growing per-cell-type accumulation
+## all coexist). split_neighbors_by_colname = "sample_id" guarantees the
+## neighbor graph never crosses a sample boundary, so calling pre_de() once
+## per sample and combining the per-sample outputs reproduces the whole-
+## cohort call exactly: cell_adjacency_dt row-binds (disjoint edge sets across
+## samples), adjacency_counts_by_ct row-binds (disjoint cell rows; a cell-type
+## column absent from one sample's chunk is a true zero there, not missing),
+## and each neighbor_expr_byct[[name]] matrix column-binds (disjoint cell
+## columns, looked up downstream by cell ID so column order doesn't matter).
+## Peak memory per iteration is bounded by the largest single sample rather
+## than the cohort.
+##
+## normalized_data is precomputed once over the full cohort -- the same
+## mean(colSums(counts))/colSums(counts) scale factor pre_de() would compute
+## internally -- and sliced per sample below. Letting each per-sample pre_de()
+## call compute its own normalized_data would rescale by that sample's own
+## mean total count instead of the cohort mean, shifting the otherct_expr
+## covariate by a per-sample constant.
+colsumms_all <- Matrix::colSums(counts)
+norm_factors_all <- mean(colsumms_all) / colsumms_all
+norm_factors_all[colsumms_all == 0] <- 1
+normalized_data_all <- counts %*% Matrix::Diagonal(x = norm_factors_all, names = colnames(counts))
+
+cell_adjacency_parts <- vector("list", length(sample_ids))
+adjacency_counts_parts <- vector("list", length(sample_ids))
+neighbor_expr_parts <- vector("list", length(sample_ids))
+
+for (i in seq_along(sample_ids)) {
+  s <- sample_ids[i]
+  s_cells <- meta[sample_id == s, cell]
+  s_counts <- counts[, s_cells, drop = FALSE]
+  s_norm <- normalized_data_all[, s_cells, drop = FALSE]
+  s_meta <- meta[cell %in% s_cells]
+  setkey(s_meta, cell)
+  s_meta <- s_meta[s_cells]
+  s_subtypes <- intersect(subtypes, unique(s_meta$cell_subtype))
+
+  cat(sprintf("smide_de: pre_de sample %d/%d (%s) -- %d cells, %d subtypes\n",
+              i, length(sample_ids), s, length(s_cells), length(s_subtypes)))
+
+  pde_s <- pre_de(
+    adjacencies_only = FALSE,
+    metadata = s_meta,
+    ref_celltype = s_subtypes,
+    cell_type_metadata_colname = "cell_subtype",
+    cellid_colname = "cell",
+    sdimx_colname = "x_slide_mm",
+    sdimy_colname = "y_slide_mm",
+    split_neighbors_by_colname = "sample_id",
+    mm_radius = RADIUS_MM,
+    counts = s_counts,
+    normalized_data = s_norm,
+    aggregation = "sum"
+  )
+
+  cell_adjacency_parts[[i]] <- pde_s$cell_adjacency_dt
+  adjacency_counts_parts[[i]] <- pde_s$nblist$adjacency_counts_by_ct
+  neighbor_expr_parts[[i]] <- pde_s$nblist$neighbor_expr_byct
+
+  rm(pde_s, s_counts, s_norm, s_meta)
+  gc()
+}
+rm(normalized_data_all, colsumms_all, norm_factors_all)
+gc()
+
+cell_adjacency_dt <- rbindlist(cell_adjacency_parts)
+rm(cell_adjacency_parts); gc()
+
+adjacency_counts_by_ct <- rbindlist(adjacency_counts_parts, fill = TRUE)
+rm(adjacency_counts_parts); gc()
+## a cell-type column missing for a given sample means that sample carries no
+## cells of that type anywhere, i.e. a true zero neighbor count, not NA
+count_cols <- setdiff(names(adjacency_counts_by_ct), "cell_ID")
+for (cc in count_cols) adjacency_counts_by_ct[is.na(get(cc)), (cc) := 0]
+
+nblist_names <- unique(unlist(lapply(neighbor_expr_parts, names)))
+neighbor_expr_byct <- setNames(vector("list", length(nblist_names)), nblist_names)
+for (nm in nblist_names) {
+  mats <- Filter(Negate(is.null), lapply(neighbor_expr_parts, `[[`, nm))
+  neighbor_expr_byct[[nm]] <- Reduce(Matrix::cbind2, mats)
+}
+rm(neighbor_expr_parts); gc()
+
+## reassemble a "prede"-class object matching what a single whole-cohort
+## pre_de(adjacencies_only=FALSE, ...) call returns; smi_de() only reads
+## nblist$neighbor_expr_byct, nblist$adjacency_counts_by_ct, nblist$ref_celltype,
+## and cell_adjacency_dt (adjacency_mat/ct_matrix are pre_de()-internal scratch,
+## never read by smi_de()/deFunc).
+pde <- list(
+  nblist = list(
+    neighbor_expr_byct = neighbor_expr_byct,
+    adjacency_counts_by_ct = adjacency_counts_by_ct,
+    ref_celltype = subtypes
+  ),
+  cell_adjacency_dt = cell_adjacency_dt
 )
+class(pde) <- append(class(pde), "prede")
 
 results_list <- list()
 for (ct in subtypes) {
