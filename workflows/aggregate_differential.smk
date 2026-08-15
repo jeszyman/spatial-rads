@@ -41,6 +41,9 @@ _s    = pd.read_csv(MASTER, sep="\t")
 FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
 DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
 LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
+# smiDE model modes: "screen" is the nebula NB GLMM discovery pass, "spatial" is the
+# per-spatial-unit GP_Matern fit plus inverse-variance meta-analysis.
+SMIDE_MODES = ["screen", "spatial"]
 rule all:
     input:
         "results/aggregate/composition_by_sample.tsv",
@@ -89,7 +92,7 @@ rule all:
         "results/aggregate/qc_panel_sparsity.tsv",
         "results/aggregate/qc_fov_signal.tsv",
         "results/aggregate/celltype_neighborhood_purity.tsv",
-        expand("results/aggregate/engine/smide_de_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/smide_de_{coh}_{mode}.tsv", coh=LM_COHORTS, mode=SMIDE_MODES),
         expand("results/aggregate/smide_concordance_{coh}.tsv", coh=LM_COHORTS),
         expand("results/aggregate/plots/smide_concordance_{coh}.png", coh=LM_COHORTS),
         "results/aggregate/insitucor_modules.tsv",
@@ -531,7 +534,7 @@ rule assemble_results:
         mixing   = expand("results/aggregate/engine/mixing_engine_{coh}.tsv", coh=LM_COHORTS),
         myeloid  = expand("results/aggregate/engine/myeloid_engine_{coh}.tsv", coh=LM_COHORTS),
         substate = expand("results/aggregate/engine/substate_engine_{coh}.tsv", coh=LM_COHORTS),
-        smide    = expand("results/aggregate/engine/smide_de_{coh}.tsv", coh=LM_COHORTS),
+        smide    = expand("results/aggregate/engine/smide_de_{coh}_{mode}.tsv", coh=LM_COHORTS, mode=SMIDE_MODES),
         reg      = "results/data_model/comparisons.tsv",
         mde      = "results/aggregate/power_mde.tsv",
         sets     = "results/data_model/pathway_sets.tsv",
@@ -607,13 +610,19 @@ rule overlap_ratio_qc:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} "
         "{output.tsv} > {log} 2>&1"
-# --- genome-wide smiDE per-cell NB mixed-model DE (cohort-parameterized) ---
-# Co-primary with pseudobulk DESeq2: per-cell NB GLMM via nebula with neighbor-
-# expression covariate (segmentation-error correction) + sample-level random effect
-# (pseudoreplication correction). Emits engine-format sufficient statistics; joined
-# into results_master as readout_class="smiDE". Runs BEFORE assemble_results.
+# --- genome-wide smiDE per-cell DE (cohort- and mode-parameterized) ---
+# Follows the smiDE authors' published protocol: overlap-ratio gene prefilter per
+# cell type, adjacency-only pre_de with on-the-fly neighbor expression, inverse-
+# distance edge weighting, totalcount-normalized neighbor covariate. Two modes ---
+# "screen" (nebula NB GLMM with a sample random intercept; discovery only) and
+# "spatial" (per-spatial-unit GP_Matern fits combined by inverse-variance meta-
+# analysis; the authors' fix for inflated type I error). Depends on the overlap
+# ratio QC table for the prefilter. Runs BEFORE assemble_results, which maps
+# screen -> readout_class "smiDE_screen" and spatial meta -> "smiDE".
 rule smide_de:
-    message: "smide_de: genome-wide per-cell NB GLMM (smiDE/nebula, {wildcards.cohort})"
+    message: "smide_de: genome-wide per-cell smiDE DE ({wildcards.cohort}, {wildcards.mode})"
+    wildcard_constraints:
+        mode = "screen|spatial",
     input:
         script  = f"{R_SCRIPTS}/smide_de.R",
         rds     = MERGED,
@@ -622,14 +631,16 @@ rule smide_de:
         obs     = OBS,
         comp    = "results/data_model/comparisons.tsv",
         samples = MASTER,
+        overlap = "results/aggregate/overlap_ratio_qc.tsv",
     output:
-        tsv = "results/aggregate/engine/smide_de_{cohort}.tsv",
-    threads: 4
+        tsv = "results/aggregate/engine/smide_de_{cohort}_{mode}.tsv",
+    threads: 16
     log:
-        f"{D_LOGS}/smide_de_{{cohort}}.log",
+        f"{D_LOGS}/smide_de_{{cohort}}_{{mode}}.log",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
-        "{input.comp} {input.samples} {wildcards.cohort} {output.tsv} > {log} 2>&1"
+        "{input.comp} {input.samples} {input.overlap} {wildcards.cohort} {wildcards.mode} "
+        "{output.tsv} > {log} 2>&1"
 # --- QC: pseudobulk vs smiDE concordance -- effect-size correlation, hit overlap,
 # contamination-ratio enrichment in discordant hits, confirmatory hit survival. Runs
 # after both assemble_results (results_master.tsv) and overlap_ratio_qc, scoped to

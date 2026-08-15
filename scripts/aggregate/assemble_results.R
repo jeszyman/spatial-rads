@@ -36,9 +36,9 @@
 # Args: <agg_dir> <comparisons.tsv> <power_mde.tsv> <pathway_sets.tsv>
 #       <gene_set_panel_coverage.tsv> <differential_detection.tsv> <overlap_ratio_qc.tsv>
 #       <out_master.tsv>
-# agg_dir must contain engine/{composition,de,niche,mixing,myeloid,substate,smide_de}_
-# <cohort>.tsv plus gsea_pseudobulk_<cohort>.tsv and pathway_test_<cohort>.tsv at its top
-# level.
+# agg_dir must contain engine/{composition,de,niche,mixing,myeloid,substate}_<cohort>.tsv
+# plus engine/smide_de_<cohort>_{screen,spatial}.tsv, and gsea_pseudobulk_<cohort>.tsv
+# and pathway_test_<cohort>.tsv at its top level.
 suppressPackageStartupMessages({ library(data.table) })
 
 # --- gatekeeping (secondary FDR view) -------------------------------------------
@@ -80,11 +80,16 @@ stopifnot(length(CONFIRMATORY_COHORTS) > 0)
 # filename for the two producers (gsea.R, pathway_arm_test.R) that don't emit the
 # column themselves; for producers that do (every engine script), asserts the file's
 # own value agrees with the filename.
-read_cohort_family <- function(dir, prefix, label) {
-  files <- list.files(dir, pattern = paste0("^", prefix, ".*\\.tsv$"), full.names = TRUE)
+# `suffix` covers producers that emit more than one file per cohort (smide_de
+# writes one per model mode, "<prefix><cohort>_<mode>.tsv"); it is stripped along
+# with the prefix before the cohort token is checked.
+read_cohort_family <- function(dir, prefix, label, suffix = "") {
+  files <- list.files(dir, pattern = paste0("^", prefix, ".*", suffix, "\\.tsv$"),
+                      full.names = TRUE)
   hits <- list()
   for (f in files) {
     coh <- sub("\\.tsv$", "", sub(paste0("^", prefix), "", basename(f)))
+    if (nzchar(suffix)) coh <- sub(paste0(suffix, "$"), "", coh)
     if (!coh %in% KNOWN_COHORTS) next
     dt <- fread(f)
     if ("comparison" %in% names(dt)) {
@@ -190,17 +195,31 @@ dd_m <- dd[, .(comparison="mutter02_day2", readout_class="detection", unit=cell_
   se=NA_real_, stat=NA_real_, pvalue=dd_p, padj_own=dd_padj,
   hypothesis=NA_character_, n_samples_used=NA_integer_, baseMean=NA_real_)]
 
-# --- smiDE genome-wide per-cell NB mixed-model DE (co-primary with pseudobulk) -----
-smide <- read_cohort_family(engine_p, "smide_de_", "smiDE")
-NEED_SMIDE_COLS <- c("comparison","contrast","unit","feature_id","estimate","se","stat","p")
+# --- smiDE genome-wide per-cell NB mixed-model DE ---------------------------------
+# smide_de.R writes one file per (cohort, model mode). The two modes are not
+# interchangeable evidence and enter the master under different readout_classes:
+#   screen  -> "smiDE_screen". Sample random intercept, no spatial random effect;
+#              anti-conservative for a contrast that varies between samples, so it
+#              is a discovery screen only. No confirmatory claim keys on it.
+#   spatial -> "smiDE". Per-spatial-unit GP_Matern fits combined by
+#              inverse-variance meta-analysis (mode == "spatial_meta"); the
+#              per-unit rows (mode == "spatial") are the meta-analysis inputs and
+#              are not cohort-level results, so they are dropped here.
+smide <- rbindlist(list(
+  read_cohort_family(engine_p, "smide_de_", "smiDE (screen)",  suffix = "_screen"),
+  read_cohort_family(engine_p, "smide_de_", "smiDE (spatial)", suffix = "_spatial")
+), use.names = TRUE, fill = TRUE)
+NEED_SMIDE_COLS <- c("comparison","contrast","unit","feature_id","estimate","se","stat","p","mode")
 if (nrow(smide) == 0 || !all(NEED_SMIDE_COLS %in% names(smide))) {
   smide_m <- data.table(comparison=character(), readout_class=character(), unit=character(),
     feature=character(), contrast=character(), effect=numeric(), effect_type=character(),
     ci_low=numeric(), ci_high=numeric(), se=numeric(), stat=numeric(), pvalue=numeric(),
     padj_own=numeric(), hypothesis=character(), n_samples_used=integer(), baseMean=numeric())
 } else {
-  smide[, padj := p.adjust(p, "BH"), by = .(comparison, unit, contrast)]
-  smide_m <- smide[, .(comparison, readout_class="smiDE", unit=unit, feature=feature_id, contrast,
+  smide <- smide[mode != "spatial"]
+  smide[, readout_class := fifelse(mode == "screen", "smiDE_screen", "smiDE")]
+  smide[, padj := p.adjust(p, "BH"), by = .(comparison, readout_class, unit, contrast)]
+  smide_m <- smide[, .(comparison, readout_class, unit=unit, feature=feature_id, contrast,
     effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
     ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
     hypothesis=NA_character_, n_samples_used=NA_integer_, baseMean=NA_real_)]

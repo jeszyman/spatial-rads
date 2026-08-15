@@ -50,7 +50,7 @@ dependencies:
   - r-magick
   # --- Parallel ---
   - r-future
-  # --- Segmentation-contamination QC (overlap_ratio_qc.R) ---
+  # --- Segmentation-contamination QC + per-cell DE (overlap_ratio_qc.R, smide_de.R) ---
   # smiDE itself is GitHub-only (Nanostring-Biostats/CosMx-Analysis-Scratch-Space,
   # subdir _code/smiDE) -- not installable via conda, so it is NOT listed here;
   # install with remotes::install_github(..., ref = "Main"). r-sf/r-spdep are its
@@ -58,3 +58,14 @@ dependencies:
   # GDAL/GEOS/PROJ headers) unless pulled as prebuilt conda-forge binaries first.
   - r-sf
   - r-spdep
+  # smiDE turns every fit into contrasts through emmeans::qdrg(), passing the model
+  # offset as a scalar named `offsetuse`. emmeans 2.0.4 tries to resolve that name as
+  # a data variable, so ref_grid() fails with "We are unable to reconstruct the data"
+  # and every GP_Matern (spaMM) fit in smide_de.R's spatial mode dies. 1.10.7 is
+  # verified working. Pinned below 2.0 until smiDE updates its qdrg() call. NOTE:
+  # conda-forge ships r-emmeans 1.10.7 only against r-base 4.3/4.4, so this pin also
+  # holds r-base at 4.4.
+  # smiDE's other model backends (spaMM for the Matern spatial random effect,
+  # nebula for the NB GLMM) are not packaged on conda-forge; they arrive from CRAN
+  # with the remotes::install_github(smiDE) step.
+  - r-emmeans<2.0

@@ -40,7 +40,14 @@ if (nrow(master) == 0) {
 
 pb <- master[readout_class == "DE", .(unit, feature, contrast,
   pb_effect = effect, pb_pvalue = pvalue, pb_padj = padj_own)]
-sm <- master[readout_class == "smiDE", .(unit, feature, contrast,
+
+# smiDE enters the master under two readout classes: "smiDE" (spatial-random-effect
+# fits meta-analyzed across spatial units) and "smiDE_screen" (nebula NB GLMM with a
+# sample random intercept, discovery only). Compare against the spatial fits when
+# they exist and fall back to the screen otherwise, naming which was used.
+SMIDE_CLASS <- if (master[readout_class == "smiDE", .N] > 0) "smiDE" else "smiDE_screen"
+cat(sprintf("smide_concordance: comparing pseudobulk against readout_class '%s'\n", SMIDE_CLASS))
+sm <- master[readout_class == SMIDE_CLASS, .(unit, feature, contrast,
   sm_effect = effect, sm_pvalue = pvalue, sm_padj = padj_own)]
 
 merged <- pb[sm, on = .(unit, feature, contrast), nomatch = NULL]
@@ -128,6 +135,7 @@ results <- rbindlist(list(
   data.table(metric = "n_confirmatory_survives_smide",
              value = as.numeric(sum(confirm_sm$survives, na.rm = TRUE)))
 ), fill = TRUE)
+results[, smide_class := SMIDE_CLASS]
 fwrite(results, out_tsv, sep = "\t")
 
 # --- plot: effect-size scatter, colored by hit class ---
@@ -138,8 +146,8 @@ p <- ggplot(pd, aes(pb_effect, sm_effect, color = hit_class)) +
   facet_wrap(~ contrast, scales = "free") +
   scale_color_manual(values = c(both = "grey30", pseudobulk_only = "#E41A1C",
                                 smide_only = "#377EB8", neither = "grey80")) +
-  labs(x = "Pseudobulk DESeq2 log2FC", y = "smiDE NB GLMM log2FC",
-       title = sprintf("Pseudobulk vs smiDE effect-size concordance (%s)", cohort)) +
+  labs(x = "Pseudobulk DESeq2 log2FC", y = "smiDE per-cell log2FC",
+       title = sprintf("Pseudobulk vs %s effect-size concordance (%s)", SMIDE_CLASS, cohort)) +
   theme_bw(base_size = 10)
 ggsave(out_plot, p, width = 10, height = 4, dpi = 150)
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env Rscript
 # Per-gene, per-cell_subtype segmentation-contamination QC via smiDE's
 # overlap_ratio_metric: for each gene x cell_subtype pair, compares average
-# expression in cells of that subtype ("self") against average expression
-# attributable to neighboring cells of OTHER subtypes within a fixed spatial
-# radius ("neighbor_othertype"). A ratio >= 1 means neighbor-contamination
+# totalcount-normalized expression in cells of that subtype ("self") against
+# average expression attributable to neighboring cells of OTHER subtypes within
+# a fixed spatial radius ("neighbor_othertype"). A ratio >= 1 means neighbor-contamination
 # signal meets or exceeds the gene's own signal in that cell type -- i.e. the
 # gene's expression in that subtype is not trustworthy at face value (CosMx
 # segmentation bleeds transcripts across cell boundaries). Output is a flat QC
@@ -42,12 +42,24 @@ meta <- meta[colnames(counts)]
 # SECTION: OVERLAP RATIO METRIC
 # =============================================================================
 
+# overlap_ratio_metric() uses assay_matrix as given -- it applies no internal
+# depth normalization -- and the published protocol computes the ratio on
+# totalcount-normalized expression. Without this, a self/neighbor ratio mixes
+# the contamination signal with per-cell sequencing-depth differences (a deeply
+# sampled neighbor inflates avg_neighbor_othertype on raw counts alone). The
+# scale factor is smiDE's own convention, mean(colSums)/colSums, with empty
+# cells held at 1 to avoid dividing by zero.
+colsumms <- Matrix::colSums(counts)
+norm_factors <- mean(colsumms) / colsumms
+norm_factors[colsumms == 0] <- 1
+norm_counts <- counts %*% Matrix::Diagonal(x = norm_factors, names = colnames(counts))
+
 # split_neighbors_by_colname="sample_id" keeps the neighbor search within a
 # tissue section (physical slides carry several non-overlapping regions; see
 # coords_necrosis.R), so cross-sample coordinate coincidences never count as
 # spatial neighbors.
 orm <- overlap_ratio_metric(
-  assay_matrix = counts,
+  assay_matrix = norm_counts,
   metadata     = meta,
   cluster_col  = "cell_subtype",
   cellid_col   = "cell",
