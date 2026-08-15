@@ -42,8 +42,14 @@ FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
 DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
 LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
 # smiDE model modes: "screen" is the nebula NB GLMM discovery pass, "spatial" is the
-# per-spatial-unit GP_Matern fit plus inverse-variance meta-analysis.
+# per-spatial-unit Gaussian-process (GP_INLA) fit plus inverse-variance meta-analysis.
 SMIDE_MODES = ["screen", "spatial"]
+# The two pooled-control cohorts borrow Control blocks from slides that carry no
+# treated block. A spatial fit needs both contrast levels inside one slide, so those
+# borrowed slides drop out and the pooled cohorts reduce to their non-pooled parents;
+# smide_de.R stops rather than emit a result labelled pooled that used no borrowed
+# control. They run screen mode only.
+SMIDE_SPATIAL_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
 rule all:
     input:
         "results/aggregate/composition_by_sample.tsv",
@@ -92,7 +98,8 @@ rule all:
         "results/aggregate/qc_panel_sparsity.tsv",
         "results/aggregate/qc_fov_signal.tsv",
         "results/aggregate/celltype_neighborhood_purity.tsv",
-        expand("results/aggregate/engine/smide_de_{coh}_{mode}.tsv", coh=LM_COHORTS, mode=SMIDE_MODES),
+        expand("results/aggregate/engine/smide_de_{coh}_screen.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/smide_de_{coh}_spatial.tsv", coh=SMIDE_SPATIAL_COHORTS),
         expand("results/aggregate/smide_concordance_{coh}.tsv", coh=LM_COHORTS),
         expand("results/aggregate/plots/smide_concordance_{coh}.png", coh=LM_COHORTS),
         "results/aggregate/insitucor_modules.tsv",
@@ -534,7 +541,8 @@ rule assemble_results:
         mixing   = expand("results/aggregate/engine/mixing_engine_{coh}.tsv", coh=LM_COHORTS),
         myeloid  = expand("results/aggregate/engine/myeloid_engine_{coh}.tsv", coh=LM_COHORTS),
         substate = expand("results/aggregate/engine/substate_engine_{coh}.tsv", coh=LM_COHORTS),
-        smide    = expand("results/aggregate/engine/smide_de_{coh}_{mode}.tsv", coh=LM_COHORTS, mode=SMIDE_MODES),
+        smide    = expand("results/aggregate/engine/smide_de_{coh}_screen.tsv", coh=LM_COHORTS),
+        smide_sp = expand("results/aggregate/engine/smide_de_{coh}_spatial.tsv", coh=SMIDE_SPATIAL_COHORTS),
         reg      = "results/data_model/comparisons.tsv",
         mde      = "results/aggregate/power_mde.tsv",
         sets     = "results/data_model/pathway_sets.tsv",
@@ -615,10 +623,16 @@ rule overlap_ratio_qc:
 # cell type, adjacency-only pre_de with on-the-fly neighbor expression, inverse-
 # distance edge weighting, totalcount-normalized neighbor covariate. Two modes ---
 # "screen" (nebula NB GLMM with a sample random intercept; discovery only) and
-# "spatial" (per-spatial-unit GP_Matern fits combined by inverse-variance meta-
+# "spatial" (per-spatial-unit GP_INLA fits combined by inverse-variance meta-
 # analysis; the authors' fix for inflated type I error). Depends on the overlap
 # ratio QC table for the prefilter. Runs BEFORE assemble_results, which maps
-# screen -> readout_class "smiDE_screen" and spatial meta -> "smiDE".
+# screen -> readout_class "smiDE_screen" and spatial meta -> "smiDE_spatial".
+#
+# The two modes have opposite resource shapes. nebula parallelizes across genes on
+# light workers, so screen gets the full thread budget. The GP backends show ~1.0x
+# speedup from extra workers while every forked worker holds a 14-22 GB copy of the
+# cohort adjacency machinery, so spatial runs single-threaded and its throughput
+# comes from running several cohorts at once under the mem_mb budget.
 rule smide_de:
     message: "smide_de: genome-wide per-cell smiDE DE ({wildcards.cohort}, {wildcards.mode})"
     wildcard_constraints:
@@ -634,7 +648,13 @@ rule smide_de:
         overlap = "results/aggregate/overlap_ratio_qc.tsv",
     output:
         tsv = "results/aggregate/engine/smide_de_{cohort}_{mode}.tsv",
-    threads: 16
+    threads: lambda wc: 1 if wc.mode == "spatial" else 16
+    resources:
+        # Measured peak RSS of a spatial process on the combined_4h_treated cohort
+        # is 37 GB, prep-dominated; screen holds the same cohort object and forks
+        # its nebula workers off it. Run with --resources mem_mb so this, not the
+        # core count, is what caps concurrency on the 124 GB box.
+        mem_mb = 34000,
     log:
         f"{D_LOGS}/smide_de_{{cohort}}_{{mode}}.log",
     shell:

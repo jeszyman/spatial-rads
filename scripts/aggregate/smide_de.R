@@ -25,12 +25,21 @@
 #                 Fast, genome-wide, and anti-conservative for a contrast that
 #                 varies between samples. Every row is tagged mode="screen" so
 #                 the results tier can hold it out of confirmatory inference.
-#      spatial -- one fit per spatial unit with a Matern Gaussian-process random
-#                 effect (spaMM) and no sample random intercept, combined across
+#      spatial -- one fit per spatial unit with a Gaussian-process spatial
+#                 random effect and no sample random intercept, combined across
 #                 units by inverse-variance fixed-effect meta-analysis. The
 #                 spatial random effect is the authors' fix for the inflated
 #                 type I error of a per-cell model on spatially autocorrelated
 #                 data.
+#
+# Spatial backend: GP_INLA (SPDE Gaussian process fitted by INLA) is the
+# default. On this cohort it is ~12x faster than GP_Matern on the spatial term
+# at matched fit size and completes mid-sized subtype fits (>10k cells) that
+# GP_Matern cannot complete at all. GP_Matern stays reachable through
+# SPATIAL_BACKEND for cross-checking. INLA returns posterior summaries, not
+# frequentist tests: the p reported for a spatial row is a normal approximation
+# to the posterior credible interval (z = estimate/se, two-sided), and the
+# credible bounds themselves are carried in ci_lo/ci_hi.
 #
 # Spatial fitting unit: the authors fit per sample and meta-analyze. In this
 # study `condition` is constant within sample_id (one tumor, one arm), so an arm
@@ -40,9 +49,9 @@
 # the `fit_unit` output column.
 #
 # Output is the engine schema (comparison/contrast/unit/feature_type/feature_id/
-# estimate/se/df/stat/p) plus mode/sample_id/fit_unit/n_fits. `unit` is the cell
-# type (engine convention); `sample_id` is the spatial fitting unit's value and
-# is NA for screen and meta rows.
+# estimate/se/df/stat/p) plus ci_lo/ci_hi/mode/sample_id/fit_unit/n_fits/
+# n_cells_fit. `unit` is the cell type (engine convention); `sample_id` is the
+# spatial fitting unit's value and is NA for screen and meta rows.
 #
 # Cohort membership is the cohort_samples.tsv whitelist intersected with the
 # registry's contrast condition levels, the same cross-dataset-leakage guard
@@ -71,37 +80,63 @@ MIN_TARGETS <- 25
 # Overlap ratio >= 1 means neighbor-other-type expression matches or exceeds the
 # gene's own expression in that cell type -- the authors' prefilter cut.
 ORM_MAX <- 1
+# nebula parallelizes across genes and each worker is light.
 N_CORES <- 16
-# Matern spatial clusters as a fraction of the cells in a fit; the spaMM fit
-# cost grows steeply in the resulting number of levels.
+# The GP backends show ~1.0x speedup from extra workers while each forked worker
+# holds a 14-22 GB copy of the cohort adjacency machinery, so the spatial path
+# runs serial inside a call and parallelizes across calls instead.
+N_CORES_SPATIAL <- 1
+# Spatial fits are capped at this many cells per fit unit, subsampled
+# proportionally within sample_id so both contrast arms survive. The cap keeps
+# every fit inside the size range that was timed directly; the neighbor
+# covariate is unaffected because assay_matrix and the adjacency table remain
+# the full cohort.
+SPATIAL_MAX_CELLS <- 2500
+SPATIAL_SUBSAMPLE_SEED <- 1
+# Matern spatial clusters as a fraction of the cells in a fit, and their hard
+# ceiling; the spaMM fit cost grows steeply in the resulting number of levels.
 SPATIAL_K_PROP <- 0.25
+K_MAX <- 700
+SPATIAL_BACKEND <- "GP_INLA"
+SPATIAL_BACKEND_MATERN <- "GP_Matern"
 # Candidate fitting units for spatial mode, finest first.
 FIT_UNIT_CANDIDATES <- c("sample_id", "slide_id")
 
 dir.create(dirname(out_tsv), recursive = TRUE, showWarnings = FALSE)
 
 OUT_COLS <- c("comparison", "contrast", "unit", "feature_type", "feature_id",
-              "estimate", "se", "df", "stat", "p", "mode", "sample_id",
-              "fit_unit", "n_fits")
+              "estimate", "se", "df", "stat", "p", "ci_lo", "ci_hi", "mode",
+              "sample_id", "fit_unit", "n_fits", "n_cells_fit")
 
 EMPTY_OUT <- function() {
   data.table(comparison=character(), contrast=character(), unit=character(),
              feature_type=character(), feature_id=character(),
              estimate=numeric(), se=numeric(), df=numeric(),
-             stat=numeric(), p=numeric(), mode=character(),
-             sample_id=character(), fit_unit=character(), n_fits=integer())
+             stat=numeric(), p=numeric(), ci_lo=numeric(), ci_hi=numeric(),
+             mode=character(), sample_id=character(), fit_unit=character(),
+             n_fits=integer(), n_cells_fit=integer())
 }
 
 write_out <- function(dt) {
   fwrite(dt[, ..OUT_COLS], out_tsv, sep = "\t")
 }
 
+# An empty spatial table is never a valid result: a cohort is on the spatial run
+# manifest because it is expected to produce fits, and a silent empty file is
+# indistinguishable downstream from a genuine null.
+abort_or_empty <- function(reason) {
+  if (de_mode == "spatial")
+    stop(sprintf("smide_de: cohort %s spatial mode produced no results -- %s",
+                 cohort_name, reason))
+  cat(sprintf("smide_de: %s\n", reason))
+  write_out(EMPTY_OUT())
+  quit(save = "no")
+}
+
 comp <- fread(comp_path)
 cohort_comp <- comp[cohort == cohort_name & !is.na(contrast_num_level)]
 if (nrow(cohort_comp) == 0) {
-  cat(sprintf("smide_de: no %s comparisons found\n", cohort_name))
-  write_out(EMPTY_OUT())
-  quit(save = "no")
+  abort_or_empty(sprintf("no %s comparisons found in the registry", cohort_name))
 }
 contrast_defs <- unique(cohort_comp[, .(contrast = name, num_level = contrast_num_level,
                                         den_level = contrast_den_level)])
@@ -145,6 +180,10 @@ meta <- meta[sample_id %in% COHORT_SAMPLES & condition %in% conditions]
 
 cells_keep <- intersect(colnames(counts), meta$cell)
 counts <- counts[, cells_keep]
+# The subset above is an independent matrix, so the whole merged Seurat object can
+# go. It is several GB per process and the spatial stage runs many processes at once
+# against a fixed memory budget.
+rm(seu); invisible(gc())
 meta <- meta[cell %in% cells_keep]
 setkey(meta, cell)
 meta <- meta[colnames(counts)]
@@ -159,9 +198,64 @@ cat(sprintf("smide_de: cohort=%s mode=%s | %d cells, %d genes, %d subtypes, %d s
             length(sample_ids)))
 
 if (nrow(meta) == 0) {
-  cat("smide_de: no cells after cohort filtering\n")
-  write_out(EMPTY_OUT())
-  quit(save = "no")
+  abort_or_empty("no cells survived cohort filtering")
+}
+
+# =============================================================================
+# SECTION: SPATIAL FITTING UNIT + BORROWED-CONTROL FEASIBILITY
+# =============================================================================
+
+# Resolved before any fitting so an infeasible cohort fails in seconds rather
+# than after hours of fits that map to nothing.
+fit_unit <- NA_character_
+unit_values <- character()
+if (de_mode == "spatial") {
+  for (cand in FIT_UNIT_CANDIDATES) {
+    if (!cand %in% names(meta)) next
+    if (meta[, uniqueN(condition), by = cand][, any(V1 >= 2)]) { fit_unit <- cand; break }
+  }
+  if (is.na(fit_unit)) {
+    abort_or_empty("no metadata column carries >= 2 conditions, so no arm contrast is estimable within a fitting unit")
+  }
+  cat(sprintf("smide_de: spatial fitting unit = %s\n", fit_unit))
+
+  # A unit contributes only if some registry contrast has BOTH its levels
+  # present in that unit; a unit holding two conditions that are never
+  # contrasted against each other (e.g. a treated-only slide in a cohort whose
+  # contrasts are all treated-vs-Control) fits fine and maps to zero rows.
+  unit_conds <- meta[, .(conds = list(unique(condition))), by = c(fit_unit)]
+  unit_conds[, estimable := vapply(conds, function(cc)
+    any(contrast_defs[, num_level %in% cc & den_level %in% cc]), logical(1))]
+  unit_values <- sort(unit_conds[estimable == TRUE][[fit_unit]])
+  dead_units  <- sort(unit_conds[estimable == FALSE][[fit_unit]])
+
+  # A dropped treated unit only costs power inside the units that remain. A
+  # dropped CONTROL unit means the cohort's borrowed controls contributed
+  # nothing at all, while the output still carries the pooled cohort's name --
+  # a result labelled pooled that rests entirely on the co-resident units.
+  if (length(dead_units) > 0) {
+    dead_samples <- meta[get(fit_unit) %in% dead_units,
+                         .(conds = paste(sort(unique(condition)), collapse = "/")),
+                         by = sample_id]
+    cat(sprintf("smide_de: %s %s carry no estimable contrast and are dropped (%s)\n",
+                fit_unit, paste(dead_units, collapse = ", "),
+                paste(sprintf("%s=%s", dead_samples$sample_id, dead_samples$conds),
+                      collapse = ", ")))
+    dropped_den <- meta[get(fit_unit) %in% dead_units &
+                        condition %in% contrast_defs$den_level, unique(sample_id)]
+    if (length(dropped_den) > 0)
+      stop(sprintf(paste0(
+        "smide_de: cohort %s cannot run in spatial mode. Reference-arm sample(s) %s sit on ",
+        "%s %s, which carry no estimable contrast, so the spatial fits would use none of ",
+        "the borrowed controls while the output was still labelled %s. Run this cohort in ",
+        "screen mode only."),
+        cohort_name, paste(sort(dropped_den), collapse = ", "), fit_unit,
+        paste(dead_units, collapse = ", "), cohort_name))
+  }
+  if (length(unit_values) == 0)
+    abort_or_empty(sprintf("no %s carries both levels of any registry contrast", fit_unit))
+  cat(sprintf("smide_de: %d estimable %s value(s): %s\n", length(unit_values), fit_unit,
+              paste(unit_values, collapse = ", ")))
 }
 
 # =============================================================================
@@ -202,8 +296,27 @@ pde <- pre_de(
 )
 
 # weight = 1/distance, so two cells sharing a centroid coordinate produce a
-# non-finite edge weight that would dominate the neighbor covariate.
-n_bad_weight <- pde$cell_adjacency_dt[from != to & !is.finite(weight), .N]
+# non-finite edge weight. Left in place it becomes NaN in the weighted neighbor
+# sum and poisons the covariate for every gene. Capping at the largest finite
+# edge weight keeps the (genuinely adjacent) pair in the graph while bounding
+# its leverage; edges are dropped only if no finite weight exists to cap to.
+adj <- pde$cell_adjacency_dt
+off_diag <- adj[["from"]] != adj[["to"]]
+bad_w <- off_diag & !is.finite(adj[["weight"]])
+n_bad_weight <- sum(bad_w)
+if (n_bad_weight > 0) {
+  finite_w <- adj[["weight"]][off_diag & is.finite(adj[["weight"]])]
+  if (length(finite_w) > 0) {
+    w_cap <- max(finite_w)
+    data.table::set(adj, which(bad_w), "weight", w_cap)
+    cat(sprintf("smide_de: capped %d non-finite inverse-distance weight(s) at %.4g\n",
+                n_bad_weight, w_cap))
+  } else {
+    pde$cell_adjacency_dt <- adj[!bad_w]
+    cat(sprintf("smide_de: dropped %d non-finite-weight edge(s) (no finite weight to cap to)\n",
+                n_bad_weight))
+  }
+}
 cat(sprintf("smide_de: %d adjacency edges, %d non-finite inverse-distance weights\n",
             nrow(pde$cell_adjacency_dt), n_bad_weight))
 
@@ -220,18 +333,67 @@ nb_scalefactor <- setNames(as.numeric(mean_tc / tc), colnames(counts))
 # SECTION: FIT HELPERS
 # =============================================================================
 
-# emmeans returns response-scale ratios for a log-link fit; convert to log2 fold
-# change and propagate the SE by the delta method.
-map_pairwise <- function(de, ct, mode_tag, sample_tag, fit_unit_tag) {
+# Two backends, two result schemas, one engine schema.
+#
+#   emmeans-backed (nebula, spaMM): response-scale `ratio` + `SE` for a log-link
+#     fit. estimate = log2(ratio); SE propagated to the log2 scale by the delta
+#     method, SE / (ratio * log(2)).
+#   INLA: posterior summaries of the same log-link contrast. smiDE exponentiates
+#     `mean`, `mode` and every `*quant` column for an nbinom2 fit but leaves `sd`
+#     on the natural-log scale (postprocess_inla_contrasts), so estimate =
+#     log2(mean) and se = sd / log(2) land on the identical log2 scale as the
+#     emmeans branch. There is no p-value: the reported p is the two-sided
+#     normal approximation to the credible interval, z = estimate / se, and the
+#     credible bounds are carried through in ci_lo/ci_hi.
+#
+# `dir_sign` flips both the estimate and (with a swap) the interval when the
+# package emits the contrast in the opposite order to the registry's.
+map_pairwise <- function(de, ct, mode_tag, sample_tag, fit_unit_tag, n_cells) {
   pw <- as.data.table(results(de, comparisons = "pairwise", variable = "condition")$pairwise)
-  if (nrow(pw) == 0 || !all(c("target", "contrast", "ratio", "SE") %in% names(pw))) return(NULL)
-  pw <- pw[!is.na(ratio) & !is.na(SE) & ratio > 0]
-  if (nrow(pw) == 0) return(NULL)
+  if (nrow(pw) == 0)
+    stop(sprintf("smide_de: results() returned zero pairwise rows for %s", ct))
+  if (!all(c("target", "contrast") %in% names(pw)))
+    stop(sprintf("smide_de: results() output for %s has no target/contrast columns (got: %s)",
+                 ct, paste(names(pw), collapse = ", ")))
+
+  quant_cols <- grep("quant$", names(pw), value = TRUE)
+  is_emmeans <- all(c("ratio", "SE") %in% names(pw))
+  is_inla    <- all(c("mean", "sd") %in% names(pw)) && length(quant_cols) >= 2
+  if (!is_emmeans && !is_inla)
+    stop(sprintf(paste0("smide_de: unrecognized results() schema for %s -- expected an emmeans ",
+                        "(ratio/SE) or INLA (mean/sd/*quant) summary, got: %s"),
+                 ct, paste(names(pw), collapse = ", ")))
+
+  if (is_emmeans) {
+    pw <- pw[is.finite(ratio) & is.finite(SE) & ratio > 0]
+    if (nrow(pw) == 0) return(NULL)
+    est_v <- log2(pw$ratio)
+    se_v  <- pw$SE / (pw$ratio * log(2))
+    lo_v  <- rep(NA_real_, nrow(pw))
+    hi_v  <- rep(NA_real_, nrow(pw))
+    df_v  <- if ("df" %in% names(pw)) as.numeric(pw$df) else rep(NA_real_, nrow(pw))
+    p_v   <- pw$p.value
+    stat_v <- rep(NA_real_, nrow(pw))
+  } else {
+    q_lev <- suppressWarnings(as.numeric(sub("quant$", "", quant_cols)))
+    stopifnot(`INLA quantile column names are not numeric levels` = !anyNA(q_lev))
+    lo_col <- quant_cols[which.min(q_lev)]
+    hi_col <- quant_cols[which.max(q_lev)]
+    pw <- pw[is.finite(mean) & is.finite(sd) & mean > 0 & sd > 0]
+    if (nrow(pw) == 0) return(NULL)
+    est_v <- log2(pw$mean)
+    se_v  <- pw$sd / log(2)
+    lo_v  <- log2(pw[[lo_col]])
+    hi_v  <- log2(pw[[hi_col]])
+    df_v  <- rep(NA_real_, nrow(pw))
+    stat_v <- est_v / se_v
+    p_v   <- 2 * pnorm(-abs(stat_v))
+  }
+
   pw[, target := as.character(target)]
   pw[, c("levelA", "levelB") := tstrsplit(as.character(contrast), " / ", fixed = TRUE)]
   pw[, levelA := trimws(levelA)]
   pw[, levelB := trimws(levelB)]
-  pw_df <- if ("df" %in% names(pw)) pw$df else rep(NA_real_, nrow(pw))
 
   mapped <- vector("list", nrow(contrast_defs))
   for (i in seq_len(nrow(contrast_defs))) {
@@ -239,24 +401,28 @@ map_pairwise <- function(de, ct, mode_tag, sample_tag, fit_unit_tag) {
     sel <- (pw$levelA == cdef$num_level & pw$levelB == cdef$den_level) |
            (pw$levelA == cdef$den_level & pw$levelB == cdef$num_level)
     if (!any(sel)) next
-    hit <- pw[sel]
-    hit_df <- pw_df[sel]
-    dir_sign <- ifelse(hit$levelA == cdef$num_level, 1, -1)
+    dir_sign <- ifelse(pw$levelA[sel] == cdef$num_level, 1, -1)
+    est_i <- dir_sign * est_v[sel]
+    lo_i  <- ifelse(dir_sign > 0, lo_v[sel], -hi_v[sel])
+    hi_i  <- ifelse(dir_sign > 0, hi_v[sel], -lo_v[sel])
     mapped[[i]] <- data.table(
       comparison = cohort_name,
       contrast = cdef$contrast,
       unit = ct,
       feature_type = "gene",
-      feature_id = hit$target,
-      estimate = dir_sign * log2(hit$ratio),
-      se = hit$SE / (hit$ratio * log(2)),
-      df = as.numeric(hit_df),
-      stat = NA_real_,
-      p = hit$p.value,
+      feature_id = pw$target[sel],
+      estimate = est_i,
+      se = se_v[sel],
+      df = df_v[sel],
+      stat = if (is_emmeans) stat_v[sel] else dir_sign * stat_v[sel],
+      p = p_v[sel],
+      ci_lo = lo_i,
+      ci_hi = hi_i,
       mode = mode_tag,
       sample_id = sample_tag,
       fit_unit = fit_unit_tag,
-      n_fits = NA_integer_
+      n_fits = NA_integer_,
+      n_cells_fit = as.integer(n_cells)
     )
   }
   mapped <- rbindlist(mapped, fill = TRUE)
@@ -265,22 +431,26 @@ map_pairwise <- function(de, ct, mode_tag, sample_tag, fit_unit_tag) {
 
 # Fixed-effect inverse-variance meta-analysis across the per-unit spatial fits.
 # metafor is not installed in the spatial-rads env, and the closed form below is
-# the same estimator metafor's rma(method="FE") returns.
-meta_combine <- function(dt) {
+# the same estimator metafor's rma(method="FE") returns. n_cells_fit on a meta
+# row is the total cells fitted across the contributing units.
+meta_combine <- function(dt, fit_unit_tag) {
   ok <- dt[is.finite(estimate) & is.finite(se) & se > 0]
   if (nrow(ok) == 0) return(NULL)
   m <- ok[, {
     w <- 1 / se^2
     est <- sum(w * estimate) / sum(w)
     sse <- sqrt(1 / sum(w))
-    .(estimate = est, se = sse, n_fits = .N)
+    .(estimate = est, se = sse, n_fits = .N,
+      n_cells_fit = sum(unique(data.table(sample_id, n_cells_fit))$n_cells_fit))
   }, by = .(comparison, contrast, unit, feature_type, feature_id)]
   m[, stat := estimate / se]
   m[, p := 2 * pnorm(-abs(stat))]
   m[, df := NA_real_]
+  m[, ci_lo := NA_real_]
+  m[, ci_hi := NA_real_]
   m[, mode := "spatial_meta"]
   m[, sample_id := NA_character_]
-  m[, fit_unit := NA_character_]
+  m[, fit_unit := fit_unit_tag]
   m[]
 }
 
@@ -289,6 +459,8 @@ meta_combine <- function(dt) {
 # =============================================================================
 
 results_list <- list()
+n_fit_ok <- 0L
+n_fit_fail <- 0L
 
 if (de_mode == "screen") {
   for (ct in subtypes) {
@@ -315,7 +487,7 @@ if (de_mode == "screen") {
     setkey(ct_meta, cell)
     ct_meta <- ct_meta[ct_cells]
 
-    tryCatch({
+    fit <- tryCatch({
       de <- smi_de(
         assay_matrix = counts,
         metadata = ct_meta,
@@ -332,48 +504,28 @@ if (de_mode == "screen") {
         neighbor_expr_totalcount_scalefactor = nb_scalefactor,
         neighbor_expr_cell_type_metadata_colname = "cell_subtype"
       )
-      mapped <- map_pairwise(de, ct, "screen", NA_character_, NA_character_)
-      if (!is.null(mapped)) results_list[[ct]] <- mapped
+      list(ok = TRUE,
+           mapped = map_pairwise(de, ct, "screen", NA_character_, NA_character_,
+                                 nrow(ct_meta)))
+    }, error = function(e) list(ok = FALSE, msg = conditionMessage(e)))
+
+    if (isTRUE(fit$ok)) {
+      n_fit_ok <- n_fit_ok + 1L
+      if (!is.null(fit$mapped)) results_list[[ct]] <- fit$mapped
       cat(sprintf("smide_de: %s -- %d genes tested, %d contrast rows\n",
-                  ct, length(tg), if (is.null(mapped)) 0L else nrow(mapped)))
-    }, error = function(e) {
-      cat(sprintf("smide_de: ERROR %s -- %s\n", ct, conditionMessage(e)))
-    })
+                  ct, length(tg), if (is.null(fit$mapped)) 0L else nrow(fit$mapped)))
+    } else {
+      n_fit_fail <- n_fit_fail + 1L
+      cat(sprintf("smide_de: ERROR %s -- %s\n", ct, fit$msg))
+    }
   }
 }
 
 # =============================================================================
-# SECTION: SPATIAL MODE -- per-unit GP_Matern fits + inverse-variance meta
+# SECTION: SPATIAL MODE -- per-unit GP fits + inverse-variance meta
 # =============================================================================
 
 if (de_mode == "spatial") {
-  # Finest metadata column in which the arm contrast is estimable.
-  fit_unit <- NA_character_
-  for (cand in FIT_UNIT_CANDIDATES) {
-    if (!cand %in% names(meta)) next
-    if (meta[, uniqueN(condition), by = cand][, any(V1 >= 2)]) { fit_unit <- cand; break }
-  }
-  if (is.na(fit_unit)) {
-    cat("smide_de: no metadata column carries >= 2 conditions; spatial mode cannot fit\n")
-    write_out(EMPTY_OUT())
-    quit(save = "no")
-  }
-  cat(sprintf("smide_de: spatial fitting unit = %s\n", fit_unit))
-
-  # xy_kmeans_clusters() names its centroid columns <coord>_cluster and
-  # smi_de() never rewrites the default GP_Matern random-effect formula, which
-  # references CosMx's sdimx/sdimy/Run_Tissue_name names. The formula is passed
-  # explicitly so it matches the columns actually created.
-  spatial_spec <- list(
-    name = "GP_Matern",
-    k_prop_n = SPATIAL_K_PROP,
-    x_coord_col = "x_slide_mm",
-    y_coord_col = "y_slide_mm",
-    split_neighbors_by_colname = "sample_id",
-    spatial_random_effect = ~ Matern(1 | x_slide_mm_cluster + y_slide_mm_cluster %in% sample_id)
-  )
-
-  unit_values <- sort(unique(meta[[fit_unit]]))
   for (ct in subtypes) {
     tg <- targets_by_ct[[ct]]
     if (is.null(tg)) tg <- character()
@@ -386,21 +538,66 @@ if (de_mode == "spatial") {
       next
     }
 
+    # INLA reports credible intervals rather than tests, so the vignette's
+    # multiplicity control is a Bonferroni-widened interval over the gene list
+    # actually fitted in this call.
+    q_tail <- 0.025 / length(tg)
+
     per_unit <- list()
     for (u in unit_values) {
       u_meta <- ct_meta_all[get(fit_unit) == u]
-      if (nrow(u_meta) < MIN_CELLS) {
+      n_cells_unit <- nrow(u_meta)
+      if (n_cells_unit < MIN_CELLS) {
         cat(sprintf("smide_de: SKIP %s / %s=%s (%d cells < %d)\n",
-                    ct, fit_unit, u, nrow(u_meta), MIN_CELLS))
+                    ct, fit_unit, u, n_cells_unit, MIN_CELLS))
         next
       }
       if (uniqueN(u_meta$condition) < 2) {
         cat(sprintf("smide_de: SKIP %s / %s=%s (single condition)\n", ct, fit_unit, u))
         next
       }
+      if (n_cells_unit > SPATIAL_MAX_CELLS) {
+        set.seed(SPATIAL_SUBSAMPLE_SEED)
+        frac <- SPATIAL_MAX_CELLS / n_cells_unit
+        u_meta <- u_meta[, .SD[sample(.N, max(1L, round(.N * frac)))], by = sample_id]
+      }
       setkey(u_meta, cell)
+      n_cells_fit <- nrow(u_meta)
 
-      tryCatch({
+      # xy_kmeans_clusters() takes k as a total and splits it proportionally
+      # across sample_id; it warns and ignores k_prop_n whenever k is also
+      # given, so the absolute count is what actually binds. Consumed by
+      # GP_Matern only -- GP_INLA builds an SPDE mesh from the coordinates and
+      # has no k-means step, and passing k there would leak into INLA::inla().
+      k_abs <- min(floor(n_cells_fit * SPATIAL_K_PROP), K_MAX)
+      spatial_spec <- if (SPATIAL_BACKEND == "GP_INLA") {
+        list(
+          name = "GP_INLA",
+          x_coord_col = "x_slide_mm",
+          y_coord_col = "y_slide_mm",
+          quantiles = c(q_tail, 0.5, 1 - q_tail),
+          num.threads = 1
+        )
+      } else {
+        # xy_kmeans_clusters() names its centroid columns <coord>_cluster and
+        # smi_de() never rewrites the default GP_Matern random-effect formula,
+        # which references CosMx's sdimx/sdimy/Run_Tissue_name names. The
+        # formula is passed explicitly so it matches the columns actually created.
+        list(
+          name = "GP_Matern",
+          k = k_abs,
+          k_prop_n = NULL,
+          x_coord_col = "x_slide_mm",
+          y_coord_col = "y_slide_mm",
+          split_neighbors_by_colname = "sample_id",
+          spatial_random_effect = ~ Matern(1 | x_slide_mm_cluster + y_slide_mm_cluster %in% sample_id)
+        )
+      }
+      cat(sprintf("smide_de: FIT %s / %s=%s | %d of %d cells (seed %d) | %d genes | %s | k=%d\n",
+                  ct, fit_unit, u, n_cells_fit, n_cells_unit, SPATIAL_SUBSAMPLE_SEED,
+                  length(tg), SPATIAL_BACKEND, k_abs))
+
+      fit <- tryCatch({
         de <- smi_de(
           assay_matrix = counts,
           metadata = u_meta,
@@ -410,7 +607,7 @@ if (de_mode == "spatial") {
           family = "nbinom2",
           targets = tg,
           cellid_colname = "cell",
-          nCores = N_CORES,
+          nCores = N_CORES_SPATIAL,
           spatial_model = spatial_spec,
           neighbor_expr_overlap_agg = "sum",
           neighbor_expr_overlap_weight_colname = "weight",
@@ -418,36 +615,50 @@ if (de_mode == "spatial") {
           neighbor_expr_totalcount_scalefactor = nb_scalefactor,
           neighbor_expr_cell_type_metadata_colname = "cell_subtype"
         )
-        mapped <- map_pairwise(de, ct, "spatial", as.character(u), fit_unit)
-        if (!is.null(mapped)) per_unit[[as.character(u)]] <- mapped
+        list(ok = TRUE,
+             mapped = map_pairwise(de, ct, "spatial", as.character(u), fit_unit,
+                                   n_cells_fit))
+      }, error = function(e) list(ok = FALSE, msg = conditionMessage(e)))
+
+      if (isTRUE(fit$ok)) {
+        n_fit_ok <- n_fit_ok + 1L
+        if (!is.null(fit$mapped)) per_unit[[as.character(u)]] <- fit$mapped
         cat(sprintf("smide_de: %s / %s=%s -- %d genes tested, %d contrast rows\n",
                     ct, fit_unit, u, length(tg),
-                    if (is.null(mapped)) 0L else nrow(mapped)))
-      }, error = function(e) {
-        cat(sprintf("smide_de: ERROR %s / %s=%s -- %s\n", ct, fit_unit, u,
-                    conditionMessage(e)))
-      })
+                    if (is.null(fit$mapped)) 0L else nrow(fit$mapped)))
+      } else {
+        n_fit_fail <- n_fit_fail + 1L
+        cat(sprintf("smide_de: ERROR %s / %s=%s -- %s\n", ct, fit_unit, u, fit$msg))
+      }
     }
 
     if (length(per_unit) == 0) next
     ct_rows <- rbindlist(per_unit, fill = TRUE)
-    ct_meta_rows <- meta_combine(ct_rows)
+    ct_meta_rows <- meta_combine(ct_rows, fit_unit)
     results_list[[ct]] <- rbindlist(list(ct_rows, ct_meta_rows), use.names = TRUE, fill = TRUE)
     cat(sprintf("smide_de: %s -- %d per-unit rows, %d meta rows over %d unit(s)\n",
                 ct, nrow(ct_rows),
                 if (is.null(ct_meta_rows)) 0L else nrow(ct_meta_rows), length(per_unit)))
   }
+
+  if (n_fit_ok == 0L)
+    stop(sprintf("smide_de: cohort %s spatial mode -- all %d attempted fit(s) failed; no results produced",
+                 cohort_name, n_fit_fail))
 }
+
+cat(sprintf("smide_de: %d fit(s) succeeded, %d failed\n", n_fit_ok, n_fit_fail))
 
 # =============================================================================
 # SECTION: WRITE
 # =============================================================================
 
 if (length(results_list) == 0) {
-  cat("smide_de: all cell types failed or skipped\n")
-  write_out(EMPTY_OUT())
+  abort_or_empty("every cell type failed or was skipped")
 } else {
   out <- rbindlist(results_list, use.names = TRUE, fill = TRUE)
+  if (de_mode == "spatial" && out[mode == "spatial_meta", .N] == 0)
+    stop(sprintf("smide_de: cohort %s spatial mode produced per-unit rows but no meta rows",
+                 cohort_name))
   write_out(out)
   cat(sprintf("smide_de: %d rows | %d genes x %d cell types x %d contrasts | modes: %s\n",
               nrow(out), uniqueN(out$feature_id), uniqueN(out$unit), uniqueN(out$contrast),

@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # Pseudobulk vs smiDE concordance analysis. Reads results_master.tsv (which
-# contains both readout_class="DE" and readout_class="smiDE" rows) and compares
+# contains both readout_class="DE" and readout_class="smiDE_*" rows) and compares
 # effect sizes, hit overlap, and contamination-ratio enrichment, scoped to one
 # cohort (mutter02_day2 / combined_4h / combined_4h_treated).
 # Args: <results_master.tsv> <overlap_ratio_qc.tsv> <cohort> <out_concordance.tsv> <out_plot.png>
@@ -41,11 +41,11 @@ if (nrow(master) == 0) {
 pb <- master[readout_class == "DE", .(unit, feature, contrast,
   pb_effect = effect, pb_pvalue = pvalue, pb_padj = padj_own)]
 
-# smiDE enters the master under two readout classes: "smiDE" (spatial-random-effect
+# smiDE enters the master under two readout classes: "smiDE_spatial" (Gaussian-process
 # fits meta-analyzed across spatial units) and "smiDE_screen" (nebula NB GLMM with a
 # sample random intercept, discovery only). Compare against the spatial fits when
 # they exist and fall back to the screen otherwise, naming which was used.
-SMIDE_CLASS <- if (master[readout_class == "smiDE", .N] > 0) "smiDE" else "smiDE_screen"
+SMIDE_CLASS <- if (master[readout_class == "smiDE_spatial", .N] > 0) "smiDE_spatial" else "smiDE_screen"
 cat(sprintf("smide_concordance: comparing pseudobulk against readout_class '%s'\n", SMIDE_CLASS))
 sm <- master[readout_class == SMIDE_CLASS, .(unit, feature, contrast,
   sm_effect = effect, sm_pvalue = pvalue, sm_padj = padj_own)]

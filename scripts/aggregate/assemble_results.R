@@ -201,32 +201,49 @@ dd_m <- dd[, .(comparison="mutter02_day2", readout_class="detection", unit=cell_
 #   screen  -> "smiDE_screen". Sample random intercept, no spatial random effect;
 #              anti-conservative for a contrast that varies between samples, so it
 #              is a discovery screen only. No confirmatory claim keys on it.
-#   spatial -> "smiDE". Per-spatial-unit GP_Matern fits combined by
-#              inverse-variance meta-analysis (mode == "spatial_meta"); the
+#   spatial -> "smiDE_spatial". Per-spatial-unit Gaussian-process fits combined
+#              by inverse-variance meta-analysis (mode == "spatial_meta"); the
 #              per-unit rows (mode == "spatial") are the meta-analysis inputs and
-#              are not cohort-level results, so they are dropped here.
-smide <- rbindlist(list(
-  read_cohort_family(engine_p, "smide_de_", "smiDE (screen)",  suffix = "_screen"),
-  read_cohort_family(engine_p, "smide_de_", "smiDE (spatial)", suffix = "_spatial")
-), use.names = TRUE, fill = TRUE)
+#              are not cohort-level results, so they are dropped here. The
+#              default backend (GP_INLA) reports posterior summaries, so a
+#              spatial row's pvalue is a normal approximation to its credible
+#              interval, not a frequentist test.
+# The spatial fitting geometry (fit_unit, n_fits, n_cells_fit) rides through to
+# the master: a spatial effect is only readable next to how many units combined
+# into it and how many cells each fit actually saw after the subsample cap.
+smide_screen  <- read_cohort_family(engine_p, "smide_de_", "smiDE (screen)",  suffix = "_screen")
+smide_spatial <- read_cohort_family(engine_p, "smide_de_", "smiDE (spatial)", suffix = "_spatial")
+if (nrow(smide_spatial) > 0 && "mode" %in% names(smide_spatial)) {
+  no_meta <- setdiff(unique(smide_spatial$comparison),
+                     unique(smide_spatial[mode == "spatial_meta", comparison]))
+  if (length(no_meta) > 0)
+    stop(sprintf(paste0("assemble_results: smiDE spatial cohort(s) %s contributed a file with no ",
+                        "spatial_meta row -- the per-unit fits never combined into a cohort result"),
+                 paste(no_meta, collapse = ", ")))
+}
+smide <- rbindlist(list(smide_screen, smide_spatial), use.names = TRUE, fill = TRUE)
 NEED_SMIDE_COLS <- c("comparison","contrast","unit","feature_id","estimate","se","stat","p","mode")
 if (nrow(smide) == 0 || !all(NEED_SMIDE_COLS %in% names(smide))) {
   smide_m <- data.table(comparison=character(), readout_class=character(), unit=character(),
     feature=character(), contrast=character(), effect=numeric(), effect_type=character(),
     ci_low=numeric(), ci_high=numeric(), se=numeric(), stat=numeric(), pvalue=numeric(),
-    padj_own=numeric(), hypothesis=character(), n_samples_used=integer(), baseMean=numeric())
+    padj_own=numeric(), hypothesis=character(), n_samples_used=integer(), baseMean=numeric(),
+    fit_unit=character(), n_fits=integer(), n_cells_fit=integer())
 } else {
   smide <- smide[mode != "spatial"]
-  smide[, readout_class := fifelse(mode == "screen", "smiDE_screen", "smiDE")]
+  smide[, readout_class := fifelse(mode == "screen", "smiDE_screen", "smiDE_spatial")]
   smide[, padj := p.adjust(p, "BH"), by = .(comparison, readout_class, unit, contrast)]
   smide_m <- smide[, .(comparison, readout_class, unit=unit, feature=feature_id, contrast,
     effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
     ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
-    hypothesis=NA_character_, n_samples_used=NA_integer_, baseMean=NA_real_)]
+    hypothesis=NA_character_, n_samples_used=NA_integer_, baseMean=NA_real_,
+    fit_unit, n_fits, n_cells_fit)]
 }
 
+# fill = TRUE because only the smiDE rows carry the three spatial-geometry
+# columns; every other readout family leaves them NA.
 master <- rbindlist(list(comp_m, sub_m, de_m, pw_m, gsea_m, ni_m, mx_m, my_m, dd_m, smide_m),
-                    use.names = TRUE)
+                    use.names = TRUE, fill = TRUE)
 
 # --- n_per_arm + dataset: derived per (comparison, contrast) / cohort, not hardcoded --
 # n_per_arm was a blanket 4L (the day-2 n before the 2026-08-13 M02 relabel correction)
@@ -370,7 +387,8 @@ master[, independent := !(readout_class %in% c("pathway","gsea") & feature == "S
 setcolorder(master, c(COLS, "padj_confirmatory",
                       "gate_program", "gate_padj", "padj_gated", "padj_ihw",
                       "mde", "mde_scale", "abs_effect_lt_mde", "clears_mde", "trend_call",
-                      "n_panel", "n_set_total", "panel_cov_frac"))
+                      "n_panel", "n_set_total", "panel_cov_frac",
+                      "fit_unit", "n_fits", "n_cells_fit"))
 setorder(master, comparison, tier, readout_class, unit, contrast, feature, na.last = TRUE)
 fwrite(master, out_p, sep = "\t")
 
