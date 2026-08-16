@@ -57,15 +57,15 @@
 # registry's contrast condition levels, the same cross-dataset-leakage guard
 # used by scripts/engines/lm_engine.R.
 #
-# Args: <merged.rds> <full_labels.parquet> <coords_necrosis.parquet>
-#       <obs.parquet> <comparisons.tsv> <samples.tsv> <overlap_ratio_qc.tsv>
-#       <cohort> <mode> <out_tsv>
+# Args: <merged.rds|cohort counts cache> <full_labels.parquet>
+#       <coords_necrosis.parquet> <obs.parquet> <comparisons.tsv> <samples.tsv>
+#       <overlap_ratio_qc.tsv> <cohort> <mode> <out_tsv>
 suppressPackageStartupMessages({
   library(data.table); library(arrow); library(Seurat); library(Matrix); library(smiDE)
 })
 a <- commandArgs(trailingOnly = TRUE)
 if (length(a) != 10) {
-  stop("usage: smide_de.R <merged.rds> <labels.parquet> <coords.parquet> <obs.parquet> ",
+  stop("usage: smide_de.R <merged.rds|cohort.counts.rds> <labels.parquet> <coords.parquet> <obs.parquet> ",
        "<comparisons.tsv> <samples.tsv> <overlap_ratio_qc.tsv> <cohort> <mode> <out.tsv>")
 }
 rds_path <- a[1]; labels_path <- a[2]; coords_path <- a[3]; obs_path <- a[4]
@@ -154,8 +154,13 @@ COHORT_SAMPLES <- if (file.exists(cohort_samples_path)) {
 # SECTION: LOAD + ALIGN
 # =============================================================================
 
+## The first argument is either the merged object (all 20 samples) or the cohort
+## counts cache built by build_cohort_counts.R, detected by class. The cache holds
+## only this cohort's cells, so the peak below is the cohort rather than the whole
+## study; the merged path is kept working because it is what in-flight runs pass.
 seu <- readRDS(rds_path)
-counts <- GetAssayData(seu, assay = "RNA", layer = "counts")
+counts <- if (inherits(seu, "cohort_counts_cache")) seu$counts else
+  GetAssayData(seu, assay = "RNA", layer = "counts")
 lab <- as.data.table(read_parquet(labels_path))[, .(cell, cell_subtype)]
 co  <- as.data.table(read_parquet(coords_path))[, .(cell, sample_id, x_slide_mm, y_slide_mm)]
 ob  <- as.data.table(read_parquet(obs_path))[, .(cell, slide_id)]
@@ -180,9 +185,9 @@ meta <- meta[sample_id %in% COHORT_SAMPLES & condition %in% conditions]
 
 cells_keep <- intersect(colnames(counts), meta$cell)
 counts <- counts[, cells_keep]
-# The subset above is an independent matrix, so the whole merged Seurat object can
-# go. It is several GB per process and the spatial stage runs many processes at once
-# against a fixed memory budget.
+# The subset above is an independent matrix, so the loaded object can go. It is
+# several GB per process and the spatial stage runs many processes at once against a
+# fixed memory budget.
 rm(seu); invisible(gc())
 meta <- meta[cell %in% cells_keep]
 setkey(meta, cell)

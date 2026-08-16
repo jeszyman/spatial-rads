@@ -33,6 +33,14 @@ MERGED = f"{D_AGG}/merged.rds"
 OBS    = f"{D_FULL}/obs.parquet"
 LATENT = f"{D_FULL}/scvi_latent.parquet"           # tier-1 scVI latent, reused for neighborhood-purity QC
 
+# --- per-cohort expression cache: the per-cell steps' stand-in for MERGED ---
+# MERGED carries all 20 samples, so a per-cohort step that reads it pays whole-study
+# memory to keep a fraction of the cells. The cache exists to raise concurrency: it
+# is built once per cohort and drops each consumer's reservation far enough that
+# several cohorts fit in the 124 GB budget at the same time. Heavy intermediate, so
+# it lives under D_AGG rather than in results/.
+COHORT_CACHE = f"{D_AGG}/cohort_counts/{{cohort}}.counts.rds"
+
 # --- GPU-env Python interpreter (neighborhood-purity QC recomputes kNN on the latent) ---
 PYSCVI = "conda run -n spatial-rads-scvi python"
 
@@ -618,6 +626,33 @@ rule overlap_ratio_qc:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} "
         "{output.tsv} > {log} 2>&1"
+# --- per-cohort expression cache for the per-cell steps ---
+# Reads MERGED once, keeps the cohort's counts + log-normalised data matrices and
+# nothing else from the Seurat object. The point is concurrency, not speed: reading
+# MERGED inside every smiDE fit made memory, not cores, the binding constraint, so the
+# 64-core box ran two or three jobs and idled. Consumers detect the cache by class and
+# still accept MERGED, so an in-flight run on the old path is unaffected.
+rule cohort_counts_cache:
+    message: "cohort_counts_cache: per-cohort counts + data matrices ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/build_cohort_counts.R",
+        rds     = MERGED,
+        labels  = LABELS,
+        cohorts = "results/data_model/cohort_samples.tsv",
+    output:
+        rds = COHORT_CACHE,
+    threads: 1
+    resources:
+        # Measured peak RSS on combined_4h_treated is 14.8 GB over a 104 s run, set by
+        # holding MERGED (7.0 GB resident) and the cohort's two subsets at the same
+        # time plus the readRDS transient. The cohort subset is the smaller half, so
+        # the widest cohort here moves this by a couple of GB.
+        mem_mb = 18000,
+    log:
+        f"{D_LOGS}/cohort_counts_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.cohorts} "
+        "{wildcards.cohort} {output.rds} > {log} 2>&1"
 # --- genome-wide smiDE per-cell DE (cohort- and mode-parameterized) ---
 # Follows the smiDE authors' published protocol: overlap-ratio gene prefilter per
 # cell type, adjacency-only pre_de with on-the-fly neighbor expression, inverse-
@@ -639,7 +674,7 @@ rule smide_de:
         mode = "screen|spatial",
     input:
         script  = f"{R_SCRIPTS}/smide_de.R",
-        rds     = MERGED,
+        rds     = COHORT_CACHE,
         labels  = LABELS,
         coords  = f"{D_AGG}/coords_necrosis.parquet",
         obs     = OBS,
@@ -651,9 +686,15 @@ rule smide_de:
     threads: lambda wc: 1 if wc.mode == "spatial" else 16
     resources:
         # Measured peak RSS of a spatial process on the combined_4h_treated cohort
-        # is 37 GB, prep-dominated; screen holds the same cohort object and forks
-        # its nebula workers off it. Run with --resources mem_mb so this, not the
-        # core count, is what caps concurrency on the 124 GB box.
+        # is 37 GB, dominated by the pre_de adjacency machinery rather than by the
+        # read-in; screen holds the same cohort object and forks its nebula workers
+        # off it. Run with --resources mem_mb so this, not the core count, is what
+        # caps concurrency on the 124 GB box.
+        #
+        # Reading COHORT_CACHE instead of MERGED cut the read-in stage from a
+        # measured 14.8 GB peak to 2.3 GB, but the reservation still tracks the
+        # pre_de peak that comes later, so it is unchanged until a spatial fit is
+        # re-measured on the cache.
         mem_mb = 34000,
     log:
         f"{D_LOGS}/smide_de_{{cohort}}_{{mode}}.log",

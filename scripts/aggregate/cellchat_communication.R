@@ -19,8 +19,8 @@
 # interaction counts are carried on every result row: thin pathways stay visible rather
 # than being silently reported as absent signalling.
 #
-# Args: <merged.rds> <full_labels.parquet> <coords.parquet> <obs.parquet> <samples.tsv>
-#       <cohort_samples.tsv> <cohort> <out_prefix>
+# Args: <merged.rds|cohort counts cache> <full_labels.parquet> <coords.parquet>
+#       <obs.parquet> <samples.tsv> <cohort_samples.tsv> <cohort> <out_prefix>
 suppressPackageStartupMessages({
   library(data.table); library(arrow); library(Matrix)
   library(CellChat); library(BiocNeighbors)
@@ -373,7 +373,8 @@ compare_arms <- function(obj_list, coh) {
 main <- function(a) {
   if (length(a) < 8L)
     stop("usage: cellchat_communication.R <merged.rds> <full_labels.parquet> <coords.parquet> ",
-         "<obs.parquet> <samples.tsv> <cohort_samples.tsv> <cohort> <out_prefix>", call. = FALSE)
+         "<obs.parquet> <samples.tsv> <cohort_samples.tsv> <cohort> <out_prefix>; the first ",
+         "argument may be merged.rds or a build_cohort_counts.R cache", call. = FALSE)
   merged_rds <- a[1]; labels_pq <- a[2]; coords_pq <- a[3]; obs_pq <- a[4]
   samples_tsv <- a[5]; cohort_tsv <- a[6]; coh <- a[7]; out_prefix <- a[8]
 
@@ -424,17 +425,22 @@ main <- function(a) {
   census <- census[cell_subtype %in% keep]
   levels_use <- sort(keep)
 
-  # Read the merged object once, take the log-normalised layer, subset to the cohort cells
-  # and CellChatDB genes immediately, then drop it. Densifying the full 950 x 3.28M matrix
-  # would allocate ~25 GB, so every step here stays sparse.
+  # Read the expression source once, take the log-normalised layer, subset to the cohort
+  # cells and CellChatDB genes immediately, then drop it. Densifying the full 950 x 3.28M
+  # matrix would allocate ~25 GB, so every step here stays sparse. The source is either the
+  # merged object (all 20 samples) or the cohort counts cache from build_cohort_counts.R,
+  # detected by class: the cache carries this cohort's cells alone, so the peak here is the
+  # cohort rather than the whole study.
   say("reading %s ...\n", merged_rds)
   obj <- readRDS(merged_rds)
-  expr <- SeuratObject::LayerData(obj, assay = "RNA", layer = "data")
-  if (is.null(expr) || !nrow(expr)) stop("merged object has no RNA 'data' layer", call. = FALSE)
+  expr <- if (inherits(obj, "cohort_counts_cache")) obj$data else
+    SeuratObject::LayerData(obj, assay = "RNA", layer = "data")
+  if (is.null(expr) || !nrow(expr))
+    stop("expression source has no log-normalised 'data' layer", call. = FALSE)
   panel <- rownames(expr)
   miss <- setdiff(d$cell, colnames(expr))
   if (length(miss))
-    stop(sprintf("%d cohort cell(s) absent from the merged object, e.g. %s", length(miss),
+    stop(sprintf("%d cohort cell(s) absent from the expression source, e.g. %s", length(miss),
                  paste(head(miss, 3), collapse = ", ")), call. = FALSE)
   db_full <- CellChatDB.mouse
   db_used <- subsetDB(db_full)   # Secreted Signaling + ECM-Receptor + Cell-Cell Contact
