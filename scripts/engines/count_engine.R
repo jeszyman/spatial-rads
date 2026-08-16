@@ -10,9 +10,15 @@
 # arbitrary contrast vector, so a shrunk MBRT-vs-SBRT estimate needs SBRT as the DESeq2
 # reference. The engine therefore builds ONE DESeq fit per distinct reference level named
 # in the registry (here Control and SBRT_day2) and pulls each contrast from the fit whose
-# reference is that contrast's denominator. The DESeq2 design (~ slide_id + condition, with
-# intercept) is a method-internal parameterization, not a per-comparison literal; only the
-# arm identities and reference levels come from the registry.
+# reference is that contrast's denominator.
+#
+# The model TERMS come from the registry `formula` column, like lm_engine.R -- a blocked
+# cohort (~0 + condition + slide_id) is fit with its block, an unblocked one
+# (~0 + condition) without. Only the parameterization is method-internal: the registry
+# writes the intercept-free form limma needs for makeContrasts, while DESeq2's
+# results(name=)/lfcShrink(coef=) path needs treatment contrasts, so the same term set is
+# re-expressed with an intercept (~ covariates + condition). Term set from the registry,
+# parameterization from the method.
 # Args: <pseudobulk_se.rds> <cohort> <comparisons.tsv> <engine_params.yaml>
 #       <out_degs.tsv> <out_skipped.tsv>
 suppressPackageStartupMessages({
@@ -34,11 +40,19 @@ COHORT_SAMPLES <- if (file.exists(cohort_samples_path)) {
   fread(cohort_samples_path)[cohort == coh, sample_id]
 } else character()
 
-## ---- contrasts from the registry: name -> (num, den=ref) ----
+## ---- contrasts + model terms from the registry: name -> (num, den=ref) ----
 comp <- fread(comp_path)
 fam  <- comp[cohort == coh & kind == "sample" & !is.na(contrast_num_level)]
 fam  <- unique(fam, by = c("name", "contrast_num_level", "contrast_den_level"))
 stopifnot(nrow(fam) >= 1)
+formula_str <- fam$formula[1]
+stopifnot(!is.na(formula_str), nzchar(formula_str))
+rhs_terms <- attr(terms(as.formula(formula_str)), "term.labels")
+if (!"condition" %in% rhs_terms)
+  stop(sprintf("registry formula for cohort %s has no condition term: %s", coh, formula_str))
+COVARS <- setdiff(rhs_terms, "condition")
+DESIGN <- as.formula(paste("~", paste(c(COVARS, "condition"), collapse = " + ")))
+DESIGN_STR <- paste(deparse(DESIGN), collapse = "")
 CONTRASTS <- lapply(seq_len(nrow(fam)), function(i)
   list(name = fam$name[i], num = fam$contrast_num_level[i], den = fam$contrast_den_level[i]))
 # condition levels: primary reference (den shared by the vs-baseline contrasts) first, so the
@@ -52,6 +66,10 @@ ref_levels  <- unique(vapply(CONTRASTS, `[[`, "", "den"))     # one DESeq fit pe
 dir.create(dirname(out_degs), recursive = TRUE, showWarnings = FALSE)
 se <- readRDS(se_path)
 cd <- as.data.table(as.data.frame(colData(se)), keep.rownames = "col")
+missing_covar <- setdiff(COVARS, names(cd))
+if (length(missing_covar))
+  stop(sprintf("registry formula term(s) absent from the pseudobulk colData: %s",
+               paste(missing_covar, collapse = ", ")))
 
 if (length(COHORT_SAMPLES) > 0) {
   keep_cols <- cd$col[cd$sample_id %in% COHORT_SAMPLES]
@@ -71,10 +89,11 @@ for (ct in all_types) {
     for (cc in CONTRASTS) {
       bad <- intersect(c(cc$num, cc$den), failing); if (!length(bad)) bad <- failing[1]
       ncells_bad <- cd[cell_type == ct & condition == bad[1], sum(n_cells)]
+      n_avail    <- cd[cell_type == ct & condition == bad[1], .N]
       skip_rows[[length(skip_rows) + 1]] <- data.table(
         cell_type = ct, contrast = cc$name,
-        reason = sprintf("abundance_floor: condition %s has %d/4 samples >=%d cells (need %d)",
-                         bad[1], np[[bad[1]]], MIN_CELLS, MIN_SAMPLES),
+        reason = sprintf("abundance_floor: condition %s has %d/%d samples >=%d cells (need %d)",
+                         bad[1], np[[bad[1]]], n_avail, MIN_CELLS, MIN_SAMPLES),
         n_cells_in_failed_group = ncells_bad)
     }
     next
@@ -83,13 +102,16 @@ for (ct in all_types) {
   cols <- cd[cell_type == ct & condition %in% CONDS & n_cells >= MIN_CELLS, col]
   sub  <- se[, cols]
   colData(sub)$condition <- factor(colData(sub)$condition, levels = CONDS)
-  colData(sub)$slide_id  <- factor(colData(sub)$slide_id)
+  for (v in COVARS) {                       # blocking terms enter as factors, measured ones as-is
+    x <- colData(sub)[[v]]
+    if (!is.numeric(x)) colData(sub)[[v]] <- factor(x)
+  }
 
-  mm <- model.matrix(~ slide_id + condition, data = as.data.frame(colData(sub)))
+  mm <- model.matrix(DESIGN, data = as.data.frame(colData(sub)))
   if (qr(mm)$rank < ncol(mm)) {                                # design not full rank
     for (cc in CONTRASTS) skip_rows[[length(skip_rows) + 1]] <- data.table(
       cell_type = ct, contrast = cc$name,
-      reason = "design not full rank after abundance filter (slide_id confounded)",
+      reason = sprintf("design not full rank after abundance filter (%s confounded)", DESIGN_STR),
       n_cells_in_failed_group = NA_integer_)
     next
   }
@@ -103,7 +125,7 @@ for (ct in all_types) {
   # one DESeq fit per distinct reference level (generalizes the Control/SBRT two-fit)
   fits <- setNames(lapply(ref_levels, function(rl) {
     d <- DESeqDataSetFromMatrix(assay(sub), as.data.frame(colData(sub)),
-                                design = ~ slide_id + condition)
+                                design = DESIGN)
     colData(d)$condition <- relevel(factor(colData(d)$condition, levels = CONDS), ref = rl)
     DESeq(d, quiet = TRUE)
   }), ref_levels)
@@ -130,5 +152,6 @@ skipped <- if (length(skip_rows)) rbindlist(skip_rows) else data.table(
   reason = character(), n_cells_in_failed_group = integer())
 fwrite(skipped, out_skipped, sep = "\t")
 
-cat(sprintf("count_engine[%s]: %d cell types tested, %d skipped | %d (gene x ct x contrast) rows\n",
-            coh, uniqueN(degs$unit), uniqueN(skipped$cell_type), nrow(degs)))
+cat(sprintf("count_engine[%s]: registry %s -> DESeq2 %s | %d cell types tested, %d skipped | %d (gene x ct x contrast) rows\n",
+            coh, formula_str, DESIGN_STR,
+            uniqueN(degs$unit), uniqueN(skipped$cell_type), nrow(degs)))

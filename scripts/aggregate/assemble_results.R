@@ -24,10 +24,10 @@
 #
 # Primary confirmatory FDR = pooled BH over the confirmatory family -> padj_confirmatory.
 # Two auxiliary FDR views ride alongside: gatekeeping (gate_padj/padj_gated) and IHW,
-# fit per comparison (padj_ihw). Effect size + 95% CI carried through; the matching
-# n=4 MDE from power_mde.tsv is day-2-derived (a different design from the 4h cohorts),
-# so it is joined by unit only within CONFIRMATORY_COHORTS rows -- every other cohort's
-# rows get NA mde/abs_effect_lt_mde/clears_mde/trend_call rather than a mislabeled floor.
+# fit per comparison (padj_ihw). Effect size + 95% CI carried through; the MDE floor from
+# power_mde.tsv is design-matched per (comparison, contrast) and joined on
+# (comparison, contrast, unit), so each cohort is measured against its own n/arm and
+# formula; rows with no matching floor get NA mde/abs_effect_lt_mde/clears_mde/trend_call.
 # n_per_arm and dataset are likewise derived per (comparison, contrast) from the
 # registry / cohort_samples.tsv rather than assumed uniform across the cohort roster.
 #
@@ -331,29 +331,31 @@ master <- add_gatekeeping(master, CLAIMS, HYP)
 # --- IHW auxiliary FDR (keyed on DE baseMean; padj_confirmatory stays primary) ----
 master <- add_ihw(master)
 
-# --- join the matching n=4 MDE from power_mde.tsv --------------------------------
-# power_mde.tsv is day-2-derived (n=2/arm after the relabel correction, ~0+condition+
-# slide_id). The 4h cohorts share unit names with day-2 but are a different design
-# (n=2-3/arm, no slide_id blocking, different formula/resid_df) -- joining by unit
-# alone would silently mislabel their MDE floors with a design that isn't theirs. So
-# the join (and everything derived from it: abs_effect_lt_mde/clears_mde/trend_call)
-# is restricted to CONFIRMATORY_COHORTS (mutter02_day2); every other cohort's rows
-# get NA for all four MDE-derived columns, not a spurious floor/label.
+# --- join each row's own design-matched MDE from power_mde.tsv --------------------
+# power_mde.tsv now carries one row per (comparison, contrast) x readout x unit, each
+# built from that cohort's registry n/arm, residual df and formula. The join key is
+# therefore (comparison, contrast, unit) -- keying on unit alone would hand a cohort a
+# floor computed under a design that isn't its own (day-2 is blocked n=2/arm; the 4h
+# cohorts are unblocked n=2-3/arm). Rows with no matching MDE row keep NA for all four
+# MDE-derived columns rather than a spurious floor.
 mde <- fread(mde_p)
-mde_comp <- mde[readout_class == "composition",   .(unit=cell_type, mde, mde_scale)]
-mde_de   <- mde[readout_class == "pseudobulk_DE", .(unit=cell_type, mde, mde_scale)]
+mde_comp <- mde[readout_class == "composition",
+                .(key = paste(comparison, contrast, cell_type), mde, mde_scale)]
+mde_de   <- mde[readout_class == "pseudobulk_DE",
+                .(key = paste(comparison, contrast, cell_type), mde, mde_scale)]
 mde_prog <- mde[readout_class == "program_score",
-                .(key=paste(cell_type, detail), mde, mde_scale)]
+                .(key = paste(comparison, contrast, cell_type, detail), mde, mde_scale)]
 master[, `:=`(mde = NA_real_, mde_scale = NA_character_)]
-is_conf_cohort <- master$comparison %in% CONFIRMATORY_COHORTS
-ic <- is_conf_cohort & master$readout_class == "composition"
-mm <- mde_comp[match(master$unit[ic], mde_comp$unit)]
+mkey3 <- paste(master$comparison, master$contrast, master$unit)
+mkey4 <- paste(mkey3, master$feature)
+ic <- master$readout_class == "composition"
+mm <- mde_comp[match(mkey3[ic], mde_comp$key)]
 master[ic, `:=`(mde = mm$mde, mde_scale = mm$mde_scale)]
-id <- is_conf_cohort & master$readout_class == "DE"
-mm <- mde_de[match(master$unit[id], mde_de$unit)]
+id <- master$readout_class == "DE"
+mm <- mde_de[match(mkey3[id], mde_de$key)]
 master[id, `:=`(mde = mm$mde, mde_scale = mm$mde_scale)]
-ip <- is_conf_cohort & master$readout_class == "pathway"
-mm <- mde_prog[match(paste(master$unit, master$feature)[ip], mde_prog$key)]
+ip <- master$readout_class == "pathway"
+mm <- mde_prog[match(mkey4[ip], mde_prog$key)]
 master[ip, `:=`(mde = mm$mde, mde_scale = mm$mde_scale)]
 master[, abs_effect_lt_mde := NA]
 master[is.finite(mde), abs_effect_lt_mde := abs(effect) < mde]
@@ -362,8 +364,8 @@ master[is.finite(mde), abs_effect_lt_mde := abs(effect) < mde]
 # --- magnitude-floored trend call + clears-MDE (devils-advocate fix) -------------
 # A direction is only a "trend" when |effect| >= MDE_FLOOR * mde; below that it is
 # noise, not signal (sub-MDE direction coherence is noise coherence). Rows with no
-# MDE (non-confirmatory cohorts) get NA, not "below-floor" -- that label asserts a
-# floor was checked, which didn't happen here.
+# MDE get NA, not "below-floor" -- that label asserts a floor was checked, which
+# didn't happen here.
 MDE_FLOOR <- 0.5
 master[, clears_mde := NA]
 master[is.finite(mde), clears_mde := abs(effect) >= mde]

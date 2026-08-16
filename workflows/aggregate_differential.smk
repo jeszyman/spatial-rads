@@ -302,21 +302,24 @@ rule panel_coverage:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.sets} "
         "{output.detection} > {log} 2>&1"
-# --- T6: power / minimum-detectable-effect table at n=4 ---
+# --- T6: power / minimum-detectable-effect table, per registry comparison x contrast ---
 rule power_mde:
-    message: "power_mde: power / minimum-detectable-effect table at n=4"
+    message: "power_mde: minimum-detectable-effect table per comparison x contrast"
     input:
         script = f"{R_SCRIPTS}/power_mde.R",
         comp   = "results/aggregate/composition_by_sample.tsv",
         se     = f"{D_AGG}/pseudobulk_se.rds",
         path   = "results/aggregate/pathway_scores_summary.tsv",
+        reg    = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
     output:
         mde = "results/aggregate/power_mde.tsv",
     threads: 1
     log:
         f"{D_LOGS}/power_mde.log",
     shell:
-        "{RSCRIPT} {input.script} {input.comp} {input.se} {input.path} {output.mde} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.comp} {input.se} {input.path} {output.mde} "
+        "{input.reg} {input.params} > {log} 2>&1"
 # --- T7: per-cell slide coords + per-sample necrosis flag (spatial-track input) ---
 rule coords_necrosis:
     message: "coords_necrosis: per-cell slide coords + per-sample necrosis flag"
