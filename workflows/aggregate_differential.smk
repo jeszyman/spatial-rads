@@ -47,16 +47,16 @@ PYSCVI = "conda run -n spatial-rads-scvi python"
 # --- cohort: flank only ---
 _s    = pd.read_csv(MASTER, sep="\t")
 FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
-DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
-LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
+DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl"]
+LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl"]
 # Cohorts whose reported pseudobulk inference is the limma-voom moderated t rather than
-# the DESeq2 Wald test. The three 4h cohorts are slide-blocked over 6-10 samples and
+# the DESeq2 Wald test. The two 4h cohorts are slide-blocked over 6-10 samples and
 # realize 1-2 residual df per cell type, where a per-gene variance estimate carries
 # almost no information; empirical-Bayes shrinkage borrows df across genes to give a
 # usable denominator. Day-2 has adequate df and keeps DESeq2 Wald as reported.
 # assemble_results.R reads the same distinction off which voom_engine files exist, so
 # this list is the single place the swap is declared.
-VOOM_COHORTS = ["combined_4h_treated", "combined_4h", "combined_4h_pooledctrl"]
+VOOM_COHORTS = ["combined_4h_treated", "combined_4h"]
 # smiDE model modes: "screen" is the nebula NB GLMM discovery pass, "spatial" is the
 # per-spatial-unit Gaussian-process (GP_INLA) fit plus inverse-variance meta-analysis.
 SMIDE_MODES = ["screen", "spatial"]

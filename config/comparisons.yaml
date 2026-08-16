@@ -149,43 +149,13 @@ comparisons:
       2 4h-slide) against the day-2 SBRT arm (n=2). No slide_id term -- see
       MBRT_vs_Ctrl_d2pooled.
 
-  - name: MBRT_vs_Ctrl_4h_pooled
-    kind: sample
-    resolution: [whole, compartment]
-    cohort: combined_4h_pooledctrl
-    group1: {treatment: MBRT, model: flank}
-    group2: {treatment: NT,   model: flank}
-    unit: mouse
-    formula: "~0 + condition + slide_id"
-    contrast_levels: {num: MBRT_4h, den: Control}
-    transform: logit
-    tier: exploratory
-    notes: >
-      Control-pooling sensitivity arm: pools all 4 M02 control samples (2 4h-slide +
-      2 day-2) against the combined M01+M02 4h MBRT arm (n=3). Slide-blocked to match
-      its parent combined_4h cohort: the 4h slides are balanced blocks (one section
-      per arm) and the slide term absorbs the Mutter_01 vs Mutter_02 capture-depth
-      difference. Consequence to read with the result: the two borrowed day-2 controls
-      each sit alone on a slide that carries no treated section, so the block term
-      absorbs them entirely and the blocked fit reduces to the unpooled combined_4h
-      design.
-
-  - name: SBRT_vs_Ctrl_4h_pooled
-    kind: sample
-    resolution: [whole, compartment]
-    cohort: combined_4h_pooledctrl
-    group1: {treatment: SBRT, model: flank}
-    group2: {treatment: NT,   model: flank}
-    unit: mouse
-    formula: "~0 + condition + slide_id"
-    contrast_levels: {num: SBRT_4h, den: Control}
-    transform: logit
-    tier: exploratory
-    notes: >
-      Control-pooling sensitivity arm: pools all 4 M02 control samples (2 4h-slide +
-      2 day-2) against the combined M01+M02 4h SBRT arm (n=3). Slide-blocked --
-      see MBRT_vs_Ctrl_4h_pooled for the block layout, the capture-depth reason, and
-      the consequence for the two borrowed day-2 controls.
+  # ---- combined_4h_pooledctrl retired 2026-08-16 ----
+  # Design rationale only (not a statistical test): under the slide-blocked design
+  # (~0 + condition + slide_id), its two borrowed day-2 controls each sit alone on a
+  # slide with no treated section, so the block term absorbs them entirely -- residual
+  # df and hit counts track the unpooled combined_4h cohort almost exactly. It added
+  # nothing over combined_4h. mutter02_day2_pooledctrl is kept: condition-only formula,
+  # n=2v4, resid df 5, its borrowed controls do contribute.
 
   # ---- region-level, within-sample ----
   - name: MBRT_peak_vs_valley

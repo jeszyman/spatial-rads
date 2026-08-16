@@ -5,9 +5,9 @@
 # fibroblast substate composition, smiDE per-cell DE) into one long table, one row per
 # readout x unit x feature x contrast x comparison. Every readout family except the
 # day-2-only muscat differential-detection step is parameterized over the full cohort
-# roster (mutter02_day2, combined_4h_treated, combined_4h, mutter02_day2_pooledctrl,
-# combined_4h_pooledctrl): each producer writes one file per cohort (e.g.
-# de_engine_<cohort>.tsv), and this script globs + rbinds them per readout family,
+# roster (mutter02_day2, combined_4h_treated, combined_4h, mutter02_day2_pooledctrl):
+# each producer writes one file per cohort (e.g. de_engine_<cohort>.tsv), and this
+# script globs + rbinds them per readout family,
 # deriving -- or, for the two producers that don't emit one themselves, injecting --
 # a `comparison` column from the filename.
 #

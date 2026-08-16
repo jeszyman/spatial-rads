@@ -15,10 +15,6 @@ MBRT_vs_Ctrl_d2pooled	sample	mutter02_day2_pooledctrl	whole	mouse	exploratory	~0
 MBRT_vs_Ctrl_d2pooled	sample	mutter02_day2_pooledctrl	compartment	mouse	exploratory	~0 + condition	""	FALSE		MBRT_day2	Control	Control	logit	2	4	2	4	3	5	FALSE	
 SBRT_vs_Ctrl_d2pooled	sample	mutter02_day2_pooledctrl	whole	mouse	exploratory	~0 + condition	""	FALSE		SBRT_day2	Control	Control	logit	2	4	2	4	3	5	FALSE	
 SBRT_vs_Ctrl_d2pooled	sample	mutter02_day2_pooledctrl	compartment	mouse	exploratory	~0 + condition	""	FALSE		SBRT_day2	Control	Control	logit	2	4	2	4	3	5	FALSE	
-MBRT_vs_Ctrl_4h_pooled	sample	combined_4h_pooledctrl	whole	mouse	exploratory	~0 + condition + slide_id	""	FALSE		MBRT_4h	Control	Control	logit	3	4	3	4	7	3	TRUE	
-MBRT_vs_Ctrl_4h_pooled	sample	combined_4h_pooledctrl	compartment	mouse	exploratory	~0 + condition + slide_id	""	FALSE		MBRT_4h	Control	Control	logit	3	4	3	4	7	3	TRUE	
-SBRT_vs_Ctrl_4h_pooled	sample	combined_4h_pooledctrl	whole	mouse	exploratory	~0 + condition + slide_id	""	FALSE		SBRT_4h	Control	Control	logit	3	4	3	4	7	3	TRUE	
-SBRT_vs_Ctrl_4h_pooled	sample	combined_4h_pooledctrl	compartment	mouse	exploratory	~0 + condition + slide_id	""	FALSE		SBRT_4h	Control	Control	logit	3	4	3	4	7	3	TRUE	
 MBRT_peak_vs_valley	region	mutter01_mbrt_4h		mouse	confirmatory		""	FALSE	h2ax_registration					0	0	0	0			FALSE	unchecked
 MBRT_peak_vs_valley	region	mutter02_4h		mouse	confirmatory		""	FALSE	h2ax_registration					0	0	0	0			FALSE	unchecked
 MBRT_valley_vs_SBRT	region	mutter02_4h		mouse	exploratory		""	TRUE	h2ax_registration					0	0	0	0			FALSE	unchecked
