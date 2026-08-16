@@ -541,8 +541,11 @@ slides_m02 <- tibble(
 slides <- bind_rows(slides_m01, slides_m02)
 barcode2sld <- setNames(slides_m01$slide_id, slides_m01$physical_barcode)
 
-## Mutter_02 sample layout (Jenn Fazzari 2026-04-09; from 00_load_data_mutter02.R:40-62)
+## Mutter_02 sample layout: block-to-slide positions from Jenn Fazzari (2026-04-09),
+## timepoints from the yH2AX layout doc (slides 1-2 = 2d, slides 3-4 = 4h).
 ## rank by descending y_slide_mm: 1=top=Control, 2=mid=MBRT, 3=bottom=SBRT
+LAYOUT_CSV <- "data/sources/mutter02_block_layout.csv"
+layout     <- read.csv(LAYOUT_CSV)
 m02 <- tribble(
   ~slide_num, ~rank, ~region_id, ~treatment,
   1, 1, 1,  "Control",
@@ -558,7 +561,17 @@ m02 <- tribble(
   4, 2, 20, "MBRT",
   4, 3, 18, "SBRT"
 )
-cond_map_m02 <- c(Control = "Control", MBRT = "MBRT_day2", SBRT = "SBRT_day2")
+## Join timepoint from the layout CSV (keyed on block + slide)
+m02 <- m02 %>%
+  left_join(layout %>% select(block, slide, timepoint_h),
+            by = c("region_id" = "block", "slide_num" = "slide"))
+stopifnot(!anyNA(m02$timepoint_h),
+          length(unique(m02$timepoint_h)) > 1)
+stopifnot(all(layout$block %in% m02$region_id))
+## Condition suffix encodes timepoint: MBRT_4h / MBRT_day2 etc; Control stays Control
+cond_suffix  <- ifelse(m02$timepoint_h == 4, "_4h", "_day2")
+cond_map_m02 <- ifelse(m02$treatment == "Control", "Control",
+                       paste0(m02$treatment, cond_suffix))
 dose_m02     <- c(Control = 0, MBRT = NA_real_, SBRT = 20)  # SBRT 20 Gy per layout note; MBRT peak dose TBD
 
 ## samples
@@ -575,13 +588,13 @@ samples_m01 <- flat %>% transmute(
   strain          = coalesce(strain,          if_else(treatment == "NT", "Balb/c", NA_character_))
 )
 samples_m02 <- m02 %>%
-  mutate(  # derive dose/condition from raw label, THEN harmonize control to NT (matches Mutter_01)
+  mutate(
     dose_gy   = unname(dose_m02[treatment]),
-    condition = unname(cond_map_m02[treatment]),
+    condition = cond_map_m02,
     treatment = if_else(treatment == "Control", "NT", treatment)
   ) %>% transmute(
     block_label = paste0("s", slide_num, "_region", region_id),
-    condition, treatment, timepoint_h = 48,
+    condition, treatment, timepoint_h,
     model = "flank", tumor_cell_line = "4T1",
     tumor_type = "mammary carcinoma, TNBC/claudin-low", strain = "Balb/c",
     slide_id = slides_m02$slide_id[slide_num],
@@ -2410,8 +2423,10 @@ None of these three establishes a precedent for the core peak/valley contrast th
 
 ***** Data Loading
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/00_load_data.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/00_load_data.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Load raw parquet files from GCS, build Seurat object with parsed metadata (model, treatment, timepoint), confirm 4 pre-computed pathway score columns, and define canonical color palettes used by all downstream scripts.
 
@@ -2502,8 +2517,10 @@ cat(sprintf("Raw object ready: %d genes x %d cells\n", nrow(obj), ncol(obj)))
 
 ***** QC Filtering
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/01_qc_filter.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/01_qc_filter.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Apply multi-criteria QC filtering: qcFlagsCell=="Pass", nCount_RNA>20, nFeature_RNA>10, propNegative<0.5. Expected retention ~68% (1.4M to 971K cells). Generate QC violin plots and save summary statistics.
 
@@ -2542,8 +2559,10 @@ cat("QC'd Seurat object saved.\n")
 
 ***** Normalization and Clustering
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/02_normalize_cluster.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/02_normalize_cluster.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 LogNormalize (scale 1e4), VST variable features (2000), PCA (20 dims), Louvain clustering (resolution 0.4), UMAP. Generates landscape plots by cluster, condition, slide, and treatment. Expected: 9 clusters.
 
@@ -2594,8 +2613,10 @@ cat("Clustered object saved.\n")
 
 ***** Cell Type Validation
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/03_cell_type_validation.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/03_cell_type_validation.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Validate Yi's insitutype cell type labels against canonical markers (18/19 present in panel). The uncharacterized "a" population expresses epithelial markers (Epcam, Krt8/18) and is reclassified as tumor_epithelial. Generate dotplot, UMAP, and spatial cell type maps.
 
@@ -2682,8 +2703,10 @@ cat("Updated object saved with validated cell types.\n")
 
 ***** DEGs and Kinetics Overview
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/04_deg_kinetics.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/04_deg_kinetics.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Condensed Layer 2 analysis: effect-size ranked DEGs for MBRT vs Control, SBRT vs Control, and MBRT vs SBRT at matched timepoints. Pathway score kinetics (DDR, IFN-I, IFN-II, STING) across the time course. Cell type composition shifts and spatial neighborhood immune fractions at 4h. This section motivates the peak/valley investigation by establishing that MBRT and SBRT produce distinct transcriptomic responses.
 
@@ -2812,8 +2835,10 @@ cat("Layer 2 condensed analysis complete.\n")
 
 ***** Stripe Detection
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/05_stripe_detection.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/05_stripe_detection.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Curated highlights from iterative stripe model development. Fine-grained p21/Cdkn1a spatial profiling reveals periodic variation along the y-axis. Rotated axis scan confirms y-axis as the primary stripe direction. Tilt angle optimization (5-35 degrees, 2-degree steps) identifies 15 degrees as optimal. Grid search with forced 4-peak constraint converges on 1.02mm spacing. Key insight: transcript-based DDR scores alone are too noisy for stripe resolution; geometric model plus image validation is required.
 
@@ -2993,8 +3018,10 @@ cat("Stripe detection complete. Model saved to data/stripe_model.rds\n")
 
 ***** H2AX Image Validation
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/06_h2ax_validation.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/06_h2ax_validation.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Critical validation gate. Extract H2AX immunofluorescence images from the lab-provided PPTX, generate a stripe model zone map at matching scale and orientation, and attempt programmatic co-registration by comparing H2AX intensity profiles along the y-axis to model beam centers. Acceptance criterion: beam centers within ~0.2mm of H2AX intensity peaks. If programmatic co-registration fails, side-by-side visual comparison is the fallback.
 
@@ -3181,8 +3208,10 @@ cat("\nH2AX validation complete. Review plots/h2ax_zone_map_labeled.png\n")
 
 ***** Peak Valley Classification
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/07_peak_valley_classify.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/07_peak_valley_classify.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Apply the validated (or best-available) stripe model to classify all MBRT_4h cells as peak or valley. Tilt-corrected y: y_corr = y_slide_mm + x_slide_mm * tan(15 degrees). Classification: peak if distance to nearest beam center < spacing/4, else valley. Save classification TSV and add zone metadata to Seurat object for downstream analysis.
 
@@ -3265,8 +3294,10 @@ cat("Zone added to Seurat metadata and saved.\n")
 
 ***** Peak vs Valley DEGs
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/08_pv_degs.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/08_pv_degs.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Differential expression between peak and valley cells within MBRT_4h. Effect-size ranked (no formal significance testing with n=1). Both bulk (all cells) and per-cell-type analysis for major populations with >=250 cells per zone. The scientific question: what biology distinguishes direct-beam exposure from bystander zones?
 
@@ -3329,8 +3360,10 @@ cat("Peak vs valley DEG analysis complete.\n")
 
 ***** Peak vs Valley Pathway Scores
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/09_pv_pathways.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/09_pv_pathways.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Compare DDR, IFN-I, IFN-II, and STING pathway scores between peak and valley zones, both overall and stratified by cell type family. Key question: do valleys show elevated IFN/STING consistent with bystander immune priming? DDR (18 genes), Type I IFN (19 genes), and Type II IFN (17 genes) are standard NanoString Mouse UCC panel modules (see =data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx=). STING is not a standard module; scored from available cGAS-STING genes (Irf3, Ifna, Isg15, Cxcl10).
 
@@ -3401,8 +3434,10 @@ cat("Pathway comparison complete.\n")
 
 ***** Peak vs Valley Composition
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/10_pv_composition.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/10_pv_composition.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Compare cell type proportions between peak and valley zones. Stacked bar plots and proportion difference analysis. Key question: are immune cells enriched in valleys (potential bystander immune recruitment) and tumor epithelial cells depleted?
 
@@ -3460,8 +3495,10 @@ cat("Composition analysis complete.\n")
 
 ***** Peak vs Valley Spatial Neighborhoods
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/11_pv_spatial_neighborhoods.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/11_pv_spatial_neighborhoods.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 k=20 nearest neighbor analysis within each zone. Compute immune neighbor fractions for peak vs valley cells. Key question: do valleys have more mixed tumor-immune neighborhoods, consistent with immune cell infiltration into bystander zones?
 
@@ -3514,8 +3551,10 @@ cat("Spatial neighborhood analysis complete.\n")
 
 ***** SBRT Comparison
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/12_sbrt_comparison.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/12_sbrt_comparison.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Use SBRT_4h as a uniform-dose reference (no peak/valley structure expected). Compare MBRT peak and valley transcriptomic signatures against SBRT bulk expression. Key question: are MBRT valleys more similar to SBRT (lower effective dose) or transcriptomically distinct? Heatmap of top peak-up and valley-up genes across the three groups, plus pathway score comparison.
 
@@ -3639,8 +3678,10 @@ Characterize how MBRT and SBRT differ in transcriptomic response over time acros
 
 **** Differential expression
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle dev/02_deg_analysis.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/02_deg_analysis.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 DEG analysis comparing MBRT vs Control, SBRT vs Control, and MBRT vs SBRT at matched timepoints. Wilcoxon rank sum via Seurat FindMarkers, ranked by effect size (log2FC), not p-value. Per-cell-type DEGs at 4h for MBRT vs SBRT.
 
@@ -4809,9 +4850,9 @@ grid <- d %>%
   mutate(nlab = ifelse(is.na(n), "", as.character(n)))
 
 legend_text <- str_c(
-  "Study design: replication is concentrated in the Mutter_02 day-2 cohort ",
-  "(n = 4 per arm), while the Mutter_01 kinetic series is single-tumour (n = 1) at each ",
-  "arm x timepoint. Cell fill and label give the number of samples; grey cells are ",
+  "Study design: Mutter_02 is a 2x2 (4h + day-2, n = 2 per arm at each timepoint); ",
+  "Mutter_01 is a single-tumour kinetic series (n = 1 per arm x timepoint). ",
+  "Cell fill and label give the number of samples; grey cells are ",
   "design gaps (no sample). Faceted by dataset and tumour model; arms are ",
   "Control (0 Gy), MBRT, and SBRT.")
 
@@ -5009,7 +5050,9 @@ save_plot(p, out, w = 9, h = 6.5)
 
 The platform-sparsity fact behind the cluster-then-annotate typing design: per-cell InSituType is unreachable because each cell detects only ~6% of the panel (median 58/950). The compute step ([[file:workflows/aggregate_differential.smk][aggregate_differential.smk]] rule =agg_qc_panel_sparsity=, script [[file:scripts/aggregate/qc_panel_sparsity.R][qc_panel_sparsity.R]]) joins per-cell detection to the unified compartment labels and arm/dataset design and ends at box quantiles; this block renders the figure.
 
-#+begin_src R :tangle scripts/fig_qc_panel_sparsity.R
+Retired 2026-08-13: =scripts/fig_qc_panel_sparsity.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
+
+#+begin_src R :tangle no
 #!/usr/bin/env Rscript
 
 # -----------------------------------------------------------------------------
@@ -5088,7 +5131,9 @@ The per-sample sensitivity and noise summary (SpatialQM / Plummer et al. 2025 me
 
 Interpretation: the five metrics are not independent axes but one underlying variable -- per-cell capture sensitivity -- measured five ways (across samples, TPC correlates with SNR at rho 0.89, with specificity FDR at rho -0.89, and with sparsity at rho -0.73). The apparent Mutter_01-vs-Mutter_02 separation is therefore a single cohort difference: Mutter_02 is the deeper-sampled cohort (~1.5-2x the transcripts per cell), and its lower specificity FDR follows arithmetically, since FDR is a ratio of a roughly fixed negative-probe background to total signal -- more real transcripts shrink that fraction. The cause of the deeper sampling is not established from these data (candidate contributors: the custom-augmented panel, run chemistry, imaging cycles, tissue and segmentation quality). The implication is bounded: the gap is a between-cohort constant, so it does not confound the within-Mutter_02 day-2 arm contrasts (where the cross-arm balance check confirms the arms are matched), but it does attenuate cross-dataset (M01<->M02) effect-size concordance -- Mutter_01's lower sensitivity compresses and adds noise to its effects, so the concordance understates true agreement rather than reflecting biological divergence.
 
-#+begin_src R :tangle scripts/fig_sample_tech_metrics.R
+Retired 2026-08-13: =scripts/fig_sample_tech_metrics.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
+
+#+begin_src R :tangle no
 #!/usr/bin/env Rscript
 
 # -----------------------------------------------------------------------------
@@ -5150,7 +5195,9 @@ save_plot(p, out, w = 11, h = 4.5)
 
 **** Cross-arm QC balance
 
-#+begin_src R :tangle scripts/fig_qc_arm_balance.R
+Retired 2026-08-13: =scripts/fig_qc_arm_balance.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
+
+#+begin_src R :tangle no
 #!/usr/bin/env Rscript
 
 # -----------------------------------------------------------------------------
@@ -5251,18 +5298,7 @@ p2 <- ggplot(d, aes(arm, mean_r_armmates, color = arm)) +
        subtitle = "Pseudobulk replicate concordance") +
   theme_scifig(base_size = 12)
 
-legend_text <- str_c(
-  "Outlier check on the day-2 composition inference: no single slide drives an arm's effect. ",
-  "Left, principal-component analysis of the scaled per-sample technical metrics; right, each ",
-  "sample's mean pseudobulk Spearman concordance to its same-arm replicates (n = 4 per arm, ",
-  "Mutter_02 day-2). Concordance is 0.93-0.97 with no arm-mate outlier flagged, and no arm ",
-  "separates on the PCA -- the composition shift is not a batch or replicate artifact.")
-
-p <- (p1 | p2) +
-  plot_annotation(caption = str_wrap(legend_text, width = round(11 * 13)),
-                  theme = theme(plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
-                                                            lineheight = 1.3, margin = margin(t = 16)),
-                                plot.caption.position = "plot"))
+p <- (p1 | p2)
 
 save_plot(p, out, w = 11, h = 5.2)
 #+end_src
@@ -5274,7 +5310,9 @@ save_plot(p, out, w = 11, h = 5.2)
 
 An independent cross-check that our QC did not diverge from the delivered pass-list, in two views: how many cells each filter kept (our count vs the provider's), and which cells -- recall, the fraction of the provider's specific passed cells (matched by barcode) that survive our filter. Per Mutter_01 condition; Mutter_02 has no provider pass-list. This block renders the figure from [[file:results/processing/yi_concordance.tsv][yi_concordance.tsv]].
 
-#+begin_src R :tangle scripts/fig_provider_concordance.R
+Retired 2026-08-13: =scripts/fig_provider_concordance.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
+
+#+begin_src R :tangle no
 #!/usr/bin/env Rscript
 
 # -----------------------------------------------------------------------------
@@ -5394,25 +5432,7 @@ d <- read_tsv(inp, show_col_types = FALSE) %>%
   arrange(compartment, desc(middle)) %>%
   mutate(cell_subtype = fct_inorder(cell_subtype))
 
-rho_k <- signif(d$k_robust_spearman[1], 3)
-
 comp_cols <- c(tumor = "#cc0000", stroma = "#4a86e8", immune = "#e69138")
-
-# purity-vs-abundance association across all subtypes (panel B annotation)
-rho_n <- suppressWarnings(cor(log10(d$n), d$middle, method = "spearman"))
-
-legend_text <- str_c(
-  "Transcriptional neighborhood purity (Plummer et al., Nat Biotechnol 2025): for each cell, ",
-  "the fraction of its 30 nearest neighbors in the scVI integrated latent that share its final ",
-  "cell-subtype label; a coherence check on the locked cross-dataset typing, complementary to ",
-  "marker recall. (A) Per-subtype purity, one box per subtype (5/25/50/75/95th percentile over ",
-  "its cells), the same latent the labels were built in; coarse-compartment purity is near-ceiling ",
-  "by construction. (B) Purity tracks positively with subtype abundance (Spearman ",
-  sprintf("rho = %.2f", rho_n),
-  " over per-subtype medians): rarer subtypes, several of them marker-rescued, form looser ",
-  "neighborhoods. The association is not a rule, with smooth muscle and NK cells sitting purer ",
-  "than more abundant subtypes. Neighborhood size is not load-bearing: per-subtype medians ",
-  sprintf("rank-correlate rho = %s between k = 15 and k = 30.", rho_k))
 
 pA <- ggplot(d, aes(cell_subtype, middle, fill = compartment)) +
   geom_boxplot(aes(ymin = ymin, lower = lower, middle = middle, upper = upper, ymax = ymax),
@@ -5437,11 +5457,7 @@ pB <- ggplot(d, aes(n, middle, color = compartment)) +
   theme_scifig(base_size = 12)
 
 p <- (pA | pB) +
-  plot_layout(widths = c(1.5, 1)) +
-  plot_annotation(caption = str_wrap(legend_text, width = round(11 * 15)),
-                  theme = theme(plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
-                                                            lineheight = 1.3, margin = margin(t = 18)),
-                                plot.caption.position = "plot"))
+  plot_layout(widths = c(1.5, 1))
 
 save_plot(p, out, w = 13, h = 6)
 #+end_src
