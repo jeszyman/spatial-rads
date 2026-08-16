@@ -38,9 +38,9 @@
 #       <out_master.tsv>
 # agg_dir must contain engine/{composition,de,niche,mixing,myeloid,substate}_<cohort>.tsv
 # plus engine/voom_engine_<cohort>.tsv for the cohorts whose reported DE inference is
-# the moderated t (see the DE block below)
-# plus engine/smide_de_<cohort>_{screen,spatial}.tsv, and gsea_pseudobulk_<cohort>.tsv
-# and pathway_test_<cohort>.tsv at its top level.
+# the moderated t (see the DE block below), and gsea_pseudobulk_<cohort>.tsv
+# and pathway_test_<cohort>.tsv at its top level. The cell-level (smiDE) families are
+# opt-in via --cell-level (see below) and are absent from the table by default.
 suppressPackageStartupMessages({ library(data.table) })
 
 # --- gatekeeping (secondary FDR view) -------------------------------------------
@@ -56,6 +56,33 @@ source("scripts/aggregate/fdr_helpers.R")   # add_gatekeeping()
 source("scripts/aggregate/inference_source.R")   # moderated_t_cohorts(), MODERATED_T_LABEL
 
 a <- commandArgs(trailingOnly = TRUE)
+
+# --- cell-level (smiDE) layer: explicit include/exclude switch --------------------
+# Optional flag, stripped from the argument vector before the positional arguments are
+# assigned, so the eight-argument call in the workflow rule stays valid unchanged.
+#   --cell-level=none            (default) no smiDE family enters the table
+#   --cell-level=spatial         the meta-analysed spatial fits only
+#   --cell-level=screen,spatial  both, for a diagnostic build
+# Default `none`, because a cell-level row is opt-in evidence, not a by-product of a
+# file existing in the engine directory. Screen mode is a candidate list feeding the
+# spatial stage: its configuration (no spatial random effect) carries an uncontrolled
+# type I error rate -- benchmarked at 0.86-0.95 by Vasconcelos et al., Genome Biology
+# 2026 -- so it is never reportable on its own and must be asked for by name. Spatial
+# mode is reportable but exploratory, and a build that predates its fits must produce a
+# table that stands on its own rather than one that silently changes when they land.
+# A family named here MUST match cohort files: an explicitly requested family that finds
+# nothing is an error, not an empty table.
+CELL_LEVEL_MODES <- c("screen", "spatial")
+cl_flag <- grep("^--cell-level=", a, value = TRUE)
+a <- setdiff(a, cl_flag)
+CELL_LEVEL <- if (length(cl_flag))
+  trimws(strsplit(sub("^--cell-level=", "", cl_flag[length(cl_flag)]), ",")[[1]]) else "none"
+if (identical(CELL_LEVEL, "none")) CELL_LEVEL <- character()
+bad_mode <- setdiff(CELL_LEVEL, CELL_LEVEL_MODES)
+if (length(bad_mode))
+  stop(sprintf("assemble_results: unknown --cell-level mode(s) %s (allowed: none, %s)",
+               paste(bad_mode, collapse = ", "), paste(CELL_LEVEL_MODES, collapse = ", ")))
+
 agg_p <- a[1]; reg_p <- a[2]; mde_p <- a[3]; sets_p <- a[4]
 cov_p <- a[5]; ddet_p <- a[6]; overlap_p <- a[7]; out_p <- a[8]
 engine_p <- file.path(agg_p, "engine")
@@ -252,8 +279,13 @@ dd_m <- dd[, .(comparison="mutter02_day2", readout_class="detection", unit=cell_
 # The spatial fitting geometry (fit_unit, n_fits, n_cells_fit) rides through to
 # the master: a spatial effect is only readable next to how many units combined
 # into it and how many cells each fit actually saw after the subsample cap.
-smide_screen  <- read_cohort_family(engine_p, "smide_de_", "smiDE (screen)",  suffix = "_screen")
-smide_spatial <- read_cohort_family(engine_p, "smide_de_", "smiDE (spatial)", suffix = "_spatial")
+# Neither family is read unless --cell-level named it.
+if (!length(CELL_LEVEL))
+  cat("assemble_results: cell-level (smiDE) layer excluded (--cell-level=none)\n")
+smide_screen  <- if ("screen" %in% CELL_LEVEL)
+  read_cohort_family(engine_p, "smide_de_", "smiDE (screen)", suffix = "_screen") else data.table()
+smide_spatial <- if ("spatial" %in% CELL_LEVEL)
+  read_cohort_family(engine_p, "smide_de_", "smiDE (spatial)", suffix = "_spatial") else data.table()
 if (nrow(smide_spatial) > 0 && "mode" %in% names(smide_spatial)) {
   no_meta <- setdiff(unique(smide_spatial$comparison),
                      unique(smide_spatial[mode == "spatial_meta", comparison]))
@@ -340,8 +372,23 @@ HYP    <- load_hypotheses("config/hypotheses.yaml")   # program<->gene<->cell_ty
 assert_no_multiclaim(CLAIMS)
 master <- apply_claims(master, CLAIMS)
 
-# Collapse the tumor-compartment unit alias to the single locked roster name.
-master[unit == "Epithelial cells", unit := "Tumor"]
+# --- tumour-contamination stratum ------------------------------------------------
+# `Epithelial cells` is the tier-2 immune tumour-contamination bucket (1,180 cells,
+# 0.04% of the cohort). composition.R and substate_composition.R fold it into Tumor
+# before they fit, so those families never reach here carrying it. The remaining
+# per-cell-type families are stratified upstream of this script -- pseudobulk_build.R
+# (DE, and GSEA through it), pathway_scores.R and dd_prep.R each cut their cells by
+# cell_type when they build their cached artifact -- so by the time the rows arrive the
+# bucket is an independently fitted stratum. Renaming it to Tumor here would put two
+# rows in the table for the same unit x feature x contrast, one of them a 1,180-cell
+# fit; the honest handling of a contamination stratum that cannot be merged after the
+# fact is to drop it, which is what happens here. Those three producers need the same
+# label-read collapse composition.R now has the next time they are re-run.
+n_contam <- master[unit == "Epithelial cells", .N]
+if (n_contam > 0)
+  cat(sprintf("assemble_results: dropped %d row(s) on the 'Epithelial cells' tumour-contamination stratum (%s)\n",
+              n_contam, paste(sort(unique(master[unit == "Epithelial cells", readout_class])), collapse = ", ")))
+master <- master[unit != "Epithelial cells"]
 
 master[, tier := fifelse(!is.na(hypothesis), "confirmatory", "exploratory")]
 
