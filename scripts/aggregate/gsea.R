@@ -1,19 +1,29 @@
 #!/usr/bin/env Rscript
-# aggregate.smk Track 2 pathway -- GSEA on pseudobulk DESeq2 stat-ranked genes.
-# Per (cell_type x contrast), rank panel genes by DESeq2 Wald `stat` (descending)
-# and run fgseaMultilevel against 4 project-priority pathways (pathway_sets.tsv,
-# tier=primary) plus the usable MSigDB Hallmark sets (human->mouse orthologs,
-# tier=exploratory). On a ~950-gene targeted panel most Hallmark sets
+# aggregate.smk Track 2 pathway -- GSEA on pseudobulk stat-ranked genes.
+# Per (cell_type x contrast), rank panel genes by the cohort's reported test statistic
+# (descending) and run fgseaMultilevel against 4 project-priority pathways
+# (pathway_sets.tsv, tier=primary) plus the usable MSigDB Hallmark sets (human->mouse
+# orthologs, tier=exploratory). On a ~950-gene targeted panel most Hallmark sets
 # overlap the panel only partially, so n_set_genes (full set) and n_panel_genes
 # (overlap with the ranked list = the genes fgsea actually scored) are reported per
 # row and downstream applies coverage thresholds. minSize=3 retains the small
 # curated primary sets (STING has 3 genes). padj_bh is fgsea's BH across the sets
 # tested within each (cell_type x contrast) ranking; pvalue is kept so a tier-scoped
-# re-adjustment is possible downstream. Args: <degs.tsv> <pathway_sets.tsv> <out_gsea.tsv>
+# re-adjustment is possible downstream.
+#
+# Ranking statistic: enrichment must be computed from the statistic the study reports,
+# or the pathway result describes a test that appears nowhere else in the results table.
+# The reported statistic is a per-cohort property (see scripts/aggregate/inference_source.R,
+# the same module assemble_results.R reads): cohorts with a voom_engine file report the
+# limma-voom moderated t, every other cohort reports the DESeq2 Wald test. Both statistics
+# are signed the same way -- positive = up in the contrast numerator -- so the ranking
+# direction convention is identical either way. The choice is recorded per row in
+# `ranking_stat`. Args: <degs.tsv> <pathway_sets.tsv> <out_gsea.tsv>
 suppressPackageStartupMessages({
   library(data.table)
   library(fgsea)
 })
+source("scripts/aggregate/inference_source.R")   # reported_inference(), voom_engine_file()
 
 args      <- commandArgs(trailingOnly = TRUE)
 degs_path <- args[1]
@@ -31,10 +41,16 @@ all_sets      <- lapply(split(gs_long$gene, gs_long$set), unique)
 set_meta      <- unique(gs_long[, .(pathway_name = set, pathway_source = source, tier)])
 set_size_full <- vapply(all_sets, length, integer(1))   # full set size (panel-independent)
 
-# --- DE stats: one ranking per (cell_type x contrast) over tested genes. Reads the count
-# engine's sufficient-statistics output (unit=cell_type, feature_id=gene); renamed on load so
-# the ranking logic below is unchanged. ---
+# --- DE stats: one ranking per (cell_type x contrast) over tested genes. Reads an engine's
+# sufficient-statistics output (unit=cell_type, feature_id=gene); renamed on load so the
+# ranking logic below is unchanged. The count engine's file names the cohort, and the
+# moderated-t engine (when this cohort has one) tests exactly the same
+# gene x cell_type x contrast set, so swapping the table swaps only the statistic. ---
 degs   <- fread(degs_path)
+COHORT <- unique(degs$comparison)
+stopifnot(length(COHORT) == 1L)
+RANKING_STAT <- reported_inference(dirname(degs_path), COHORT)
+if (RANKING_STAT == MODERATED_T_LABEL) degs <- fread(voom_engine_file(dirname(degs_path), COHORT))
 setnames(degs, c("unit", "feature_id"), c("cell_type", "gene"), skip_absent = TRUE)
 strata <- unique(degs[!is.na(stat), .(cell_type, contrast)])
 
@@ -64,16 +80,17 @@ res[, n_set_genes := set_size_full[pathway]]
 setnames(res, c("pathway", "pval", "padj", "size"),
          c("pathway_name", "pvalue", "padj_bh", "n_panel_genes"))
 res[, dataset := "Mutter_02"]
+res[, ranking_stat := RANKING_STAT]
 out <- res[, .(cell_type, contrast, pathway_name, pathway_source, tier,
                NES, pvalue, padj_bh, leading_edge_genes, leading_edge_size,
-               n_set_genes, n_panel_genes, dataset)]
+               n_set_genes, n_panel_genes, dataset, ranking_stat)]
 setorder(out, cell_type, contrast, padj_bh, na.last = TRUE)
 
 dir.create(dirname(out_gsea), recursive = TRUE, showWarnings = FALSE)
 fwrite(out, out_gsea, sep = "\t")
 
-cat(sprintf("gsea: %d (cell_type x contrast) rankings | %d pathway rows | %d padj_bh<0.05 (%d primary, %d hallmark) | %d primary-tier rows\n",
-            nrow(strata), nrow(out),
+cat(sprintf("gsea[%s]: ranked on %s | %d (cell_type x contrast) rankings | %d pathway rows | %d padj_bh<0.05 (%d primary, %d hallmark) | %d primary-tier rows\n",
+            COHORT, RANKING_STAT, nrow(strata), nrow(out),
             out[!is.na(padj_bh) & padj_bh < 0.05, .N],
             out[!is.na(padj_bh) & padj_bh < 0.05 & tier == "primary", .N],
             out[!is.na(padj_bh) & padj_bh < 0.05 & tier == "exploratory", .N],

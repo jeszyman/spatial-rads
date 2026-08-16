@@ -52,6 +52,9 @@ suppressPackageStartupMessages({ library(data.table) })
 # exposes it to the gatekeeping test without running the pipeline body.
 source("scripts/aggregate/fdr_helpers.R")   # add_gatekeeping()
 
+# --- which engine's statistic each cohort reports (shared with gsea.R, which ranks on it) ---
+source("scripts/aggregate/inference_source.R")   # moderated_t_cohorts(), MODERATED_T_LABEL
+
 a <- commandArgs(trailingOnly = TRUE)
 agg_p <- a[1]; reg_p <- a[2]; mde_p <- a[3]; sets_p <- a[4]
 cov_p <- a[5]; ddet_p <- a[6]; overlap_p <- a[7]; out_p <- a[8]
@@ -147,15 +150,17 @@ sub_m <- sub[, .(comparison, readout_class="substate_composition", unit=feature_
 # --- pseudobulk DE (unit=cell_type, feature_id=gene) ------------------------------
 # Two engines fit the SAME registry design on the SAME pseudobulk SE with the same
 # filters: count_engine (DESeq2, Wald test) and voom_engine (limma-voom, moderated t).
-# Which one is REPORTED is a per-cohort property of the realized residual df, and the
-# workflow declares it by running voom_engine for those cohorts only. Cohorts with a
-# voom_engine file report the moderated t; every other cohort reports the Wald test.
-# The DESeq2 Wald estimate and p ride along on the swapped rows as
-# effect_deseq2_wald / pvalue_deseq2_wald so the two are never confused, and baseMean
-# (the IHW covariate, a DESeq2 quantity) is carried over from the same rows.
+# Which one is REPORTED is a per-cohort property of the realized residual df, resolved by
+# inference_source.R off the engine directory. The DESeq2 Wald estimate and p ride along
+# on the swapped rows as effect_deseq2_wald / pvalue_deseq2_wald so the two are never
+# confused, and baseMean (the IHW covariate, a DESeq2 quantity) is carried over from the
+# same rows.
 de_wald <- read_cohort_family(engine_p, "de_engine_", "DE (DESeq2 Wald)")
 de_mod  <- read_cohort_family(engine_p, "voom_engine_", "DE (moderated t)", required = FALSE)
-MOD_T_COHORTS <- if (nrow(de_mod)) unique(de_mod$comparison) else character()
+MOD_T_COHORTS <- intersect(moderated_t_cohorts(engine_p), KNOWN_COHORTS)
+# The rows actually loaded must be exactly the cohorts the shared rule names, or the table
+# would report one statistic and label it another.
+stopifnot(setequal(MOD_T_COHORTS, if (nrow(de_mod)) unique(de_mod$comparison) else character()))
 if (length(MOD_T_COHORTS))
   cat(sprintf("assemble_results: reported DE inference = limma-voom moderated t for: %s\n",
               paste(sort(MOD_T_COHORTS), collapse = ", ")))
@@ -167,7 +172,7 @@ wald_aux <- de_wald[comparison %in% MOD_T_COHORTS,
 de <- rbindlist(list(de_wald[!comparison %in% MOD_T_COHORTS], de_mod),
                 use.names = TRUE, fill = TRUE)
 de[, inference_method := fifelse(comparison %in% MOD_T_COHORTS,
-                                 "limma_voom_moderated_t", "DESeq2_Wald")]
+                                 MODERATED_T_LABEL, WALD_LABEL)]
 de <- wald_aux[de, on = DEKEY]
 de[is.na(baseMean), baseMean := baseMean_deseq2]   # voom rows carry no DESeq2 baseMean
 de[, baseMean_deseq2 := NULL]

@@ -247,11 +247,19 @@ rule dd_muscat:
         "apptainer exec --bind {D_DATA} {MUSCAT_SIF} "
         "Rscript {input.script} {input.sce} {output.tsv} > {log} 2>&1"
 # --- Track 2 pathway: GSEA on pseudobulk stat-ranked genes (primary + Hallmark) ---
+# Ranks on the statistic the cohort REPORTS, so enrichment and DE describe one test:
+# moderated t for VOOM_COHORTS, DESeq2 Wald elsewhere. gsea.R resolves that per cohort
+# through scripts/aggregate/inference_source.R -- the same module assemble_results.R
+# reads -- so the voom file is declared as an input for the DAG edge rather than passed
+# on the command line.
 rule gsea:
     message: "gsea: GSEA on pseudobulk stat-ranked genes ({wildcards.cohort})"
     input:
         script = f"{R_SCRIPTS}/gsea.R",
+        helper = f"{R_SCRIPTS}/inference_source.R",
         degs   = "results/aggregate/engine/de_engine_{cohort}.tsv",
+        voom   = lambda w: (f"results/aggregate/engine/voom_engine_{w.cohort}.tsv"
+                            if w.cohort in VOOM_COHORTS else []),
         sets   = "results/data_model/pathway_sets.tsv",
     output:
         gsea = "results/aggregate/gsea_pseudobulk_{cohort}.tsv",
