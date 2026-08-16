@@ -49,6 +49,14 @@ _s    = pd.read_csv(MASTER, sep="\t")
 FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
 DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
 LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl", "combined_4h_pooledctrl"]
+# Cohorts whose reported pseudobulk inference is the limma-voom moderated t rather than
+# the DESeq2 Wald test. The three 4h cohorts are slide-blocked over 6-10 samples and
+# realize 1-2 residual df per cell type, where a per-gene variance estimate carries
+# almost no information; empirical-Bayes shrinkage borrows df across genes to give a
+# usable denominator. Day-2 has adequate df and keeps DESeq2 Wald as reported.
+# assemble_results.R reads the same distinction off which voom_engine files exist, so
+# this list is the single place the swap is declared.
+VOOM_COHORTS = ["combined_4h_treated", "combined_4h", "combined_4h_pooledctrl"]
 # smiDE model modes: "screen" is the nebula NB GLMM discovery pass, "spatial" is the
 # per-spatial-unit Gaussian-process (GP_INLA) fit plus inverse-variance meta-analysis.
 SMIDE_MODES = ["screen", "spatial"]
@@ -65,6 +73,7 @@ rule all:
         "results/aggregate/composition_unassigned_sensitivity.tsv",
         expand("results/aggregate/engine/composition_engine_{coh}.tsv", coh=LM_COHORTS),
         expand("results/aggregate/engine/de_engine_{coh}.tsv", coh=DE_COHORTS),
+        expand("results/aggregate/engine/voom_engine_{coh}.tsv", coh=VOOM_COHORTS),
         expand("results/aggregate/engine/niche_engine_{coh}.tsv", coh=LM_COHORTS),
         expand("results/aggregate/engine/mixing_engine_{coh}.tsv", coh=LM_COHORTS),
         expand("results/aggregate/engine/myeloid_engine_{coh}.tsv", coh=LM_COHORTS),
@@ -183,6 +192,27 @@ rule de_engine:
     threads: 1
     log:
         f"{D_LOGS}/de_engine_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.se} {wildcards.cohort} {input.comp} {input.params} "
+        "{output.stats} {output.skipped} > {log} 2>&1"
+# --- Track 2 inference: moderated-t view of the same pseudobulk fit (VOOM_COHORTS) ---
+# Same SE, same registry design, same filters as de_engine; limma-voom instead of DESeq2
+# so a 1-2 residual-df cohort is tested against an empirical-Bayes-moderated variance.
+# assemble_results.R reports these p-values for these cohorts and carries the DESeq2
+# Wald p from de_engine alongside as a secondary column.
+rule voom_engine:
+    message: "voom_engine: limma-voom moderated-t pseudobulk DE ({wildcards.cohort}) -> sufficient stats"
+    input:
+        script = "scripts/engines/voom_engine.R",
+        se     = f"{D_AGG}/pseudobulk_se.rds",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats   = "results/aggregate/engine/voom_engine_{cohort}.tsv",
+        skipped = "results/aggregate/engine/voom_engine_{cohort}_skipped.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/voom_engine_{{cohort}}.log",
     shell:
         "{RSCRIPT} {input.script} {input.se} {wildcards.cohort} {input.comp} {input.params} "
         "{output.stats} {output.skipped} > {log} 2>&1"
@@ -546,6 +576,7 @@ rule assemble_results:
         # through to the shell command.
         comp     = expand("results/aggregate/engine/composition_engine_{coh}.tsv", coh=LM_COHORTS),
         degs     = expand("results/aggregate/engine/de_engine_{coh}.tsv", coh=DE_COHORTS),
+        voom     = expand("results/aggregate/engine/voom_engine_{coh}.tsv", coh=VOOM_COHORTS),
         gsea     = expand("results/aggregate/gsea_pseudobulk_{coh}.tsv", coh=DE_COHORTS),
         pathway  = expand("results/aggregate/pathway_test_{coh}.tsv", coh=LM_COHORTS),
         niche    = expand("results/aggregate/engine/niche_engine_{coh}.tsv", coh=LM_COHORTS),

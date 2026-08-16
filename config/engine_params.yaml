@@ -11,6 +11,12 @@ count_engine:
   gene_min_samples: 4    # ... in >= this many samples
   shrinkage: apeglm      # lfcShrink type; apeglm accepts only coef=, hence the two-fit pattern
 
+voom_engine:
+  # Moderated-t pseudobulk view. Reuses the count_engine block above for min_cells /
+  # min_samples / gene filters so both engines test the same gene set and their two
+  # p-value columns stay comparable row by row.
+  robust: true           # robust eBayes: a hypervariable gene must not inflate the shared prior
+
 lm_engine:
   # eBayes robust flag per readout, reproducing each source script EXACTLY:
   # composition / niche / pathway / substate used robust = TRUE;

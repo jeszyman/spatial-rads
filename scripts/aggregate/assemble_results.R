@@ -37,6 +37,8 @@
 #       <gene_set_panel_coverage.tsv> <differential_detection.tsv> <overlap_ratio_qc.tsv>
 #       <out_master.tsv>
 # agg_dir must contain engine/{composition,de,niche,mixing,myeloid,substate}_<cohort>.tsv
+# plus engine/voom_engine_<cohort>.tsv for the cohorts whose reported DE inference is
+# the moderated t (see the DE block below)
 # plus engine/smide_de_<cohort>_{screen,spatial}.tsv, and gsea_pseudobulk_<cohort>.tsv
 # and pathway_test_<cohort>.tsv at its top level.
 suppressPackageStartupMessages({ library(data.table) })
@@ -83,7 +85,10 @@ stopifnot(length(CONFIRMATORY_COHORTS) > 0)
 # `suffix` covers producers that emit more than one file per cohort (smide_de
 # writes one per model mode, "<prefix><cohort>_<mode>.tsv"); it is stripped along
 # with the prefix before the cohort token is checked.
-read_cohort_family <- function(dir, prefix, label, suffix = "") {
+# `required = FALSE` lets a family that legitimately covers only part of the roster
+# (the moderated-t engine runs on the low-df 4h cohorts only) return an empty table
+# instead of erroring.
+read_cohort_family <- function(dir, prefix, label, suffix = "", required = TRUE) {
   files <- list.files(dir, pattern = paste0("^", prefix, ".*", suffix, "\\.tsv$"),
                       full.names = TRUE)
   hits <- list()
@@ -99,9 +104,14 @@ read_cohort_family <- function(dir, prefix, label, suffix = "") {
     }
     hits[[coh]] <- dt
   }
-  if (length(hits) == 0)
+  if (length(hits) == 0) {
+    if (!required) {
+      cat(sprintf("assemble_results: %-22s no cohort files (optional family)\n", label))
+      return(data.table())
+    }
     stop(sprintf("assemble_results: readout family '%s' matched zero cohort files (pattern '%s*' in %s)",
                  label, prefix, dir))
+  }
   cat(sprintf("assemble_results: %-22s %d cohort file(s): %s\n",
               label, length(hits), paste(names(hits), collapse = ", ")))
   rbindlist(hits, use.names = TRUE)
@@ -134,13 +144,39 @@ sub_m <- sub[, .(comparison, readout_class="substate_composition", unit=feature_
   se, stat, pvalue=p, padj_own=padj,
   hypothesis=NA_character_, n_samples_used=NA_integer_, baseMean=NA_real_)]
 
-# --- pseudobulk DE (count_engine; unit=cell_type, feature_id=gene; Wald CI from se) ----
-de <- read_cohort_family(engine_p, "de_engine_", "DE")
-de[, padj := p.adjust(p, "BH"), by = .(comparison, unit, contrast)]  # DESeq2 grouping: per cohort x cell_type x contrast
+# --- pseudobulk DE (unit=cell_type, feature_id=gene) ------------------------------
+# Two engines fit the SAME registry design on the SAME pseudobulk SE with the same
+# filters: count_engine (DESeq2, Wald test) and voom_engine (limma-voom, moderated t).
+# Which one is REPORTED is a per-cohort property of the realized residual df, and the
+# workflow declares it by running voom_engine for those cohorts only. Cohorts with a
+# voom_engine file report the moderated t; every other cohort reports the Wald test.
+# The DESeq2 Wald estimate and p ride along on the swapped rows as
+# effect_deseq2_wald / pvalue_deseq2_wald so the two are never confused, and baseMean
+# (the IHW covariate, a DESeq2 quantity) is carried over from the same rows.
+de_wald <- read_cohort_family(engine_p, "de_engine_", "DE (DESeq2 Wald)")
+de_mod  <- read_cohort_family(engine_p, "voom_engine_", "DE (moderated t)", required = FALSE)
+MOD_T_COHORTS <- if (nrow(de_mod)) unique(de_mod$comparison) else character()
+if (length(MOD_T_COHORTS))
+  cat(sprintf("assemble_results: reported DE inference = limma-voom moderated t for: %s\n",
+              paste(sort(MOD_T_COHORTS), collapse = ", ")))
+DEKEY <- c("comparison", "contrast", "unit", "feature_id")
+wald_aux <- de_wald[comparison %in% MOD_T_COHORTS,
+                    .(comparison, contrast, unit, feature_id,
+                      effect_deseq2_wald = estimate, pvalue_deseq2_wald = p,
+                      baseMean_deseq2 = baseMean)]
+de <- rbindlist(list(de_wald[!comparison %in% MOD_T_COHORTS], de_mod),
+                use.names = TRUE, fill = TRUE)
+de[, inference_method := fifelse(comparison %in% MOD_T_COHORTS,
+                                 "limma_voom_moderated_t", "DESeq2_Wald")]
+de <- wald_aux[de, on = DEKEY]
+de[is.na(baseMean), baseMean := baseMean_deseq2]   # voom rows carry no DESeq2 baseMean
+de[, baseMean_deseq2 := NULL]
+de[, padj := p.adjust(p, "BH"), by = .(comparison, unit, contrast)]  # per cohort x cell_type x contrast
 de_m <- de[, .(comparison, readout_class="DE", unit=unit, feature=feature_id, contrast,
   effect=estimate, effect_type="log2FC", ci_low=estimate-1.96*se,
   ci_high=estimate+1.96*se, se, stat, pvalue=p, padj_own=padj,
-  hypothesis=NA_character_, n_samples_used=n_samples_used, baseMean=baseMean)]
+  hypothesis=NA_character_, n_samples_used=n_samples_used, baseMean=baseMean,
+  inference_method, effect_deseq2_wald, pvalue_deseq2_wald)]
 
 # --- pathway program scores (UCell primary; limma estimate, normal CI) -----------
 # padj_bh is already correctly scoped: pathway_arm_test.R computes it once per cohort
@@ -387,6 +423,7 @@ master[, dose_confounded := contrast %in% c("MBRT_vs_SBRT", "MBRT_vs_SBRT_4h")] 
 master[, independent := !(readout_class %in% c("pathway","gsea") & feature == "STING")]  # STING ~50% shares genes with IFN sets
 
 setcolorder(master, c(COLS, "padj_confirmatory",
+                      "inference_method", "effect_deseq2_wald", "pvalue_deseq2_wald",
                       "gate_program", "gate_padj", "padj_gated", "padj_ihw",
                       "mde", "mde_scale", "abs_effect_lt_mde", "clears_mde", "trend_call",
                       "n_panel", "n_set_total", "panel_cov_frac",

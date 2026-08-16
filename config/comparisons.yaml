@@ -61,7 +61,7 @@ comparisons:
     group1: {treatment: MBRT, timepoint_h: 4, model: flank}
     group2: {treatment: SBRT, timepoint_h: 4, model: flank}
     unit: mouse
-    formula: "~0 + condition"
+    formula: "~0 + condition + slide_id"
     contrast_levels: {num: MBRT_4h, den: SBRT_4h}
     transform: logit
     tier: exploratory
@@ -69,7 +69,11 @@ comparisons:
     notes: >
       Combined M01+M02 cohort (n=3 MBRT, n=3 SBRT). Own 2-condition cohort
       without controls so the DESeq2 sample-count floor does not block the contrast.
-      No slide_id covariate: each slide contributes exactly one section per arm.
+      Slide-blocked design: each of the three 4h slides carries exactly one section
+      per arm (a randomized complete block), so the block is orthogonal to the arm
+      contrast and costs no arm information. The slide term additionally absorbs the
+      documented Mutter_01 vs Mutter_02 per-cell capture-depth difference, which
+      otherwise enters this cross-dataset contrast as between-sample variance.
 
   - name: MBRT_vs_Ctrl_4h
     kind: sample
@@ -78,7 +82,7 @@ comparisons:
     group1: {treatment: MBRT, timepoint_h: 4, model: flank}
     group2: {treatment: NT,   timepoint_h: 4, model: flank}
     unit: mouse
-    formula: "~0 + condition"
+    formula: "~0 + condition + slide_id"
     contrast_levels: {num: MBRT_4h, den: Control}
     transform: logit
     tier: exploratory
@@ -86,6 +90,10 @@ comparisons:
     notes: >
       Control n=2 (M02 only, M01 has no 4h control). Treat as independent
       pending Fazzari mouse-to-block confirmation. Low-powered.
+      Slide-blocked design: the two M02 4h slides each carry one Control, one MBRT
+      and one SBRT section (a balanced block), and the slide term additionally
+      absorbs the documented Mutter_01 vs Mutter_02 per-cell capture-depth
+      difference that this cross-dataset cohort otherwise carries into the contrast.
 
   - name: SBRT_vs_Ctrl_4h
     kind: sample
@@ -94,13 +102,16 @@ comparisons:
     group1: {treatment: SBRT, timepoint_h: 4, model: flank}
     group2: {treatment: NT,   timepoint_h: 4, model: flank}
     unit: mouse
-    formula: "~0 + condition"
+    formula: "~0 + condition + slide_id"
     contrast_levels: {num: SBRT_4h, den: Control}
     transform: logit
     tier: exploratory
     min_samples: 2
     notes: >
-      Control n=2 (M02 only). Same caveat as MBRT_vs_Ctrl_4h.
+      Control n=2 (M02 only). Same caveat as MBRT_vs_Ctrl_4h, and the same
+      slide-blocked design for the same two reasons: the M02 4h slides are balanced
+      blocks (one section per arm) and the slide term absorbs the Mutter_01 vs
+      Mutter_02 capture-depth difference.
 
   # ---- sample-level, pooled-control sensitivity arm (all 4 M02 controls pooled
   # across harvest times; vs-Control only, no MBRT_vs_SBRT variant since that
@@ -145,14 +156,19 @@ comparisons:
     group1: {treatment: MBRT, model: flank}
     group2: {treatment: NT,   model: flank}
     unit: mouse
-    formula: "~0 + condition"
+    formula: "~0 + condition + slide_id"
     contrast_levels: {num: MBRT_4h, den: Control}
     transform: logit
     tier: exploratory
     notes: >
       Control-pooling sensitivity arm: pools all 4 M02 control samples (2 4h-slide +
-      2 day-2) against the combined M01+M02 4h MBRT arm (n=3). No slide_id term --
-      the added day-2-slide controls are unpaired.
+      2 day-2) against the combined M01+M02 4h MBRT arm (n=3). Slide-blocked to match
+      its parent combined_4h cohort: the 4h slides are balanced blocks (one section
+      per arm) and the slide term absorbs the Mutter_01 vs Mutter_02 capture-depth
+      difference. Consequence to read with the result: the two borrowed day-2 controls
+      each sit alone on a slide that carries no treated section, so the block term
+      absorbs them entirely and the blocked fit reduces to the unpooled combined_4h
+      design.
 
   - name: SBRT_vs_Ctrl_4h_pooled
     kind: sample
@@ -161,14 +177,15 @@ comparisons:
     group1: {treatment: SBRT, model: flank}
     group2: {treatment: NT,   model: flank}
     unit: mouse
-    formula: "~0 + condition"
+    formula: "~0 + condition + slide_id"
     contrast_levels: {num: SBRT_4h, den: Control}
     transform: logit
     tier: exploratory
     notes: >
       Control-pooling sensitivity arm: pools all 4 M02 control samples (2 4h-slide +
-      2 day-2) against the combined M01+M02 4h SBRT arm (n=3). No slide_id term --
-      see MBRT_vs_Ctrl_4h_pooled.
+      2 day-2) against the combined M01+M02 4h SBRT arm (n=3). Slide-blocked --
+      see MBRT_vs_Ctrl_4h_pooled for the block layout, the capture-depth reason, and
+      the consequence for the two borrowed day-2 controls.
 
   # ---- region-level, within-sample ----
   - name: MBRT_peak_vs_valley
