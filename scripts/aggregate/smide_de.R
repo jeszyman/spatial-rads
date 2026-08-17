@@ -50,8 +50,11 @@
 #
 # Output is the engine schema (comparison/contrast/unit/feature_type/feature_id/
 # estimate/se/df/stat/p) plus ci_lo/ci_hi/mode/sample_id/fit_unit/n_fits/
-# n_cells_fit. `unit` is the cell type (engine convention); `sample_id` is the
-# spatial fitting unit's value and is NA for screen and meta rows.
+# n_cells_fit and the per-arm evidence behind the fit (n_expr_num/n_expr_den =
+# expressing cells, n_cells_num/n_cells_den = cells, oriented to the registry
+# contrast's numerator and denominator). `unit` is the cell type (engine
+# convention); `sample_id` is the spatial fitting unit's value and is NA for
+# screen and meta rows.
 #
 # Cohort membership is the cohort_samples.tsv whitelist intersected with the
 # registry's contrast condition levels, the same cross-dataset-leakage guard
@@ -59,22 +62,39 @@
 #
 # Args: <merged.rds|cohort counts cache> <full_labels.parquet>
 #       <coords_necrosis.parquet> <obs.parquet> <comparisons.tsv> <samples.tsv>
-#       <overlap_ratio_qc.tsv> <cohort> <mode> <out_tsv>
+#       <overlap_ratio_qc.tsv> <cohort> <mode> <out_tsv> <out_skipped_tsv>
 suppressPackageStartupMessages({
   library(data.table); library(arrow); library(Seurat); library(Matrix); library(smiDE)
 })
 a <- commandArgs(trailingOnly = TRUE)
-if (length(a) != 10) {
+if (length(a) != 11) {
   stop("usage: smide_de.R <merged.rds|cohort.counts.rds> <labels.parquet> <coords.parquet> <obs.parquet> ",
-       "<comparisons.tsv> <samples.tsv> <overlap_ratio_qc.tsv> <cohort> <mode> <out.tsv>")
+       "<comparisons.tsv> <samples.tsv> <overlap_ratio_qc.tsv> <cohort> <mode> <out.tsv> <out_skipped.tsv>")
 }
 rds_path <- a[1]; labels_path <- a[2]; coords_path <- a[3]; obs_path <- a[4]
 comp_path <- a[5]; samples_path <- a[6]; overlap_path <- a[7]
-cohort_name <- a[8]; de_mode <- a[9]; out_tsv <- a[10]
+cohort_name <- a[8]; de_mode <- a[9]; out_tsv <- a[10]; out_skipped <- a[11]
 stopifnot(`mode must be "screen" or "spatial"` = de_mode %in% c("screen", "spatial"))
 
 RADIUS_MM <- 0.05
 MIN_CELLS <- 50
+# Minimum expressing (non-zero) cells an arm must contribute to a spatial fit for
+# that fit's contrasts to be trusted. MIN_CELLS is a floor on cells present, which
+# says nothing about whether a given gene was seen in each arm; an arm with no
+# expressing cell makes the NB log-link coefficient unidentified and INLA answers
+# with a Gaussian approximation centred wherever the optimiser stopped, at a
+# finite and often small posterior sd, so the runaway estimate then wins the
+# inverse-variance meta-analysis. Measured on mutter02_day2: with no floor, 21%
+# of per-slide fits had an arm with zero expressing cells and 100% of the 226 rows
+# with |log2FC| > 100 were of that kind; at a floor of 3 the implausible rows fall
+# to 14 of 34,962 while 62% of rows are kept. The floor applies to EVERY arm in
+# the fit, not only the two levels of the contrast being read off it: the arms
+# share one linear predictor, so a single separated arm carries the whole fit off.
+MIN_EXPR_PER_ARM <- 3
+# Real effects on a 950-gene panel run about +/- 1 to 3 log2 units. Nothing above
+# this is a biological result, so a surviving meta estimate past it means the gate
+# above has failed to catch a degenerate fit and the run must not be believed.
+MAX_PLAUSIBLE_LOG2FC <- 10
 # Fewer surviving genes than this leaves nothing worth a per-cell-type BH family.
 MIN_TARGETS <- 25
 # Overlap ratio >= 1 means neighbor-other-type expression matches or exceeds the
@@ -106,7 +126,14 @@ dir.create(dirname(out_tsv), recursive = TRUE, showWarnings = FALSE)
 
 OUT_COLS <- c("comparison", "contrast", "unit", "feature_type", "feature_id",
               "estimate", "se", "df", "stat", "p", "ci_lo", "ci_hi", "mode",
-              "sample_id", "fit_unit", "n_fits", "n_cells_fit")
+              "sample_id", "fit_unit", "n_fits", "n_cells_fit",
+              "n_expr_num", "n_expr_den", "n_cells_num", "n_cells_den")
+
+# Gated fits, written alongside the results so the gate is auditable without
+# re-deriving expressing counts from the counts matrix.
+SKIP_COLS <- c("comparison", "contrast", "unit", "feature_id", "sample_id",
+               "fit_unit", "estimate", "se", "p", "n_expr_num", "n_expr_den",
+               "n_cells_num", "n_cells_den", "min_expr_fit", "reason")
 
 EMPTY_OUT <- function() {
   data.table(comparison=character(), contrast=character(), unit=character(),
@@ -114,11 +141,30 @@ EMPTY_OUT <- function() {
              estimate=numeric(), se=numeric(), df=numeric(),
              stat=numeric(), p=numeric(), ci_lo=numeric(), ci_hi=numeric(),
              mode=character(), sample_id=character(), fit_unit=character(),
-             n_fits=integer(), n_cells_fit=integer())
+             n_fits=integer(), n_cells_fit=integer(),
+             n_expr_num=integer(), n_expr_den=integer(),
+             n_cells_num=integer(), n_cells_den=integer())
+}
+
+EMPTY_SKIPPED <- function() {
+  data.table(comparison=character(), contrast=character(), unit=character(),
+             feature_id=character(), sample_id=character(), fit_unit=character(),
+             estimate=numeric(), se=numeric(), p=numeric(),
+             n_expr_num=integer(), n_expr_den=integer(),
+             n_cells_num=integer(), n_cells_den=integer(),
+             min_expr_fit=integer(), reason=character())
+}
+
+skipped_list <- list()
+
+write_skipped <- function() {
+  dt <- if (length(skipped_list)) rbindlist(skipped_list, fill = TRUE) else EMPTY_SKIPPED()
+  fwrite(dt[, ..SKIP_COLS], out_skipped, sep = "\t")
 }
 
 write_out <- function(dt) {
   fwrite(dt[, ..OUT_COLS], out_tsv, sep = "\t")
+  write_skipped()
 }
 
 # An empty spatial table is never a valid result: a cohort is on the spatial run
@@ -400,6 +446,28 @@ map_pairwise <- function(de, ct, mode_tag, sample_tag, fit_unit_tag, n_cells) {
   pw[, levelA := trimws(levelA)]
   pw[, levelB := trimws(levelB)]
 
+  # smiDE attaches the evidence behind each contrast row: propnz is the fraction
+  # of that arm's cells carrying a non-zero count (mean(y > 0) in summarize_model),
+  # so propnz * ncells is the number of cells that actually informed the fit for
+  # this gene. The _1 columns describe the left level of the "A / B" contrast
+  # string and the _2 columns the right. Every arm of the fit shows up as levelA
+  # or levelB of some pairwise row, so the long form gives the whole fit's
+  # per-arm evidence, not just the two levels of one contrast.
+  arm_cols <- c("propnz_1", "ncells_1", "propnz_2", "ncells_2")
+  if (all(arm_cols %in% names(pw))) {
+    pw[, n_expr_A  := as.integer(round(propnz_1 * ncells_1))]
+    pw[, n_expr_B  := as.integer(round(propnz_2 * ncells_2))]
+    pw[, n_cells_A := as.integer(ncells_1)]
+    pw[, n_cells_B := as.integer(ncells_2)]
+    arm_long <- rbind(pw[, .(target, n_expr = n_expr_A)],
+                      pw[, .(target, n_expr = n_expr_B)])
+    fit_min <- arm_long[, .(m = min(n_expr)), by = target]
+    pw[, min_expr_fit := fit_min$m[match(target, fit_min$target)]]
+  } else {
+    pw[, c("n_expr_A", "n_expr_B", "n_cells_A", "n_cells_B",
+           "min_expr_fit") := NA_integer_]
+  }
+
   mapped <- vector("list", nrow(contrast_defs))
   for (i in seq_len(nrow(contrast_defs))) {
     cdef <- contrast_defs[i]
@@ -407,6 +475,7 @@ map_pairwise <- function(de, ct, mode_tag, sample_tag, fit_unit_tag, n_cells) {
            (pw$levelA == cdef$den_level & pw$levelB == cdef$num_level)
     if (!any(sel)) next
     dir_sign <- ifelse(pw$levelA[sel] == cdef$num_level, 1, -1)
+    fwd   <- dir_sign > 0
     est_i <- dir_sign * est_v[sel]
     lo_i  <- ifelse(dir_sign > 0, lo_v[sel], -hi_v[sel])
     hi_i  <- ifelse(dir_sign > 0, hi_v[sel], -lo_v[sel])
@@ -427,7 +496,12 @@ map_pairwise <- function(de, ct, mode_tag, sample_tag, fit_unit_tag, n_cells) {
       sample_id = sample_tag,
       fit_unit = fit_unit_tag,
       n_fits = NA_integer_,
-      n_cells_fit = as.integer(n_cells)
+      n_cells_fit = as.integer(n_cells),
+      n_expr_num  = ifelse(fwd, pw$n_expr_A[sel],  pw$n_expr_B[sel]),
+      n_expr_den  = ifelse(fwd, pw$n_expr_B[sel],  pw$n_expr_A[sel]),
+      n_cells_num = ifelse(fwd, pw$n_cells_A[sel], pw$n_cells_B[sel]),
+      n_cells_den = ifelse(fwd, pw$n_cells_B[sel], pw$n_cells_A[sel]),
+      min_expr_fit = pw$min_expr_fit[sel]
     )
   }
   mapped <- rbindlist(mapped, fill = TRUE)
@@ -437,7 +511,9 @@ map_pairwise <- function(de, ct, mode_tag, sample_tag, fit_unit_tag, n_cells) {
 # Fixed-effect inverse-variance meta-analysis across the per-unit spatial fits.
 # metafor is not installed in the spatial-rads env, and the closed form below is
 # the same estimator metafor's rma(method="FE") returns. n_cells_fit on a meta
-# row is the total cells fitted across the contributing units.
+# row is the total cells fitted across the contributing units. Its per-arm columns
+# summarize the contributing fits: cells add up across units, while the expressing
+# counts carry the weakest contributing fit, which is the binding evidence.
 meta_combine <- function(dt, fit_unit_tag) {
   ok <- dt[is.finite(estimate) & is.finite(se) & se > 0]
   if (nrow(ok) == 0) return(NULL)
@@ -446,7 +522,9 @@ meta_combine <- function(dt, fit_unit_tag) {
     est <- sum(w * estimate) / sum(w)
     sse <- sqrt(1 / sum(w))
     .(estimate = est, se = sse, n_fits = .N,
-      n_cells_fit = sum(unique(data.table(sample_id, n_cells_fit))$n_cells_fit))
+      n_cells_fit = sum(unique(data.table(sample_id, n_cells_fit))$n_cells_fit),
+      n_expr_num = min(n_expr_num), n_expr_den = min(n_expr_den),
+      n_cells_num = sum(n_cells_num), n_cells_den = sum(n_cells_den))
   }, by = .(comparison, contrast, unit, feature_type, feature_id)]
   m[, stat := estimate / se]
   m[, p := 2 * pnorm(-abs(stat))]
@@ -627,10 +705,28 @@ if (de_mode == "spatial") {
 
       if (isTRUE(fit$ok)) {
         n_fit_ok <- n_fit_ok + 1L
-        if (!is.null(fit$mapped)) per_unit[[as.character(u)]] <- fit$mapped
-        cat(sprintf("smide_de: %s / %s=%s -- %d genes tested, %d contrast rows\n",
+        n_gated <- 0L
+        if (!is.null(fit$mapped)) {
+          mp <- fit$mapped
+          if (anyNA(mp$min_expr_fit))
+            stop(sprintf(paste0("smide_de: %s / %s=%s -- results() carried no per-arm ",
+                                "counts (propnz_*/ncells_*), so the expressing-cell gate ",
+                                "cannot be applied and a separated fit would go unchecked"),
+                         ct, fit_unit, u))
+          gate_pass <- mp$min_expr_fit >= MIN_EXPR_PER_ARM
+          if (any(!gate_pass)) {
+            g <- mp[!gate_pass]
+            g[, reason := sprintf("min_expr_per_arm: weakest arm has %d expressing cell(s) in this fit (need %d)",
+                                  min_expr_fit, MIN_EXPR_PER_ARM)]
+            skipped_list[[length(skipped_list) + 1L]] <- g
+            n_gated <- nrow(g)
+          }
+          if (any(gate_pass)) per_unit[[as.character(u)]] <- mp[gate_pass]
+        }
+        cat(sprintf("smide_de: %s / %s=%s -- %d genes tested, %d contrast rows, %d gated below %d expressing cells/arm\n",
                     ct, fit_unit, u, length(tg),
-                    if (is.null(fit$mapped)) 0L else nrow(fit$mapped)))
+                    if (is.null(fit$mapped)) 0L else nrow(fit$mapped),
+                    n_gated, MIN_EXPR_PER_ARM))
       } else {
         n_fit_fail <- n_fit_fail + 1L
         cat(sprintf("smide_de: ERROR %s / %s=%s -- %s\n", ct, fit_unit, u, fit$msg))
@@ -668,4 +764,22 @@ if (length(results_list) == 0) {
   cat(sprintf("smide_de: %d rows | %d genes x %d cell types x %d contrasts | modes: %s\n",
               nrow(out), uniqueN(out$feature_id), uniqueN(out$unit), uniqueN(out$contrast),
               paste(sort(unique(out$mode)), collapse = ", ")))
+  if (de_mode == "spatial") {
+    n_gated_total <- if (length(skipped_list)) sum(vapply(skipped_list, nrow, integer(1))) else 0L
+    cat(sprintf("smide_de: %d per-unit row(s) gated below %d expressing cells per arm -> %s\n",
+                n_gated_total, MIN_EXPR_PER_ARM, out_skipped))
+    # Checked after the write so a hand-run keeps its tables for inspection; under
+    # snakemake the job still fails and the outputs are discarded, which is the
+    # intent -- an estimate this large means a degenerate fit reached the results.
+    bad <- out[mode == "spatial_meta" & abs(estimate) > MAX_PLAUSIBLE_LOG2FC]
+    if (nrow(bad) > 0) {
+      worst <- bad[order(-abs(estimate))][seq_len(min(5L, .N))]
+      stop(sprintf(paste0("smide_de: cohort %s spatial mode -- %d meta estimate(s) exceed %g log2 ",
+                          "units after the >=%d expressing-cells-per-arm gate, which no real ",
+                          "effect on this panel can reach. Worst: %s"),
+                   cohort_name, nrow(bad), MAX_PLAUSIBLE_LOG2FC, MIN_EXPR_PER_ARM,
+                   paste(sprintf("%s/%s/%s %.1f", worst$unit, worst$contrast,
+                                 worst$feature_id, worst$estimate), collapse = "; ")))
+    }
+  }
 }

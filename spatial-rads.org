@@ -6693,6 +6693,9 @@ rule cohort_counts_cache:
 # speedup from extra workers while every forked worker holds a 14-22 GB copy of the
 # cohort adjacency machinery, so spatial runs single-threaded and its throughput
 # comes from running several cohorts at once under the mem_mb budget.
+#
+# The skipped output carries the spatial fits dropped by the expressing-cells-per-arm
+# gate, with the per-arm counts behind each decision.
 rule smide_de:
     message: "smide_de: genome-wide per-cell smiDE DE ({wildcards.cohort}, {wildcards.mode})"
     wildcard_constraints:
@@ -6708,6 +6711,7 @@ rule smide_de:
         overlap = "results/aggregate/overlap_ratio_qc.tsv",
     output:
         tsv = "results/aggregate/engine/smide_de_{cohort}_{mode}.tsv",
+        skipped = "results/aggregate/engine/smide_de_{cohort}_{mode}_skipped.tsv",
     threads: lambda wc: 1 if wc.mode == "spatial" else 16
     resources:
         # Measured peak RSS of a spatial process on the combined_4h_treated cohort
@@ -6726,7 +6730,7 @@ rule smide_de:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
         "{input.comp} {input.samples} {input.overlap} {wildcards.cohort} {wildcards.mode} "
-        "{output.tsv} > {log} 2>&1"
+        "{output.tsv} {output.skipped} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-smide-concordance
