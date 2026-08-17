@@ -9,6 +9,10 @@ suppressPackageStartupMessages({ library(data.table); library(arrow) })
 a   <- commandArgs(trailingOnly = TRUE)
 m   <- as.data.table(read_parquet(a[1]))
 lab <- as.data.table(read_parquet(a[2]))[, .(cell, cell_type = cell_subtype)]
+# Same tumour-contamination collapse composition.R applies, for the same reason: the
+# tier-2 immune `Epithelial cells` bucket is tumour cells that clustered with immune
+# cells, and it must join the Tumor stratum before the fit, not after it.
+lab[cell_type == "Epithelial cells", cell_type := "Tumor"]
 sub <- as.data.table(read_parquet(a[3]))                 # cell, substate
 m[, cell_type := NULL]
 m <- merge(m, lab, by = "cell", all.x = TRUE)[!is.na(cell_type)]

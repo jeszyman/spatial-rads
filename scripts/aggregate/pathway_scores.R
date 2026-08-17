@@ -1,19 +1,20 @@
 #!/usr/bin/env Rscript
-# aggregate.smk pathway track -- COMPUTE half (plan-differential-robustness Fix/plumbing).
+# aggregate.smk pathway track -- COMPUTE half (plan-differential-robustness Fix/plumbing;
+# arm test split out to pathway_arm_test.R for cross-timepoint parity, task 3).
 # Per-cell module scoring (UCell + Seurat AddModuleScore) on the merged 3.27M-cell object
 # over primary + Hallmark sets, summarized per (sample x cell_type x pathway x score_type),
-# with the M02 day2 limma test and the UCell-vs-AMS concordance. This is the ~5h step; it
-# is split from plotting (pathway_plots.R) so a plot-layer bug can never roll back and
-# force the recompute. Outputs are the three cached TSVs the plots read back.
-# Args: <merged.rds> <full_labels.parquet> <pathway_sets.tsv> <out_summary> <out_test> <out_conc>
+# plus the UCell-vs-AMS concordance. This is the ~5h step; it is split from plotting
+# (pathway_plots.R) and from the per-cohort arm test (pathway_arm_test.R) so neither a
+# plot-layer bug nor a design/contrast change can ever roll back and force the recompute.
+# Outputs are the two cached TSVs pathway_arm_test.R and pathway_plots.R read back.
+# Args: <merged.rds> <full_labels.parquet> <pathway_sets.tsv> <out_summary> <out_conc>
 suppressPackageStartupMessages({
-  library(Seurat); library(arrow); library(UCell); library(limma); library(data.table)
+  library(Seurat); library(arrow); library(UCell); library(data.table)
 })
 args        <- commandArgs(trailingOnly = TRUE)
 merged_path <- args[1]; labels_path <- args[2]; sets_path <- args[3]
-out_summary <- args[4]; out_test <- args[5]; out_conc <- args[6]
+out_summary <- args[4]; out_conc <- args[5]
 
-MIN_CELLS <- 10L; MIN_SAMPLES <- 3L; CONDS <- c("Control", "MBRT_day2", "SBRT_day2")
 UCELL_CORES <- 8L; AMS_NBIN <- 24L; AMS_CTRL <- 20L; SEED <- 42L
 # maxRank truncates the zero-tail (genes ranked below it are treated as unexpressed).
 # UCell requires maxRank >= the largest signature; Fibrosis_remodeling has 136 on-panel
@@ -44,19 +45,23 @@ lab <- as.data.table(read_parquet(labels_path))[, .(cell, cell_subtype)]
 lv  <- setNames(lab$cell_subtype, lab$cell)
 o$cell_type <- unname(lv[colnames(o)])
 
-# The rebuilt merged.rds already carries condition/treatment/timepoint_h/dataset
-# (dataset = "Mutter_01"/"Mutter_02") but is MISSING slide_id (not a norm.rds column).
-# Join only slide_id from the sample sheet; do NOT overwrite the existing columns
-# (samples.tsv uses dataset_id = dat0001/dat0002, which would break the "Mutter_02" filter).
+# samples.tsv is the single source of truth for sample-level metadata (condition,
+# timepoint, dataset, slide). merged.rds is a heavy intermediate rebuilt independently of
+# it and its baked-in condition/timepoint_h/dataset/slide_id copies can drift out of sync;
+# join all four from samples.tsv by sample_id (dataset = its "name" column, values
+# "Mutter_01"/"Mutter_02") and overwrite the merged object's copies rather than trust them.
 ss <- fread("results/data_model/samples.tsv")
 scol <- names(ss)[grepl("sample", names(ss), ignore.case = TRUE)][1]
-smeta <- unique(ss[, .(sample_id = get(scol), slide_id)])
-o$slide_id <- smeta$slide_id[match(o$sample_id, smeta$sample_id)]
-# Fail-fast: assert EVERY column the downstream limma block needs is populated AND the
-# M02 day-2 filter will be non-empty, NOW (seconds) not after the ~5h scoring.
+smeta <- unique(ss[, .(sample_id = get(scol), condition, timepoint_h, dataset = name, slide_id)])
+midx <- match(o$sample_id, smeta$sample_id)
+o$condition   <- smeta$condition[midx]
+o$timepoint_h <- smeta$timepoint_h[midx]
+o$dataset     <- smeta$dataset[midx]
+o$slide_id    <- smeta$slide_id[midx]
+# Fail-fast: assert EVERY column the downstream arm test (pathway_arm_test.R) needs is
+# populated, NOW (seconds) not after the ~5h scoring.
 stopifnot(!anyNA(o$sample_id), !anyNA(o$condition), !anyNA(o$slide_id),
-          !anyNA(o$dataset), !anyNA(o$cell_type),
-          sum(o$dataset == "Mutter_02" & o$condition %in% CONDS) > 0)
+          !anyNA(o$dataset), !anyNA(o$cell_type))
 
 o <- subset(o, cells = colnames(o)[!is.na(o$cell_type) & o$cell_type != "unassigned"])
 panel  <- rownames(o)
@@ -105,52 +110,6 @@ summary_out <- summ[, .(sample_id, cell_type, pathway_name = pathway, pathway_so
 setorder(summary_out, dataset, cell_type, pathway_name, score_type, sample_id)
 fwrite(summary_out, out_summary, sep = "\t")
 
-m2 <- summ[dataset == "Mutter_02" & condition %in% CONDS]
-m2[, condition := factor(condition, levels = CONDS)]
-cm_names <- c("MBRT_vs_Ctrl", "SBRT_vs_Ctrl", "MBRT_vs_SBRT")
-test_rows <- list()
-for (ct in sort(unique(m2$cell_type))) {
-  for (st in c("UCell", "AMS")) {
-    sub <- m2[cell_type == ct & score_type == st & n_cells >= MIN_CELLS]
-    if (nrow(sub) == 0) next
-    sc  <- unique(sub[, .(sample_id, condition, slide_id)])
-    cnt <- setNames(rep(0L, length(CONDS)), CONDS)
-    cc  <- sc[, .N, by = condition]; cnt[as.character(cc$condition)] <- cc$N
-    nmin <- min(cnt); if (nmin < MIN_SAMPLES) next
-    w   <- dcast(sub, pathway ~ sample_id, value.var = "mean")
-    mat <- as.matrix(w[, -1]); rownames(mat) <- w$pathway
-    mat <- mat[complete.cases(mat), , drop = FALSE]; if (nrow(mat) == 0) next
-    samp <- sc[match(colnames(mat), sample_id)]
-    samp[, condition := factor(condition, levels = CONDS)]; samp[, slide_id := factor(slide_id)]
-    design <- model.matrix(~ 0 + condition + slide_id, data = samp)
-    colnames(design) <- make.names(colnames(design))
-    if (qr(design)$rank < ncol(design)) next
-    cont <- makeContrasts(
-      MBRT_vs_Ctrl = conditionMBRT_day2 - conditionControl,
-      SBRT_vs_Ctrl = conditionSBRT_day2 - conditionControl,
-      MBRT_vs_SBRT = conditionMBRT_day2 - conditionSBRT_day2, levels = design)
-    fit2 <- eBayes(contrasts.fit(lmFit(mat, design), cont), robust = TRUE)
-    for (cn in cm_names) {
-      est <- fit2$coefficients[, cn]
-      se  <- fit2$stdev.unscaled[, cn] * sqrt(fit2$s2.post)
-      test_rows[[length(test_rows) + 1]] <- data.table(
-        cell_type = ct, pathway_name = rownames(mat), score_type = st, contrast = cn,
-        estimate = est, se = se, t_stat = fit2$t[, cn], pvalue = fit2$p.value[, cn],
-        n_samples_per_group = nmin)
-    }
-  }
-}
-test <- rbindlist(test_rows)
-test[, padj_bh := p.adjust(pvalue, method = "BH")]
-test <- merge(test, set_meta[, .(pathway_name = pathway, pathway_source, tier,
-                                 n_panel_genes, panel_coverage_frac)], by = "pathway_name", sort = FALSE)
-test[, dataset := "Mutter_02"]
-test_out <- test[, .(cell_type, pathway_name, pathway_source, tier, score_type, contrast,
-                     estimate, se, t_stat, pvalue, padj_bh, n_samples_per_group,
-                     n_panel_genes, panel_coverage_frac, dataset)]
-setorder(test_out, cell_type, score_type, contrast, padj_bh, na.last = TRUE)
-fwrite(test_out, out_test, sep = "\t")
-
 wide <- dcast(summ, dataset + cell_type + pathway + sample_id ~ score_type, value.var = "mean")
 conc <- wide[, .(pearson_r = if (.N >= 3 && sd(UCell) > 0 && sd(AMS) > 0)
                               round(cor(UCell, AMS), 4) else NA_real_, n_samples = .N),
@@ -159,6 +118,6 @@ setnames(conc, "pathway", "pathway_name")
 setorder(conc, dataset, cell_type, pathway_name)
 fwrite(conc, out_conc, sep = "\t")
 
-cat(sprintf("pathway_scores: %d summary rows | test %d rows (%d padj<0.05) | conc %d rows | dropped: %s\n",
-            nrow(summary_out), nrow(test_out), test_out[!is.na(padj_bh) & padj_bh < 0.05, .N],
-            nrow(conc), if (length(dropped)) paste(dropped, collapse = ",") else "none"))
+cat(sprintf("pathway_scores: %d summary rows | conc %d rows | dropped: %s\n",
+            nrow(summary_out), nrow(conc),
+            if (length(dropped)) paste(dropped, collapse = ",") else "none"))

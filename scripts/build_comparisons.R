@@ -18,6 +18,10 @@ ss  <- fread(ss_p)
 ss[, timepoint_h := suppressWarnings(as.integer(timepoint_h))]
 
 # cohort label -> row filter on the samplesheet
+# The *_pooledctrl cohort is pinned to an explicit sample_id whitelist (not a
+# predicate) because its membership is a deliberate UNION of two normally-disjoint
+# groups (a treated arm's usual cohort plus the OTHER timepoint's control samples) --
+# a control-pooling sensitivity check, not a naturally-growing predicate.
 cohort_rows <- function(cohort) {
   switch(cohort,
     mutter02_day2   = ss[name == "Mutter_02" & timepoint_h == 48],
@@ -27,6 +31,13 @@ cohort_rows <- function(cohort) {
     mutter01_flank  = ss[name == "Mutter_01" & model == "flank"],
     mutter01_tongue = ss[name == "Mutter_01" & model == "tongue"],
     mutter01_mbrt_4h= ss[name == "Mutter_01" & treatment == "MBRT" & timepoint_h == 4],
+    # mutter02_day2 (sam0012-sam0017) + the two 4h-slide controls (sam0018, sam0021)
+    mutter02_day2_pooledctrl = ss[sample_id %in% c(
+      "sam0012", "sam0013", "sam0014", "sam0015", "sam0016", "sam0017",
+      "sam0018", "sam0021")],
+    # combined_4h_pooledctrl retired 2026-08-16: under the slide-blocked design its two
+    # borrowed day-2 controls each sit alone on a slide with no treated section, so the
+    # block absorbed them entirely -- see config/comparisons.yaml for the design rationale.
     stop("unknown cohort: ", cohort))
 }
 

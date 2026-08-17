@@ -38,6 +38,13 @@ m <- as.data.table(read_parquet(obs_path))   # cell, sample_id, dataset, slide_i
 # Use the unified cross-dataset cell_subtype (tier-1/2 joined) in place of the
 # stale per-sample cell_type, so composition reflects identical typing (plan-aggregate.md).
 lab <- as.data.table(read_parquet(labels_path))[, .(cell, cell_type = cell_subtype)]
+# `Epithelial cells` is the tier-2 immune tumour-contamination bucket (1,180 cells, 0.04%
+# of the cohort) -- epithelial cells that clustered with immune cells, not a lineage of
+# its own. Fold it into Tumor at the point of label read so the census and every fit below
+# see one tumour stratum. Collapsing here is what makes the collapse exact: renaming an
+# already-fitted stratum in the results tier instead yields two rows both claiming to be
+# Tumor. verify_arm_tables.R gates the absence of the alias downstream.
+lab[cell_type == "Epithelial cells", cell_type := "Tumor"]
 m[, cell_type := NULL]
 m <- merge(m, lab, by = "cell", all.x = TRUE)
 m <- m[!is.na(cell_type)]

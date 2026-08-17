@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # aggregate.smk tumor-immune spatial mixing. Per sample (contiguous tissue unit),
-# k=20 NN; per cell count immune- and tumor-compartment neighbours. Two readouts:
+# k=50 NN; per cell count immune- and tumor-compartment neighbours. Two readouts:
 # (1) immune-neighbour fraction per cell (dev 05_spatial_nn.R), and (2) the Keren
 # et al. 2018 mixing score per sample = tumor->immune neighbour edges / immune->
 # immune edges (dev 12_mixing_score.R). Necrosis exclusion: cells in necrosis_zone
@@ -17,7 +17,7 @@ suppressPackageStartupMessages({
 a <- commandArgs(trailingOnly = TRUE)
 labels_path <- a[1]; coords_path <- a[2]; obs_path <- a[3]
 out_ps <- a[4]; out_lm_input <- a[5]; out_pc <- a[6]; plot_mix <- a[7]
-KNN <- 20L
+KNN <- 50L
 
 dir.create(dirname(out_ps), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(plot_mix), recursive = TRUE, showWarnings = FALSE)
@@ -29,7 +29,7 @@ ob  <- as.data.table(read_parquet(obs_path))[, .(cell, condition, slide_id, time
 d <- lab[co, on = "cell"]; d <- ob[d, on = "cell"]
 d <- d[!is.na(compartment)]
 
-# per-cell immune/tumor neighbour counts via per-sample k=20 NN (graph on all cells)
+# per-cell immune/tumor neighbour counts via per-sample k=50 NN (graph on all cells)
 nn_counts <- function(ds) {
   xy <- as.matrix(ds[, .(x_slide_mm, y_slide_mm)])
   k_use <- min(KNN + 1L, nrow(ds))
@@ -83,7 +83,7 @@ p <- ggplot(pd, aes(condition, value, fill = condition)) +
   geom_point(size = 1, position = position_jitter(width = 0.12)) +
   facet_wrap(~ metric, scales = "free_y") +
   scale_fill_brewer(palette = "Set1") +
-  labs(x = NULL, y = NULL, title = "M02 day-2 tumor-immune mixing by arm (n=2/arm)") +
+  labs(x = NULL, y = NULL, title = "M02 day-2 tumor-immune mixing by arm (k=50 NN, n=2/arm)") +
   theme_bw(base_size = 10) + theme(axis.text.x = element_text(angle = 20, hjust = 1))
 ggsave(plot_mix, p, width = 8, height = 4.5, dpi = 150)
 

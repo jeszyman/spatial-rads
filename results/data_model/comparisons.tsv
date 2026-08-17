@@ -5,12 +5,16 @@ MBRT_vs_Ctrl	sample	mutter02_day2	whole	mouse	confirmatory	~0 + condition + slid
 MBRT_vs_Ctrl	sample	mutter02_day2	compartment	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	FALSE		MBRT_day2	Control	Control	logit	2	2	2	2	4	2	FALSE	
 MBRT_vs_SBRT	sample	mutter02_day2	whole	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	TRUE		MBRT_day2	SBRT_day2	SBRT_day2	logit	2	2	2	2	4	2	FALSE	
 MBRT_vs_SBRT	sample	mutter02_day2	compartment	mouse	confirmatory	~0 + condition + slide_id	H1_immune;H2_vascular;H3_stromal	TRUE		MBRT_day2	SBRT_day2	SBRT_day2	logit	2	2	2	2	4	2	FALSE	
-MBRT_vs_SBRT_4h	sample	combined_4h_treated	whole	mouse	exploratory	~0 + condition	""	TRUE		MBRT_4h	SBRT_4h	SBRT_4h	logit	3	3	3	3	2	4	TRUE	
-MBRT_vs_SBRT_4h	sample	combined_4h_treated	compartment	mouse	exploratory	~0 + condition	""	TRUE		MBRT_4h	SBRT_4h	SBRT_4h	logit	3	3	3	3	2	4	TRUE	
-MBRT_vs_Ctrl_4h	sample	combined_4h	whole	mouse	exploratory	~0 + condition	""	FALSE		MBRT_4h	Control	Control	logit	3	2	3	2	3	5	TRUE	
-MBRT_vs_Ctrl_4h	sample	combined_4h	compartment	mouse	exploratory	~0 + condition	""	FALSE		MBRT_4h	Control	Control	logit	3	2	3	2	3	5	TRUE	
-SBRT_vs_Ctrl_4h	sample	combined_4h	whole	mouse	exploratory	~0 + condition	""	FALSE		SBRT_4h	Control	Control	logit	3	2	3	2	3	5	TRUE	
-SBRT_vs_Ctrl_4h	sample	combined_4h	compartment	mouse	exploratory	~0 + condition	""	FALSE		SBRT_4h	Control	Control	logit	3	2	3	2	3	5	TRUE	
+MBRT_vs_SBRT_4h	sample	combined_4h_treated	whole	mouse	exploratory	~0 + condition + slide_id	""	TRUE		MBRT_4h	SBRT_4h	SBRT_4h	logit	3	3	3	3	4	2	TRUE	
+MBRT_vs_SBRT_4h	sample	combined_4h_treated	compartment	mouse	exploratory	~0 + condition + slide_id	""	TRUE		MBRT_4h	SBRT_4h	SBRT_4h	logit	3	3	3	3	4	2	TRUE	
+MBRT_vs_Ctrl_4h	sample	combined_4h	whole	mouse	exploratory	~0 + condition + slide_id	""	FALSE		MBRT_4h	Control	Control	logit	3	2	3	2	5	3	TRUE	
+MBRT_vs_Ctrl_4h	sample	combined_4h	compartment	mouse	exploratory	~0 + condition + slide_id	""	FALSE		MBRT_4h	Control	Control	logit	3	2	3	2	5	3	TRUE	
+SBRT_vs_Ctrl_4h	sample	combined_4h	whole	mouse	exploratory	~0 + condition + slide_id	""	FALSE		SBRT_4h	Control	Control	logit	3	2	3	2	5	3	TRUE	
+SBRT_vs_Ctrl_4h	sample	combined_4h	compartment	mouse	exploratory	~0 + condition + slide_id	""	FALSE		SBRT_4h	Control	Control	logit	3	2	3	2	5	3	TRUE	
+MBRT_vs_Ctrl_d2pooled	sample	mutter02_day2_pooledctrl	whole	mouse	exploratory	~0 + condition	""	FALSE		MBRT_day2	Control	Control	logit	2	4	2	4	3	5	FALSE	
+MBRT_vs_Ctrl_d2pooled	sample	mutter02_day2_pooledctrl	compartment	mouse	exploratory	~0 + condition	""	FALSE		MBRT_day2	Control	Control	logit	2	4	2	4	3	5	FALSE	
+SBRT_vs_Ctrl_d2pooled	sample	mutter02_day2_pooledctrl	whole	mouse	exploratory	~0 + condition	""	FALSE		SBRT_day2	Control	Control	logit	2	4	2	4	3	5	FALSE	
+SBRT_vs_Ctrl_d2pooled	sample	mutter02_day2_pooledctrl	compartment	mouse	exploratory	~0 + condition	""	FALSE		SBRT_day2	Control	Control	logit	2	4	2	4	3	5	FALSE	
 MBRT_peak_vs_valley	region	mutter01_mbrt_4h		mouse	confirmatory		""	FALSE	h2ax_registration					0	0	0	0			FALSE	unchecked
 MBRT_peak_vs_valley	region	mutter02_4h		mouse	confirmatory		""	FALSE	h2ax_registration					0	0	0	0			FALSE	unchecked
 MBRT_valley_vs_SBRT	region	mutter02_4h		mouse	exploratory		""	TRUE	h2ax_registration					0	0	0	0			FALSE	unchecked

@@ -33,14 +33,42 @@ MERGED = f"{D_AGG}/merged.rds"
 OBS    = f"{D_FULL}/obs.parquet"
 LATENT = f"{D_FULL}/scvi_latent.parquet"           # tier-1 scVI latent, reused for neighborhood-purity QC
 
+# --- per-cohort expression cache: the per-cell steps' stand-in for MERGED ---
+# MERGED carries all 20 samples, so a per-cohort step that reads it pays whole-study
+# memory to keep a fraction of the cells. The cache exists to raise concurrency: it
+# is built once per cohort and drops each consumer's reservation far enough that
+# several cohorts fit in the 124 GB budget at the same time. Heavy intermediate, so
+# it lives under D_AGG rather than in results/.
+COHORT_CACHE = f"{D_AGG}/cohort_counts/{{cohort}}.counts.rds"
+
 # --- GPU-env Python interpreter (neighborhood-purity QC recomputes kNN on the latent) ---
 PYSCVI = "conda run -n spatial-rads-scvi python"
 
 # --- cohort: flank only ---
 _s    = pd.read_csv(MASTER, sep="\t")
 FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
-DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
-LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
+DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl"]
+LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl"]
+# Cohorts whose reported pseudobulk inference is the limma-voom moderated t rather than
+# the DESeq2 Wald test. The two 4h cohorts are slide-blocked over 6-10 samples and
+# realize 1-2 residual df per cell type, where a per-gene variance estimate carries
+# almost no information; empirical-Bayes shrinkage borrows df across genes to give a
+# usable denominator. Day-2 has adequate df and keeps DESeq2 Wald as reported.
+# assemble_results.R reads the same distinction off which voom_engine files exist, so
+# this list is the single place the swap is declared.
+VOOM_COHORTS = ["combined_4h_treated", "combined_4h"]
+# smiDE model modes: "screen" is the nebula NB GLMM discovery pass, "spatial" is the
+# per-spatial-unit Gaussian-process (GP_INLA) fit plus inverse-variance meta-analysis.
+SMIDE_MODES = ["screen", "spatial"]
+# The two pooled-control cohorts borrow Control blocks from slides that carry no
+# treated block. A spatial fit needs both contrast levels inside one slide, so those
+# borrowed slides drop out and the pooled cohorts reduce to their non-pooled parents;
+# smide_de.R stops rather than emit a result labelled pooled that used no borrowed
+# control. They run screen mode only.
+SMIDE_SPATIAL_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
+# InSituCor module-score arm test runs only where per-cell module scores exist: the 4h
+# cohorts, because discovery pooled 4h cells only.
+INSITUCOR_COHORTS = ["combined_4h_treated", "combined_4h"]
 rule all:
     input:
         "results/aggregate/composition_by_sample.tsv",
@@ -48,18 +76,19 @@ rule all:
         "results/aggregate/composition_unassigned_sensitivity.tsv",
         expand("results/aggregate/engine/composition_engine_{coh}.tsv", coh=LM_COHORTS),
         expand("results/aggregate/engine/de_engine_{coh}.tsv", coh=DE_COHORTS),
-        "results/aggregate/engine/niche_engine.tsv",
-        "results/aggregate/engine/mixing_engine.tsv",
-        "results/aggregate/engine/myeloid_engine.tsv",
-        "results/aggregate/engine/substate_engine.tsv",
+        expand("results/aggregate/engine/voom_engine_{coh}.tsv", coh=VOOM_COHORTS),
+        expand("results/aggregate/engine/niche_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/mixing_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/myeloid_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/substate_engine_{coh}.tsv", coh=LM_COHORTS),
         "results/aggregate/plots/composition_m02day2_bars.png",
         "results/aggregate/plots/composition_m02day2_forest.png",
         "results/aggregate/plots/composition_m01_timecourse.png",
         "results/aggregate/pseudobulk_qc.tsv",
         "results/aggregate/differential_detection.tsv",
-        "results/aggregate/gsea_pseudobulk_m02day2.tsv",
+        expand("results/aggregate/gsea_pseudobulk_{coh}.tsv", coh=DE_COHORTS),
         "results/aggregate/pathway_scores_summary.tsv",
-        "results/aggregate/pathway_test_m02day2.tsv",
+        expand("results/aggregate/pathway_test_{coh}.tsv", coh=LM_COHORTS),
         "results/aggregate/pathway_ucell_ams_concordance.tsv",
         "results/aggregate/plots/pathway_heatmap_m02day2.png",
         "results/aggregate/plots/pathway_timecourse_m01.png",
@@ -82,11 +111,24 @@ rule all:
         "results/aggregate/substate_gate_report.tsv",
         "results/aggregate/detectability_summary.tsv",
         "results/aggregate/results_master.tsv",
+        "results/aggregate/overlap_ratio_qc.tsv",
         "results/aggregate/qc_arm_balance.tsv",
         "results/aggregate/qc_arm_balance_samples.tsv",
         "results/aggregate/qc_reproducibility.tsv",
         "results/aggregate/qc_panel_sparsity.tsv",
+        "results/aggregate/qc_fov_signal.tsv",
         "results/aggregate/celltype_neighborhood_purity.tsv",
+        expand("results/aggregate/engine/smide_de_{coh}_screen.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/smide_de_{coh}_spatial.tsv", coh=SMIDE_SPATIAL_COHORTS),
+        expand("results/aggregate/smide_concordance_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/plots/smide_concordance_{coh}.png", coh=LM_COHORTS),
+        "results/aggregate/insitucor_modules.tsv",
+        "results/aggregate/insitucor_module_summary.tsv",
+        "results/aggregate/insitucor_celltype_attribution.tsv",
+        "results/aggregate/insitucor_gene_attribution.tsv",
+        "results/aggregate/insitucor_condcor_edges.tsv",
+        "results/aggregate/insitucor_module_prioritization.tsv",
+        expand("results/aggregate/insitucor_test_{coh}.tsv", coh=INSITUCOR_COHORTS),
 # --- Track 1: cell-type composition (M02 day2 propeller test + M01 descriptive) ---
 rule composition:
     message: "composition: cell-type composition M02 day2 propeller test + M01 descriptive"
@@ -161,6 +203,27 @@ rule de_engine:
     shell:
         "{RSCRIPT} {input.script} {input.se} {wildcards.cohort} {input.comp} {input.params} "
         "{output.stats} {output.skipped} > {log} 2>&1"
+# --- Track 2 inference: moderated-t view of the same pseudobulk fit (VOOM_COHORTS) ---
+# Same SE, same registry design, same filters as de_engine; limma-voom instead of DESeq2
+# so a 1-2 residual-df cohort is tested against an empirical-Bayes-moderated variance.
+# assemble_results.R reports these p-values for these cohorts and carries the DESeq2
+# Wald p from de_engine alongside as a secondary column.
+rule voom_engine:
+    message: "voom_engine: limma-voom moderated-t pseudobulk DE ({wildcards.cohort}) -> sufficient stats"
+    input:
+        script = "scripts/engines/voom_engine.R",
+        se     = f"{D_AGG}/pseudobulk_se.rds",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
+    output:
+        stats   = "results/aggregate/engine/voom_engine_{cohort}.tsv",
+        skipped = "results/aggregate/engine/voom_engine_{cohort}_skipped.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/voom_engine_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.se} {wildcards.cohort} {input.comp} {input.params} "
+        "{output.stats} {output.skipped} > {log} 2>&1"
 # --- Track 3 differential detection: fraction-of-cells-expressing change (muscat) ---
 # dd_prep exports an SCE from merged.rds (main env has Seurat/arrow); dd_muscat runs
 # muscat's num.detected aggregation + edgeR pbDS INSIDE the biocontainer (aptainer).
@@ -192,23 +255,31 @@ rule dd_muscat:
         "apptainer exec --bind {D_DATA} {MUSCAT_SIF} "
         "Rscript {input.script} {input.sce} {output.tsv} > {log} 2>&1"
 # --- Track 2 pathway: GSEA on pseudobulk stat-ranked genes (primary + Hallmark) ---
+# Ranks on the statistic the cohort REPORTS, so enrichment and DE describe one test:
+# moderated t for VOOM_COHORTS, DESeq2 Wald elsewhere. gsea.R resolves that per cohort
+# through scripts/aggregate/inference_source.R -- the same module assemble_results.R
+# reads -- so the voom file is declared as an input for the DAG edge rather than passed
+# on the command line.
 rule gsea:
-    message: "gsea: GSEA on pseudobulk stat-ranked genes (primary + Hallmark)"
+    message: "gsea: GSEA on pseudobulk stat-ranked genes ({wildcards.cohort})"
     input:
         script = f"{R_SCRIPTS}/gsea.R",
-        degs   = "results/aggregate/engine/de_engine_mutter02_day2.tsv",
+        helper = f"{R_SCRIPTS}/inference_source.R",
+        degs   = "results/aggregate/engine/de_engine_{cohort}.tsv",
+        voom   = lambda w: (f"results/aggregate/engine/voom_engine_{w.cohort}.tsv"
+                            if w.cohort in VOOM_COHORTS else []),
         sets   = "results/data_model/pathway_sets.tsv",
     output:
-        gsea = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
+        gsea = "results/aggregate/gsea_pseudobulk_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/gsea.log",
+        f"{D_LOGS}/gsea_{{cohort}}.log",
     shell:
         "{RSCRIPT} {input.script} {input.degs} {input.sets} {output.gsea} > {log} 2>&1"
-# --- Track 2 pathway: per-cell UCell + AddModuleScore scoring + M02 limma test ---
+# --- Track 2 pathway: per-cell UCell + AddModuleScore scoring (cohort-agnostic compute) ---
 # threads: 4 -- UCell runs ncores=4 fork (BiocParallel) parallelism, not BLAS.
 rule pathway_scores:
-    message: "pathway_scores: per-cell UCell + AddModuleScore scoring + M02 limma test"
+    message: "pathway_scores: per-cell UCell + AddModuleScore scoring"
     input:
         script = f"{R_SCRIPTS}/pathway_scores.R",
         rds    = MERGED,   # count-only consumer; labels from full_labels.parquet
@@ -216,21 +287,36 @@ rule pathway_scores:
         sets   = "results/data_model/pathway_sets.tsv",
     output:
         summary = "results/aggregate/pathway_scores_summary.tsv",
-        test    = "results/aggregate/pathway_test_m02day2.tsv",
         conc    = "results/aggregate/pathway_ucell_ams_concordance.tsv",
     threads: 4
     log:
         f"{D_LOGS}/pathway_scores.log",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.sets} "
-        "{output.summary} {output.test} {output.conc} > {log} 2>&1"
+        "{output.summary} {output.conc} > {log} 2>&1"
+# Per-cohort arm test: reads the cached summary TSV, cheap, parameterized by the comparison
+# registry (no hardcoded day-2 literals) so it runs for every LM_COHORTS entry.
+rule pathway_arm_test:
+    message: "pathway_arm_test: UCell pathway arm test ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/pathway_arm_test.R",
+        summary = "results/aggregate/pathway_scores_summary.tsv",
+        comp    = "results/data_model/comparisons.tsv",
+    output:
+        test = "results/aggregate/pathway_test_{cohort}.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/pathway_arm_test_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.summary} {input.comp} {wildcards.cohort} "
+        "{output.test} > {log} 2>&1"
 # Plot half: reads the cached score/test TSVs so a plot bug can't roll back the ~5h compute.
 rule pathway_plots:
     message: "pathway_plots: pathway heatmap/timecourse/concordance plots from cached scores"
     input:
         script  = f"{R_SCRIPTS}/pathway_plots.R",
         summary = "results/aggregate/pathway_scores_summary.tsv",
-        test    = "results/aggregate/pathway_test_m02day2.tsv",
+        test    = "results/aggregate/pathway_test_mutter02_day2.tsv",
     output:
         heatmap    = "results/aggregate/plots/pathway_heatmap_m02day2.png",
         timecourse = "results/aggregate/plots/pathway_timecourse_m01.png",
@@ -262,21 +348,24 @@ rule panel_coverage:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.sets} "
         "{output.detection} > {log} 2>&1"
-# --- T6: power / minimum-detectable-effect table at n=4 ---
+# --- T6: power / minimum-detectable-effect table, per registry comparison x contrast ---
 rule power_mde:
-    message: "power_mde: power / minimum-detectable-effect table at n=4"
+    message: "power_mde: minimum-detectable-effect table per comparison x contrast"
     input:
         script = f"{R_SCRIPTS}/power_mde.R",
         comp   = "results/aggregate/composition_by_sample.tsv",
         se     = f"{D_AGG}/pseudobulk_se.rds",
         path   = "results/aggregate/pathway_scores_summary.tsv",
+        reg    = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
     output:
         mde = "results/aggregate/power_mde.tsv",
     threads: 1
     log:
         f"{D_LOGS}/power_mde.log",
     shell:
-        "{RSCRIPT} {input.script} {input.comp} {input.se} {input.path} {output.mde} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.comp} {input.se} {input.path} {output.mde} "
+        "{input.reg} {input.params} > {log} 2>&1"
 # --- T7: per-cell slide coords + per-sample necrosis flag (spatial-track input) ---
 rule coords_necrosis:
     message: "coords_necrosis: per-cell slide coords + per-sample necrosis flag"
@@ -307,9 +396,9 @@ rule celltype_qc:
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.markers} "
         "{output.dotplot} > {log} 2>&1"
-# --- T9: data-driven spatial niches (k=20 NN composition -> K=6 k-means) ---
+# --- T9: data-driven spatial niches (k=50 NN composition, SPIN 50%, Mclust BIC K selection) ---
 rule niches:
-    message: "niches: data-driven spatial niches (k=20 NN composition -> K=6 k-means)"
+    message: "niches: data-driven spatial niches (k=50 NN composition, SPIN 50%, Mclust BIC K selection)"
     input:
         script = f"{R_SCRIPTS}/niches.R",
         labels = LABELS,
@@ -331,23 +420,23 @@ rule niches:
         "{output.heatmap} {output.freq_plot} > {log} 2>&1"
 # --- engine: niche frequency arm test (propeller/logit path) ---
 rule niche_engine:
-    message: "niche_engine: lm_engine proportion test on niche frequency (M02 day2)"
+    message: "niche_engine: lm_engine proportion test on niche frequency ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         cells  = "results/aggregate/engine_inputs/niche_cells.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/niche_engine.tsv",
+        stats = "results/aggregate/engine/niche_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/niche_engine.log",
+        f"{D_LOGS}/niche_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 niche "
+        "{RSCRIPT} {input.script} {input.cells} proportion {wildcards.cohort} niche "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
-# --- T10: tumor-immune spatial mixing (immune-neighbour fraction + Keren score) ---
+# --- T10: tumor-immune spatial mixing (k=50 NN, immune-neighbour fraction + Keren score) ---
 rule spatial_mixing:
-    message: "spatial_mixing: tumor-immune spatial mixing (immune-neighbour fraction + Keren score)"
+    message: "spatial_mixing: tumor-immune spatial mixing (k=50 NN)"
     input:
         script = f"{R_SCRIPTS}/spatial_mixing.R",
         labels = LABELS,
@@ -366,19 +455,19 @@ rule spatial_mixing:
         "{output.per_sample} {output.lm_input} {output.per_cell} {output.plot} > {log} 2>&1"
 # --- engine: tumor-immune mixing arm test (matrix/identity path, non-robust) ---
 rule mixing_engine:
-    message: "mixing_engine: lm_engine identity test on spatial mixing metrics (M02 day2)"
+    message: "mixing_engine: lm_engine identity test on spatial mixing metrics ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         matrix = "results/aggregate/engine_inputs/mixing_metrics.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/mixing_engine.tsv",
+        stats = "results/aggregate/engine/mixing_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/mixing_engine.log",
+        f"{D_LOGS}/mixing_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 mixing "
+        "{RSCRIPT} {input.script} {input.matrix} matrix {wildcards.cohort} mixing "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 # --- T11: myeloid M1/M2 polarization (UCell M1/M2 panels -> per-sample ratio) ---
 # threads: 8 -- AddModuleScore_UCell forks UCELL_CORES=8 workers (BiocParallel, not
@@ -386,9 +475,10 @@ rule mixing_engine:
 rule myeloid_polarization:
     message: "myeloid_polarization: myeloid M1/M2 polarization (UCell M1/M2 panels -> per-sample ratio)"
     input:
-        script = f"{R_SCRIPTS}/myeloid_polarization.R",
-        rds    = MERGED,
-        labels = LABELS,
+        script  = f"{R_SCRIPTS}/myeloid_polarization.R",
+        rds     = MERGED,
+        labels  = LABELS,
+        samples = MASTER,
     output:
         scores = "results/aggregate/myeloid_m1m2_scores.tsv",
         lm_input = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
@@ -397,23 +487,23 @@ rule myeloid_polarization:
     log:
         f"{D_LOGS}/myeloid_polarization.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.scores} "
-        "{output.lm_input} {output.plot} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.samples} "
+        "{output.scores} {output.lm_input} {output.plot} > {log} 2>&1"
 # --- engine: myeloid M1/M2 arm test (matrix/identity path, non-robust) ---
 rule myeloid_engine:
-    message: "myeloid_engine: lm_engine identity test on macrophage M1/M2 metrics (M02 day2)"
+    message: "myeloid_engine: lm_engine identity test on macrophage M1/M2 metrics ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         matrix = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/myeloid_engine.tsv",
+        stats = "results/aggregate/engine/myeloid_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/myeloid_engine.log",
+        f"{D_LOGS}/myeloid_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 myeloid "
+        "{RSCRIPT} {input.script} {input.matrix} matrix {wildcards.cohort} myeloid "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 # --- T12: M01<->M02 day-2 effect-size concordance on the unified labels ---
 rule concordance_m01_m02:
@@ -465,19 +555,19 @@ rule substate_composition:
         "{RSCRIPT} {input.script} {input.obs} {input.labels} {input.substate} {output.lm_input} > {log} 2>&1"
 # --- engine: fibroblast sub-state composition arm test (propeller/logit path) ---
 rule substate_engine:
-    message: "substate_engine: lm_engine proportion test on fibroblast sub-state composition (M02 day2)"
+    message: "substate_engine: lm_engine proportion test on fibroblast sub-state composition ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         cells  = "results/aggregate/engine_inputs/substate_cells.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/substate_engine.tsv",
+        stats = "results/aggregate/engine/substate_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/substate_engine.log",
+        f"{D_LOGS}/substate_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 substate "
+        "{RSCRIPT} {input.script} {input.cells} proportion {wildcards.cohort} substate "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 rule geneset_overlap:
     message: "geneset_overlap: pairwise gene-set overlap for the curated pathway sets"
@@ -495,18 +585,28 @@ rule assemble_results:
     message: "assemble_results: tier-tagged master results table with confirmatory-family FDR"
     input:
         script  = f"{R_SCRIPTS}/assemble_results.R",
-        comp    = "results/aggregate/engine/composition_engine_mutter02_day2.tsv",
-        degs    = "results/aggregate/engine/de_engine_mutter02_day2.tsv",
-        gsea    = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
-        pathway = "results/aggregate/pathway_test_m02day2.tsv",
-        niche   = "results/aggregate/engine/niche_engine.tsv",
-        mixing  = "results/aggregate/engine/mixing_engine.tsv",
-        myeloid = "results/aggregate/engine/myeloid_engine.tsv",
-        mde     = "results/aggregate/power_mde.tsv",
-        sets    = "results/data_model/pathway_sets.tsv",
-        cov     = "results/data_model/gene_set_panel_coverage.tsv",
-        substate = "results/aggregate/engine/substate_engine.tsv",
-        dd      = "results/aggregate/differential_detection.tsv",
+        # Declared expand()-ed lists give Snakemake DAG tracking over the full cohort
+        # roster; assemble_results.R itself globs the per-cohort filename pattern out of
+        # results/aggregate (and results/aggregate/engine) rather than taking one path
+        # per cohort, so this list only needs to be complete, not individually threaded
+        # through to the shell command.
+        comp     = expand("results/aggregate/engine/composition_engine_{coh}.tsv", coh=LM_COHORTS),
+        degs     = expand("results/aggregate/engine/de_engine_{coh}.tsv", coh=DE_COHORTS),
+        voom     = expand("results/aggregate/engine/voom_engine_{coh}.tsv", coh=VOOM_COHORTS),
+        gsea     = expand("results/aggregate/gsea_pseudobulk_{coh}.tsv", coh=DE_COHORTS),
+        pathway  = expand("results/aggregate/pathway_test_{coh}.tsv", coh=LM_COHORTS),
+        niche    = expand("results/aggregate/engine/niche_engine_{coh}.tsv", coh=LM_COHORTS),
+        mixing   = expand("results/aggregate/engine/mixing_engine_{coh}.tsv", coh=LM_COHORTS),
+        myeloid  = expand("results/aggregate/engine/myeloid_engine_{coh}.tsv", coh=LM_COHORTS),
+        substate = expand("results/aggregate/engine/substate_engine_{coh}.tsv", coh=LM_COHORTS),
+        smide    = expand("results/aggregate/engine/smide_de_{coh}_screen.tsv", coh=LM_COHORTS),
+        smide_sp = expand("results/aggregate/engine/smide_de_{coh}_spatial.tsv", coh=SMIDE_SPATIAL_COHORTS),
+        reg      = "results/data_model/comparisons.tsv",
+        mde      = "results/aggregate/power_mde.tsv",
+        sets     = "results/data_model/pathway_sets.tsv",
+        cov      = "results/data_model/gene_set_panel_coverage.tsv",
+        dd       = "results/aggregate/differential_detection.tsv",
+        overlap  = "results/aggregate/overlap_ratio_qc.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -514,9 +614,75 @@ rule assemble_results:
     log:
         f"{D_LOGS}/assemble_results.log",
     shell:
-        "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
-        "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.sets} {input.cov} {input.substate} {input.dd} {output.master} > {log} 2>&1"
+        "{RSCRIPT} {input.script} results/aggregate {input.reg} {input.mde} {input.sets} "
+        "{input.cov} {input.dd} {input.overlap} {output.master} > {log} 2>&1"
+# ============================================================================
+# Spatial discovery: de novo spatial gene-gene co-expression modules, independent
+# of the curated pathway sets. Discovery input for the planned peak/valley signature
+# work. Runs on 4h timepoint cells only (all datasets, all arms).
+# ============================================================================
+rule insitucor_discovery:
+    message: "insitucor_discovery: spatial gene-correlation modules on 4h cells (InSituCor k=100)"
+    input:
+        script = f"{R_SCRIPTS}/insitucor_discovery.R",
+        rds    = MERGED,
+        labels = LABELS,
+        coords = f"{D_AGG}/coords_necrosis.parquet",
+        obs    = OBS,
+    output:
+        modules    = "results/aggregate/insitucor_modules.tsv",
+        summary    = "results/aggregate/insitucor_module_summary.tsv",
+        ct_attr    = "results/aggregate/insitucor_celltype_attribution.tsv",
+        gene_attr  = "results/aggregate/insitucor_gene_attribution.tsv",
+        scores_sc  = f"{D_AGG}/insitucor_scores_sc.parquet",
+        scores_env = f"{D_AGG}/insitucor_scores_env.parquet",
+        condcor    = "results/aggregate/insitucor_condcor_edges.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/insitucor_discovery.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
+        "{output.modules} {output.summary} {output.ct_attr} {output.gene_attr} "
+        "{output.scores_sc} {output.scores_env} {output.condcor} > {log} 2>&1"
+# Prioritization is the documented post-discovery workflow (Danaher 2025): attribution +
+# curated-set overlap rank modules for analyst review. No statistics.
+rule insitucor_prioritize:
+    message: "insitucor_prioritize: module prioritization (attribution + curated-set overlap)"
+    input:
+        script    = f"{R_SCRIPTS}/insitucor_prioritize.R",
+        modules   = "results/aggregate/insitucor_modules.tsv",
+        ct_attr   = "results/aggregate/insitucor_celltype_attribution.tsv",
+        gene_attr = "results/aggregate/insitucor_gene_attribution.tsv",
+        sets      = "results/data_model/pathway_sets.tsv",
+    output:
+        tsv = "results/aggregate/insitucor_module_prioritization.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/insitucor_prioritize.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.modules} {input.ct_attr} {input.gene_attr} "
+        "{input.sets} {output.tsv} > {log} 2>&1"
+# Arm test on module scores is our extension of InSituCor, not the tool's workflow;
+# admissible because discovery pooled all 4h cells blind to treatment. Exploratory tier
+# only (BH within cohort); reported inference is the limma moderated t (the same
+# low-residual-df policy scripts/aggregate/inference_source.R declares for pseudobulk).
+rule insitucor_arm_test:
+    message: "insitucor_arm_test: module-score arm test ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/insitucor_arm_test.R",
+        scores  = f"{D_AGG}/insitucor_scores_sc.parquet",
+        labels  = LABELS,
+        coords  = f"{D_AGG}/coords_necrosis.parquet",
+        modules = "results/aggregate/insitucor_modules.tsv",
+        comp    = "results/data_model/comparisons.tsv",
+    output:
+        test = "results/aggregate/insitucor_test_{cohort}.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/insitucor_arm_test_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.scores} {input.labels} {input.coords} "
+        "{input.modules} {input.comp} {wildcards.cohort} {output.test} > {log} 2>&1"
 # --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
 # technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
 # fraction shift is not a sensitivity/contamination artifact. ---
@@ -536,6 +702,124 @@ rule agg_qc_arm_balance:
     shell:
         "{RSCRIPT} {input.script} {input.tech} {input.contam} {input.samples} "
         "{output.tsv} {output.samples} > {log} 2>&1"
+# --- QC: smiDE overlap ratio -- per-gene, per-cell_subtype segmentation-contamination
+# metric (avg self expression vs avg neighbor-othertype expression within radius). Joined
+# onto results_master as contamination_ratio so a DE hit's segmentation risk is legible
+# alongside its effect size. ---
+rule overlap_ratio_qc:
+    message: "overlap_ratio_qc: smiDE per-gene per-cell_subtype segmentation contamination metric"
+    input:
+        script = f"{R_SCRIPTS}/overlap_ratio_qc.R",
+        rds    = MERGED,
+        labels = LABELS,
+        coords = f"{D_AGG}/coords_necrosis.parquet",
+    output:
+        tsv = "results/aggregate/overlap_ratio_qc.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/overlap_ratio_qc.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} "
+        "{output.tsv} > {log} 2>&1"
+# --- per-cohort expression cache for the per-cell steps ---
+# Reads MERGED once, keeps the cohort's counts + log-normalised data matrices and
+# nothing else from the Seurat object. The point is concurrency, not speed: reading
+# MERGED inside every smiDE fit made memory, not cores, the binding constraint, so the
+# 64-core box ran two or three jobs and idled. Consumers detect the cache by class and
+# still accept MERGED, so an in-flight run on the old path is unaffected.
+rule cohort_counts_cache:
+    message: "cohort_counts_cache: per-cohort counts + data matrices ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/build_cohort_counts.R",
+        rds     = MERGED,
+        labels  = LABELS,
+        cohorts = "results/data_model/cohort_samples.tsv",
+    output:
+        rds = COHORT_CACHE,
+    threads: 1
+    resources:
+        # Measured peak RSS on combined_4h_treated is 14.8 GB over a 104 s run, set by
+        # holding MERGED (7.0 GB resident) and the cohort's two subsets at the same
+        # time plus the readRDS transient. The cohort subset is the smaller half, so
+        # the widest cohort here moves this by a couple of GB.
+        mem_mb = 18000,
+    log:
+        f"{D_LOGS}/cohort_counts_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.cohorts} "
+        "{wildcards.cohort} {output.rds} > {log} 2>&1"
+# --- genome-wide smiDE per-cell DE (cohort- and mode-parameterized) ---
+# Follows the smiDE authors' published protocol: overlap-ratio gene prefilter per
+# cell type, adjacency-only pre_de with on-the-fly neighbor expression, inverse-
+# distance edge weighting, totalcount-normalized neighbor covariate. Two modes ---
+# "screen" (nebula NB GLMM with a sample random intercept; discovery only) and
+# "spatial" (per-spatial-unit GP_INLA fits combined by inverse-variance meta-
+# analysis; the authors' fix for inflated type I error). Depends on the overlap
+# ratio QC table for the prefilter. Runs BEFORE assemble_results, which maps
+# screen -> readout_class "smiDE_screen" and spatial meta -> "smiDE_spatial".
+#
+# The two modes have opposite resource shapes. nebula parallelizes across genes on
+# light workers, so screen gets the full thread budget. The GP backends show ~1.0x
+# speedup from extra workers while every forked worker holds a 14-22 GB copy of the
+# cohort adjacency machinery, so spatial runs single-threaded and its throughput
+# comes from running several cohorts at once under the mem_mb budget.
+#
+# The skipped output carries the spatial fits dropped by the expressing-cells-per-arm
+# gate, with the per-arm counts behind each decision.
+rule smide_de:
+    message: "smide_de: genome-wide per-cell smiDE DE ({wildcards.cohort}, {wildcards.mode})"
+    wildcard_constraints:
+        mode = "screen|spatial",
+    input:
+        script  = f"{R_SCRIPTS}/smide_de.R",
+        rds     = COHORT_CACHE,
+        labels  = LABELS,
+        coords  = f"{D_AGG}/coords_necrosis.parquet",
+        obs     = OBS,
+        comp    = "results/data_model/comparisons.tsv",
+        samples = MASTER,
+        overlap = "results/aggregate/overlap_ratio_qc.tsv",
+    output:
+        tsv = "results/aggregate/engine/smide_de_{cohort}_{mode}.tsv",
+        skipped = "results/aggregate/engine/smide_de_{cohort}_{mode}_skipped.tsv",
+    threads: lambda wc: 1 if wc.mode == "spatial" else 16
+    resources:
+        # Measured peak RSS of a spatial process on the combined_4h_treated cohort
+        # is 37 GB, dominated by the pre_de adjacency machinery rather than by the
+        # read-in; screen holds the same cohort object and forks its nebula workers
+        # off it. Run with --resources mem_mb so this, not the core count, is what
+        # caps concurrency on the 124 GB box.
+        #
+        # Reading COHORT_CACHE instead of MERGED cut the read-in stage from a
+        # measured 14.8 GB peak to 2.3 GB, but the reservation still tracks the
+        # pre_de peak that comes later, so it is unchanged until a spatial fit is
+        # re-measured on the cache.
+        mem_mb = 34000,
+    log:
+        f"{D_LOGS}/smide_de_{{cohort}}_{{mode}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
+        "{input.comp} {input.samples} {input.overlap} {wildcards.cohort} {wildcards.mode} "
+        "{output.tsv} {output.skipped} > {log} 2>&1"
+# --- QC: pseudobulk vs smiDE concordance -- effect-size correlation, hit overlap,
+# contamination-ratio enrichment in discordant hits, confirmatory hit survival. Runs
+# after both assemble_results (results_master.tsv) and overlap_ratio_qc, scoped to
+# one cohort at a time (results_master.tsv rows are filtered by `comparison`). ---
+rule smide_concordance:
+    message: "smide_concordance: pseudobulk vs smiDE effect-size concordance ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/smide_concordance.R",
+        master  = "results/aggregate/results_master.tsv",
+        overlap = "results/aggregate/overlap_ratio_qc.tsv",
+    output:
+        tsv  = "results/aggregate/smide_concordance_{cohort}.tsv",
+        plot = "results/aggregate/plots/smide_concordance_{cohort}.png",
+    threads: 1
+    log:
+        f"{D_LOGS}/smide_concordance_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.master} {input.overlap} {wildcards.cohort} "
+        "{output.tsv} {output.plot} > {log} 2>&1"
 # --- QC: replicate reproducibility -- per-arm pseudobulk concordance (SpatialQM getCorrelation) +
 # technical-metric PCA over the n=4/arm M02 day-2 cohort; flags an outlier slide driving an arm. ---
 rule agg_qc_reproducibility:
@@ -568,6 +852,26 @@ rule agg_qc_panel_sparsity:
         f"{D_LOGS}/qc_panel_sparsity.log",
     shell:
         "{RSCRIPT} {input.script} {input.merged} {input.labels} {input.samples} "
+        "{output.tsv} > {log} 2>&1"
+
+# --- QC: per-FOV signal-loss screening -- flags FOVs whose mean RNA count falls below
+# 40% of the slide's median per-FOV mean (>60% signal loss), a CosMx best-practice check
+# for degraded-signal regions (e.g. focal plane / staining dropout). Report-only: does not
+# exclude cells. Verifies flagged FOVs do not concentrate in one treatment arm. ---
+rule qc_fov_signal:
+    message: "qc_fov_signal: per-FOV signal-loss screening (report-only)"
+    input:
+        script = f"{R_SCRIPTS}/qc_fov_signal.R",
+        rds    = MERGED,
+        labels = LABELS,
+        obs    = OBS,
+    output:
+        tsv = "results/aggregate/qc_fov_signal.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/qc_fov_signal.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.obs} "
         "{output.tsv} > {log} 2>&1"
 
 # --- QC: transcriptional neighborhood purity (Plummer et al. Nat Biotechnol 2025, Fig 4d) --

@@ -1,7 +1,9 @@
 #!/usr/bin/env Rscript
 # aggregate.smk spatial niches. Each cell is described by the cell_subtype
-# composition of its k=20 nearest neighbours (within its sample, the contiguous
-# tissue unit); k-means (K=6) on those vectors defines data-driven niches N1..N6.
+# composition of its k=50 nearest neighbours (within its sample, the contiguous
+# tissue unit), SPIN-subsampled to ~50% of neighbours per cell to reduce spatial
+# autocorrelation; Mclust (EII, BIC-selected K in 3-12) on those vectors defines
+# data-driven niches N1..NK.
 # Method ported from dev/mbrt_vs_sbrt/07_niche_clustering.R, re-run on the unified
 # cross-dataset labels + new coords over all 20 flank samples (prior dev niches are
 # re-derived, not imported). M02 day-2 niche frequency gets the same propeller test
@@ -11,13 +13,13 @@
 #       <out_centroids.tsv> <out_freq.tsv> <out_test.tsv> <plot_heatmap> <plot_freq>
 suppressPackageStartupMessages({
   library(data.table); library(arrow); library(RANN)
-  library(ggplot2)
+  library(ggplot2); library(mclust)
 })
 a <- commandArgs(trailingOnly = TRUE)
 labels_path <- a[1]; coords_path <- a[2]; obs_path <- a[3]
 out_pc <- a[4]; out_cent <- a[5]; out_freq <- a[6]; out_lm_input <- a[7]
 plot_heat <- a[8]; plot_freq <- a[9]
-K <- 6L; SEED <- 42L; KNN <- 20L
+K_RANGE <- 3:12; SEED <- 42L; KNN <- 50L; SPIN_FRAC <- 0.5
 
 dir.create(dirname(out_cent), recursive = TRUE, showWarnings = FALSE)
 dir.create(dirname(plot_heat), recursive = TRUE, showWarnings = FALSE)
@@ -30,12 +32,16 @@ d <- lab[co, on = "cell"]; d <- ob[d, on = "cell"]
 d <- d[!is.na(cell_subtype)]
 subt <- sort(unique(d$cell_subtype))
 
-build_comp <- function(ds) {                       # k=20 NN cell_subtype fractions
+build_comp <- function(ds) {
   xy <- as.matrix(ds[, .(x_slide_mm, y_slide_mm)])
   k_use <- min(KNN + 1L, nrow(ds))
-  nn <- RANN::nn2(xy, k = k_use)$nn.idx[, -1, drop = FALSE]
+  nn_full <- RANN::nn2(xy, k = k_use)$nn.idx[, -1, drop = FALSE]
+  # SPIN: randomly retain ~50% of neighbors per cell to reduce spatial autocorrelation
+  set.seed(SEED)
+  mask <- matrix(runif(length(nn_full)) < SPIN_FRAC, nrow = nrow(nn_full))
+  nn_full[!mask] <- NA
   codes <- match(ds$cell_subtype, subt)
-  neigh <- matrix(codes[nn], nrow = nrow(nn))
+  neigh <- matrix(codes[nn_full], nrow = nrow(nn_full))
   comp <- vapply(seq_along(subt),
                  function(ci) rowMeans(neigh == ci, na.rm = TRUE),
                  numeric(nrow(neigh)))
@@ -48,12 +54,19 @@ all_comp  <- do.call(rbind, lapply(parts, `[[`, "comp"))
 all_cells <- unlist(lapply(parts, `[[`, "cells"), use.names = FALSE)
 
 set.seed(SEED)
-km <- kmeans(all_comp, centers = K, nstart = 10, iter.max = 50)
-d <- data.table(cell = all_cells, niche = paste0("N", km$cluster))[d, on = "cell"]
+SUB_N <- 5000L
+sub_idx <- sample.int(nrow(all_comp), min(SUB_N, nrow(all_comp)))
+mc <- Mclust(all_comp[sub_idx, ], G = K_RANGE, modelNames = "EII")
+K <- mc$G
+# assign all cells to nearest Mclust centroid via predict (NOT dist(), which is O(N²))
+clusters <- predict(mc, newdata = all_comp)$classification
+d <- data.table(cell = all_cells, niche = paste0("N", clusters))[d, on = "cell"]
 
 write_parquet(d[, .(cell, sample_id, niche, cell_subtype, x_slide_mm, y_slide_mm)], out_pc)
 
-cent <- as.data.table(km$centers)[, niche := paste0("N", .I)]
+cent <- as.data.table(t(mc$parameters$mean))
+setnames(cent, subt)
+cent[, niche := paste0("N", .I)]
 cent_long <- melt(cent, id.vars = "niche", variable.name = "cell_subtype",
                   value.name = "mean_frac")
 fwrite(cent_long, out_cent, sep = "\t")
@@ -72,7 +85,7 @@ fwrite(lm_input, out_lm_input, sep = "\t")
 p_heat <- ggplot(cent_long, aes(cell_subtype, niche, fill = mean_frac)) +
   geom_tile() +
   scale_fill_viridis_c(name = "mean\nNN frac") +
-  labs(x = NULL, y = NULL, title = "Niche centroid composition (k=20 NN cell_subtype fractions)") +
+  labs(x = NULL, y = NULL, title = "Niche centroid composition (k=50, SPIN 50%, Mclust BIC)") +
   theme_bw(base_size = 9) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ggsave(plot_heat, p_heat, width = 9, height = 4.5, dpi = 150)
@@ -87,5 +100,8 @@ p_freq <- ggplot(m2f, aes(niche, frac, fill = condition)) +
   theme_bw(base_size = 10)
 ggsave(plot_freq, p_freq, width = 8, height = 4.5, dpi = 150)
 
-cat(sprintf("niches: %d cells, K=%d | cluster sizes %s | lm input %d flank cells\n",
-            nrow(d), K, paste(km$size, collapse = "/"), nrow(lm_input)))
+cat(sprintf("niches: BIC selected K=%d from range %d-%d | BIC=%s\n",
+            K, min(K_RANGE), max(K_RANGE),
+            paste(round(mc$BIC[!is.na(mc$BIC)], 1), collapse = "/")))
+cat(sprintf("niches: %d cells | lm input %d flank cells\n",
+            nrow(d), nrow(lm_input)))

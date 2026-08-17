@@ -32,15 +32,22 @@ add_gatekeeping <- function(master, claims, hyp) {
 }
 
 # IHW covariate-weighted FDR (auxiliary). Keyed on log10(baseMean+1) as an
-# abundance/detection proxy. DE significance default stays on padj_own.
+# abundance/detection proxy. DE significance default stays on padj_own. Fit
+# per `comparison` (cohort): each cohort is a separate DESeq2/count_engine run with
+# its own baseMean scale and design, so pooling cohorts into one IHW fit would
+# stratify covariate bins across incomparable magnitudes.
 add_ihw <- function(master) {
   master <- copy(master)
   master[, padj_ihw := NA_real_]
   de_idx <- master[, which(readout_class=="DE" & !is.na(pvalue) & !is.na(baseMean))]
-  if (length(de_idx) >= 50) {   # IHW needs enough tests to stratify
-    de <- master[de_idx]
-    res <- IHW::ihw(pvalues = de$pvalue, covariates = log10(de$baseMean + 1), alpha = 0.05)
-    master[de_idx, padj_ihw := IHW::adj_pvalues(res)]
+  if (length(de_idx) == 0) return(master[])
+  de <- master[de_idx]
+  de[, row_idx := de_idx]
+  for (coh in unique(de$comparison)) {
+    sub <- de[comparison == coh]
+    if (nrow(sub) < 50) next   # IHW needs enough tests to stratify
+    res <- IHW::ihw(pvalues = sub$pvalue, covariates = log10(sub$baseMean + 1), alpha = 0.05)
+    master[sub$row_idx, padj_ihw := IHW::adj_pvalues(res)]
   }
   master[]
 }

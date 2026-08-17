@@ -56,11 +56,12 @@ Convergence knot: refreshing =results_master.tsv= is the shared pending delivera
 - [[file:dev/peak_valley_analysis/plots/morphology_nuc_kinetics.png][Nuclear area kinetics diverge: MBRT shrinks, SBRT swells]] — CosMx cell-segmentation morphology metrics across all flank timepoints. MBRT nuclei progressively shrink from baseline (3192→2568→2412 px median) while SBRT nuclei enlarge at day2 (3460 px) then partially recover (2968 px at day6), yielding 23% MBRT-vs-SBRT nuclear area divergence at day2. Cell area shows the expected SBRT day2 swelling (median 105 vs 82 µm² control) consistent with G2/M arrest-driven hypertrophy at 48h; MBRT cell area is modestly elevated but flat across timepoints. Peak/valley comparison at 4h shows no morphological difference (median 87.6 vs 87.3 µm²), consistent with Harada et al. (J Radiat Res 2025) finding no morphological stripe pattern until 12-16h in minibeam time-lapse imaging. Nuclear condensation in MBRT may reflect apoptosis/pyknosis predominating over arrest-driven swelling — a qualitatively different damage response than SBRT.
 - [[file:dev/if_channel_check/cdkn1a_kinetics_mean.png][p21 / Cdkn1a kinetics per cell class, MBRT vs SBRT]] — log-normalized mean Cdkn1a across 0 Gy control, MBRT (1h, 4h, 2d, 6d), and SBRT (4h, 2d, 6d) in six radiobiology-defined cell classes (tumor, macrophages, monocytes/DC, T cells, B cells, stroma). MBRT peak and valley subsets at 4h overlaid as star and cross. Myeloid cells show the largest MBRT-vs-SBRT and peak-vs-valley separation; tumor cells show minimal peak/valley p21 difference despite strong bulk induction.
 - [[file:dev/if_channel_check/block21_extrapolated_pv.png][Cell-level peak/valley label extrapolation, Block_21 (MBRT 4h)]] — stripe geometry fit empirically from manual peak FOV centroids: −25° angle from horizontal, 1.046 mm spacing, 0.27 mm beam half-width. Cells labeled by perpendicular distance to nearest peak centerline. 87.5% concordance with manual FOV labels on the labeled subset. Yields 3765 peak + 4235 valley cells across the full tumor, ~5× more than manual FOV labeling. Framework transferable to Mutter_02.
-- *MBRT beam geometry dilutes whole-sample DE (method caveat).* Pseudobulk DE understated the MBRT response relative to SBRT in Mutter_02 day2. MBRT delivers dose through ~1 mm-spaced peaks separated by spared valleys, so summing counts across a whole cell type averages directly irradiated peak cells with largely spared valley cells and dilutes the MBRT-vs-Control contrast. In the tumor compartment (ImmGen "a"), MBRT vs Control yielded 5 genes at padj < 0.05 against 127 for SBRT vs Control (DESeq2 ~slide_id+condition with apeglm shrinkage, n=4/condition), even though spatially-resolved 4h analysis recovered a clear MBRT peak/valley zonation signature. The weak bulk MBRT signal reflects beam-geometry dilution, not an absence of response, and argues for spatially-stratified peak/valley DE over whole-sample pseudobulk in the MBRT arms. See [[file:results/aggregate/degs_pseudobulk_m02day2.tsv][degs_pseudobulk_m02day2.tsv]].
+- *MBRT beam geometry dilutes whole-sample DE (method caveat) -- INTERPRETATION RETRACTED 2026-08-16; the count observation stands.* /Retraction (2026-08-16): the causal claim below rests on the clause "spatially-resolved 4h analysis recovered a clear MBRT peak/valley zonation signature". That signature was resolved to an artifact on 2026-07-13: rerunning the rotation-null statistic gives 38 survivors on the retired ImmGen "a" bucket, 7 after swapping to current atlas labels and QC, and 0 genome-wide survivors once aggregated to the FOV replicate unit (paired ~ FOV + zone DESeq2 over 67 paired FOVs; flat p-histogram, frac p<0.05 = 0.046). With its evidence withdrawn, the inference that the weak MBRT bulk signal "reflects beam-geometry dilution, not an absence of response" is unsupported: no dilution has been demonstrated, and the arm-level MBRT reading is a null whose mechanism is unresolved. The gene counts themselves are a real observation and are kept. Note also that the counts quoted are pre-relabel (n=4/condition, before the 2026-08-13 M02 timepoint correction reduced day-2 to n=2/arm) and use the retired ImmGen "a" tumor bucket rather than the locked atlas labels, so they are superseded as numbers even where the observation holds. Spatially-stratified peak/valley DE remains a reasonable thing to want, but it is gated on peak/valley ground truth for M02, which does not exist. Original text kept below for the record; do not cite its conclusion./ Pseudobulk DE understated the MBRT response relative to SBRT in Mutter_02 day2. MBRT delivers dose through ~1 mm-spaced peaks separated by spared valleys, so summing counts across a whole cell type averages directly irradiated peak cells with largely spared valley cells and dilutes the MBRT-vs-Control contrast. In the tumor compartment (ImmGen "a"), MBRT vs Control yielded 5 genes at padj < 0.05 against 127 for SBRT vs Control (DESeq2 ~slide_id+condition with apeglm shrinkage, n=4/condition), even though spatially-resolved 4h analysis recovered a clear MBRT peak/valley zonation signature. The weak bulk MBRT signal reflects beam-geometry dilution, not an absence of response, and argues for spatially-stratified peak/valley DE over whole-sample pseudobulk in the MBRT arms. See [[file:results/aggregate/degs_pseudobulk_m02day2.tsv][degs_pseudobulk_m02day2.tsv]]. /End of retracted text (2026-08-16)./
 - *Spatially-variable-gene reframing of the dilution problem (proposed).* The fix for whole-sample dilution is to treat dose position as a continuous spatial covariate rather than a binary peak/valley label. =07_peak_valley_classify.R= already computes a per-cell =dist_to_peak=, the phase within the ~1 mm beam period from the tilt-corrected stripe geometry, then discards it by thresholding to peak versus valley at one quarter of the beam spacing; the binary =FindMarkers= peak-vs-valley test in =08_pv_degs.R= recovered little. Posing the same data as a spatially-variable-gene problem regresses each gene on =dist_to_peak=, or tests spectral power at the known beam frequency by Lomb-Scargle or Fourier analysis along the beam-perpendicular axis, with SpatialDE, SPARK, or Moran's I as model-free checks. This formulation retains every cell's continuous position, so no signal is lost to boundary mis-assignment, it exploits the known ~1 mm period as a prior, and it admits a within-sample permutation null from shuffling cell coordinates, which sidesteps the n=1 biological-replication problem that a group-mean differential test cannot. A null periodicity result is then interpretable as the absence of transcriptional structure at the beam frequency, in contrast to the binary peak-vs-valley null, which conflates absent signal with threshold-induced dilution. See [[file:dev/peak_valley_analysis/07_peak_valley_classify.R][07_peak_valley_classify.R]] and [[file:dev/peak_valley_analysis/08_pv_degs.R][08_pv_degs.R]].
 - *MBRT immunostimulation and immature-vascular targeting remain unestablished by current data (mechanism status).* In Mutter_02 day2, whole-sample immune differential expression for MBRT versus Control was near zero across all immune cell types, a consequence of the same beam-geometry dilution, and the MBRT-specific contrast (MBRT versus SBRT) was dominated by Cdkn1a/p21, a cell-cycle-arrest and stress readout rather than immune activation. Canonical activation markers (Cxcl9, Cxcl10, H2-K1, H2-D1, B2m, Tap1, Cd74, Gzmb, Cd80, Cd86, Il12b) are present on the 950-gene panel but largely silent in the MBRT contrasts; an earlier reading that myeloid cells led the MBRT response reflected p21 arrest, not activation. Immature-vascular targeting registered as a weak, non-specific trend only: whole-sample endothelial MBRT versus Control was zero, and on the spatially-resolved Mutter_01 4h peak/valley run (effect size, n=1, not adjusted p) endothelial pan-markers (Pecam1 -0.30, Cdh5 -0.18) and proliferation genes (Ccnd1, Pcna) were modestly lower in peak, compatible with vessel damage at beam peaks but small (|log2FC| <= 0.3), confounded with generic irradiated-cell stress, and uninformative on the diagnostic immature-vessel markers (Dll4, Angpt2, Notch3, Kdr), which fell below detection in the 4h endothelial subset. Both hypotheses are spatial and dose-resolved, so whole-sample pseudobulk is structurally blind to them: averaging peak and valley cells collapses the MBRT versus Control signal toward zero. Panel coverage is adequate for both; the blocker is analysis design, namely per-cell-type un-diluted and peak/valley differential expression, together with improved cell typing, not gene-panel content. See [[file:results/aggregate/degs_pseudobulk_m02day2.tsv][degs_pseudobulk_m02day2.tsv]].
 - *ImmGen-only cell typing leaves half the flank cohort unclassified (reference mismatch).* Of the 3.27M-cell flank cohort, 48.5% (1.59M cells) fell into the InSituType de novo "a" bucket, with a further 1.4% in "b". ImmGen is an immune-only reference and cannot classify the roughly half-non-immune 4T1 tumor (epithelium, endothelium, fibroblast, pericyte), and the Mutter_02 tumor compartment in particular was almost entirely unassigned (1.28M of the 1.59M "a" cells). Well-matched single-cell reference mapping typically leaves single-digit to ~15% of cells unassigned, so a 48% rate reflects reference mismatch rather than noise tolerance. We committed to adding a broad off-the-shelf mouse atlas (Tabula Muris Senis, or Mouse Cell Atlas) for the non-immune lineages alongside ImmGen for the immune lineages, applied at the Mutter_01 typing step because Mutter_02 inherits labels by Seurat-anchor TransferData; the malignant identity has no turn-key reference and falls to marker-based assignment.
 - *Robustness reanalysis recasts the day-2 arm-level signal as cell-state composition, not per-cell regulation, and revises the MBRT/p21 arrest reading (2026-06-23).* A per-cell-type detection-versus-level decomposition (limma empirical-Bayes on the per-sample expressing-fraction and on the per-expresser level, n=4, Benjamini-Hochberg within cell type by contrast, with a two-count per-expresser floor below which the level is uninterpretable) now classifies every differential-expression result as regulation, fraction_shift, or ambiguous. The SBRT collagen and Acta2 fibrosis program classifies as fraction_shift — significantly more cells expressing with no significant change in per-expresser level — so the strong pseudobulk collagen signal is a shift in stromal cell state, not per-cell upregulation. A pre-registered fibroblast resting-versus-activated split (UCell on on-panel markers gated by a Col5a1/Col5a3 smooth-muscle-specificity anchor; gate passed, 313,088 activated of 732,099 fibroblasts, anchor enrichment 2.6 times) shows the activated-myofibroblast proportion trending up in SBRT versus Control (+0.51 logit) but not significant at n=4 (padj 0.59): the fibrosis signal is myofibroblast expansion, directionally coherent but underpowered to confirm in this cohort. SBRT tumor cells show Ccnd1, Hmgb2 and Mki67 up as fraction_shift with Cdkn1a/p21 down — a proliferative-regrowth skew of p53-mutant 4T1 survivors at 48h, not arrest; this revises the earlier "MBRT-versus-SBRT dominated by p21 equals arrest" reading, since in a p53-null tumor p21 is the proliferation correlate (high in quiescent cells), and at this panel's sparsity p21 is formally ambiguous (detection drops but the roughly 1.4-count per-expresser level is too sparse to separate fraction from regulation), correcting an earlier pooled-log-normalized "fraction shift" claim. The 33% stroma_unresolved is shown non-confounding (arm-stable fraction, no labelled-type call flips with versus without it), and the STING gene set is demoted from independent immune evidence (two of its three on-panel genes are shared with the interferon sets). MBRT remains null at whole-compartment scale. Methods and decisions in plan-differential-robustness.md, informed by a four-lens devils-advocate panel and a deep-solo spec critique. See [[file:results/aggregate/results_master.tsv][results_master.tsv]].
+- *Per-cell smiDE DE reveals MBRT is NOT null; three coherent programs emerge (2026-08-14) -- RETRACTED 2026-08-16.* /Retraction (2026-08-16): the smiDE run behind this bullet was configured without two things the method's authors require, a pre-test gene filter on the segmentation-contamination overlap ratio and a spatial random effect. Vasconcelos et al., Genome Biology 2026 (PMC12882255) benchmark a spatially-blind model's type I error at 0.86 to 0.95, against roughly 0.05 to 0.07 with the spatial term, so every hit count and adjusted p-value below carries an uncontrolled false-positive rate and none of them are reportable. The same configuration was applied to a between-animal arm contrast, which the method is neither designed nor benchmarked for; its authors recommend per-sample fits combined by meta-analysis for cross-sample comparisons, so sample-level pseudobulk is the structurally correct arm-level estimator and this bullet does NOT supersede the pseudobulk bullets above. What replaces it: sample-level pseudobulk is the confirmatory arm-level inference (DESeq2 at day 2, slide-blocked moderated-t by limma-voom at 4h, where the cohorts run at 2 to 3 residual degrees of freedom); a corrected higher-resolution analysis carrying both fixes, with cells as observations, fitted within slide and combined across slides by fixed-effect meta-analysis (replication: the 2 to 3 slides), is the exploratory layer, for effect sizes and ranking only; and the intermediate screen mode, which applies the gene filter but no spatial term and fits cells as observations under a sample-level random intercept (replication: nominally samples, 2 to 4 per arm, variance component poorly estimated), is candidate generation feeding the spatial stage and must never be quoted on its own. Note on wording, which the headline of this bullet gets wrong: "per-cell" is the method's shorthand for the observation unit, not the replication unit, so a phrase like "per-cell resolution" never licenses an inferential claim. The per-cell output files from the invalid runs were archived off the results tree on the compute host to =/mnt/data/projects/spatial-rads/archive/invalid_smide_2026-08-16/= (two files) so they cannot be silently consumed. Original text kept below for the record; do not cite it./ Genome-wide per-cell NB GLMM via smiDE/nebula (neighbor-expression covariate for segmentation error, sample RE for pseudoreplication) recovers 1,360 MBRT_vs_Ctrl hits at padj < 0.05 versus near-zero in pseudobulk DESeq2. The MBRT day-2 signature is SASP/senescence (11/17 canonical SASP genes across multiple cell types), early fibrosis (collagens in 5-6 cell types, weaker than SBRT), and immunosuppressive shift (Arg1/Tigit UP, H2-Aa/Ifi27 DOWN), the opposite of immunostimulation. Cdkn1a/p21 resolved: MBRT_vs_SBRT in 6 cell types, but the signal is SBRT driving p21 DOWN (proliferative regrowth) more than MBRT driving it UP. Concordance with pseudobulk: Spearman ~0.57, 299 shared hits, 4,999 smiDE-only. Contamination caveat: smiDE-only hits have higher overlap ratios (median 1.28 vs 0.88). Lipid-metabolism genes (Fabp5, Cyp2u1, Ptgs1, Ldlr, Pparg UP; Srebf1 DOWN) converge with independent MALDI lipidomic imaging (Pandey lab, 4h) showing MUFA enrichment and LPI accumulation under MBRT. Supersedes the "MBRT immunostimulation unestablished" and "beam-geometry dilution" bullets above: per-cell modelling resolves the pseudobulk dilution problem and the MBRT response is immunosuppressive, not null. See [[file:results/aggregate/results_master.tsv][results_master.tsv]]. /End of retracted text (2026-08-16). The supersession asserted in the previous sentence is withdrawn, and the MBRT arm-level reading reverts to the pseudobulk result. Note that the two bullets it claimed to supersede do not both stand either: the beam-geometry dilution bullet had its interpretation retracted the same day, because the peak/valley zonation signature it rested on was resolved to an artifact in 2026-07. So the arm-level MBRT position is a null with an unresolved mechanism, neither rescued by cell-level modelling nor explained by dilution. Flagged additionally as an OVERCLAIM (2026-08-16), over and above the retraction: "per-cell modelling resolves the pseudobulk dilution problem" reads the pseudobulk MBRT null as a power artifact exposed by a cell-level test, which the corrected inference-unit reading does not support. The screen's replication unit is nominally the sample with a poorly estimated variance component, so its excess hits measure anticonservatism rather than added resolution, and no pseudobulk null may be restated as underpowered on the strength of a screen-mode hit count./
 
 ** README
 
@@ -540,8 +541,11 @@ slides_m02 <- tibble(
 slides <- bind_rows(slides_m01, slides_m02)
 barcode2sld <- setNames(slides_m01$slide_id, slides_m01$physical_barcode)
 
-## Mutter_02 sample layout (Jenn Fazzari 2026-04-09; from 00_load_data_mutter02.R:40-62)
+## Mutter_02 sample layout: block-to-slide positions from Jenn Fazzari (2026-04-09),
+## timepoints from the yH2AX layout doc (slides 1-2 = 2d, slides 3-4 = 4h).
 ## rank by descending y_slide_mm: 1=top=Control, 2=mid=MBRT, 3=bottom=SBRT
+LAYOUT_CSV <- "data/sources/mutter02_block_layout.csv"
+layout     <- read.csv(LAYOUT_CSV)
 m02 <- tribble(
   ~slide_num, ~rank, ~region_id, ~treatment,
   1, 1, 1,  "Control",
@@ -557,7 +561,17 @@ m02 <- tribble(
   4, 2, 20, "MBRT",
   4, 3, 18, "SBRT"
 )
-cond_map_m02 <- c(Control = "Control", MBRT = "MBRT_day2", SBRT = "SBRT_day2")
+## Join timepoint from the layout CSV (keyed on block + slide)
+m02 <- m02 %>%
+  left_join(layout %>% select(block, slide, timepoint_h),
+            by = c("region_id" = "block", "slide_num" = "slide"))
+stopifnot(!anyNA(m02$timepoint_h),
+          length(unique(m02$timepoint_h)) > 1)
+stopifnot(all(layout$block %in% m02$region_id))
+## Condition suffix encodes timepoint: MBRT_4h / MBRT_day2 etc; Control stays Control
+cond_suffix  <- ifelse(m02$timepoint_h == 4, "_4h", "_day2")
+cond_map_m02 <- ifelse(m02$treatment == "Control", "Control",
+                       paste0(m02$treatment, cond_suffix))
 dose_m02     <- c(Control = 0, MBRT = NA_real_, SBRT = 20)  # SBRT 20 Gy per layout note; MBRT peak dose TBD
 
 ## samples
@@ -574,13 +588,13 @@ samples_m01 <- flat %>% transmute(
   strain          = coalesce(strain,          if_else(treatment == "NT", "Balb/c", NA_character_))
 )
 samples_m02 <- m02 %>%
-  mutate(  # derive dose/condition from raw label, THEN harmonize control to NT (matches Mutter_01)
+  mutate(
     dose_gy   = unname(dose_m02[treatment]),
-    condition = unname(cond_map_m02[treatment]),
+    condition = cond_map_m02,
     treatment = if_else(treatment == "Control", "NT", treatment)
   ) %>% transmute(
     block_label = paste0("s", slide_num, "_region", region_id),
-    condition, treatment, timepoint_h = 48,
+    condition, treatment, timepoint_h,
     model = "flank", tumor_cell_line = "4T1",
     tumor_type = "mammary carcinoma, TNBC/claudin-low", strain = "Balb/c",
     slide_id = slides_m02$slide_id[slide_num],
@@ -2408,8 +2422,10 @@ None of these three establishes a precedent for the core peak/valley contrast th
 
 ***** Data Loading
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/00_load_data.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/00_load_data.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Load raw parquet files from GCS, build Seurat object with parsed metadata (model, treatment, timepoint), confirm 4 pre-computed pathway score columns, and define canonical color palettes used by all downstream scripts.
 
@@ -2500,8 +2516,10 @@ cat(sprintf("Raw object ready: %d genes x %d cells\n", nrow(obj), ncol(obj)))
 
 ***** QC Filtering
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/01_qc_filter.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/01_qc_filter.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Apply multi-criteria QC filtering: qcFlagsCell=="Pass", nCount_RNA>20, nFeature_RNA>10, propNegative<0.5. Expected retention ~68% (1.4M to 971K cells). Generate QC violin plots and save summary statistics.
 
@@ -2540,8 +2558,10 @@ cat("QC'd Seurat object saved.\n")
 
 ***** Normalization and Clustering
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/02_normalize_cluster.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/02_normalize_cluster.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 LogNormalize (scale 1e4), VST variable features (2000), PCA (20 dims), Louvain clustering (resolution 0.4), UMAP. Generates landscape plots by cluster, condition, slide, and treatment. Expected: 9 clusters.
 
@@ -2592,8 +2612,10 @@ cat("Clustered object saved.\n")
 
 ***** Cell Type Validation
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/03_cell_type_validation.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/03_cell_type_validation.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Validate Yi's insitutype cell type labels against canonical markers (18/19 present in panel). The uncharacterized "a" population expresses epithelial markers (Epcam, Krt8/18) and is reclassified as tumor_epithelial. Generate dotplot, UMAP, and spatial cell type maps.
 
@@ -2680,8 +2702,10 @@ cat("Updated object saved with validated cell types.\n")
 
 ***** DEGs and Kinetics Overview
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/04_deg_kinetics.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/04_deg_kinetics.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Condensed Layer 2 analysis: effect-size ranked DEGs for MBRT vs Control, SBRT vs Control, and MBRT vs SBRT at matched timepoints. Pathway score kinetics (DDR, IFN-I, IFN-II, STING) across the time course. Cell type composition shifts and spatial neighborhood immune fractions at 4h. This section motivates the peak/valley investigation by establishing that MBRT and SBRT produce distinct transcriptomic responses.
 
@@ -2810,8 +2834,10 @@ cat("Layer 2 condensed analysis complete.\n")
 
 ***** Stripe Detection
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/05_stripe_detection.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/05_stripe_detection.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Curated highlights from iterative stripe model development. Fine-grained p21/Cdkn1a spatial profiling reveals periodic variation along the y-axis. Rotated axis scan confirms y-axis as the primary stripe direction. Tilt angle optimization (5-35 degrees, 2-degree steps) identifies 15 degrees as optimal. Grid search with forced 4-peak constraint converges on 1.02mm spacing. Key insight: transcript-based DDR scores alone are too noisy for stripe resolution; geometric model plus image validation is required.
 
@@ -2991,8 +3017,10 @@ cat("Stripe detection complete. Model saved to data/stripe_model.rds\n")
 
 ***** H2AX Image Validation
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/06_h2ax_validation.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/06_h2ax_validation.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Critical validation gate. Extract H2AX immunofluorescence images from the lab-provided PPTX, generate a stripe model zone map at matching scale and orientation, and attempt programmatic co-registration by comparing H2AX intensity profiles along the y-axis to model beam centers. Acceptance criterion: beam centers within ~0.2mm of H2AX intensity peaks. If programmatic co-registration fails, side-by-side visual comparison is the fallback.
 
@@ -3179,8 +3207,10 @@ cat("\nH2AX validation complete. Review plots/h2ax_zone_map_labeled.png\n")
 
 ***** Peak Valley Classification
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/07_peak_valley_classify.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/07_peak_valley_classify.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Apply the validated (or best-available) stripe model to classify all MBRT_4h cells as peak or valley. Tilt-corrected y: y_corr = y_slide_mm + x_slide_mm * tan(15 degrees). Classification: peak if distance to nearest beam center < spacing/4, else valley. Save classification TSV and add zone metadata to Seurat object for downstream analysis.
 
@@ -3263,8 +3293,10 @@ cat("Zone added to Seurat metadata and saved.\n")
 
 ***** Peak vs Valley DEGs
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/08_pv_degs.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/08_pv_degs.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Differential expression between peak and valley cells within MBRT_4h. Effect-size ranked (no formal significance testing with n=1). Both bulk (all cells) and per-cell-type analysis for major populations with >=250 cells per zone. The scientific question: what biology distinguishes direct-beam exposure from bystander zones?
 
@@ -3327,8 +3359,10 @@ cat("Peak vs valley DEG analysis complete.\n")
 
 ***** Peak vs Valley Pathway Scores
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/09_pv_pathways.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/09_pv_pathways.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Compare DDR, IFN-I, IFN-II, and STING pathway scores between peak and valley zones, both overall and stratified by cell type family. Key question: do valleys show elevated IFN/STING consistent with bystander immune priming? DDR (18 genes), Type I IFN (19 genes), and Type II IFN (17 genes) are standard NanoString Mouse UCC panel modules (see =data/sources/2026-06-22-bruker-mouse-ucc-gene-list.xlsx=). STING is not a standard module; scored from available cGAS-STING genes (Irf3, Ifna, Isg15, Cxcl10).
 
@@ -3399,8 +3433,10 @@ cat("Pathway comparison complete.\n")
 
 ***** Peak vs Valley Composition
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/10_pv_composition.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/10_pv_composition.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Compare cell type proportions between peak and valley zones. Stacked bar plots and proportion difference analysis. Key question: are immune cells enriched in valleys (potential bystander immune recruitment) and tumor epithelial cells depleted?
 
@@ -3458,8 +3494,10 @@ cat("Composition analysis complete.\n")
 
 ***** Peak vs Valley Spatial Neighborhoods
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/11_pv_spatial_neighborhoods.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/11_pv_spatial_neighborhoods.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 k=20 nearest neighbor analysis within each zone. Compute immune neighbor fractions for peak vs valley cells. Key question: do valleys have more mixed tumor-immune neighborhoods, consistent with immune cell infiltration into bystander zones?
 
@@ -3512,8 +3550,10 @@ cat("Spatial neighborhood analysis complete.\n")
 
 ***** SBRT Comparison
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle ./dev/peak_valley_analysis/12_sbrt_comparison.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/peak_valley_analysis/12_sbrt_comparison.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 Use SBRT_4h as a uniform-dose reference (no peak/valley structure expected). Compare MBRT peak and valley transcriptomic signatures against SBRT bulk expression. Key question: are MBRT valleys more similar to SBRT (lower effective dose) or transcriptomically distinct? Heatmap of top peak-up and valley-up genes across the three groups, plus pathway score comparison.
 
@@ -3637,8 +3677,10 @@ Characterize how MBRT and SBRT differ in transcriptomic response over time acros
 
 **** Differential expression
 :PROPERTIES:
-:header-args:jupyter-R+: :tangle dev/02_deg_analysis.R
+:header-args:jupyter-R+: :tangle no
 :END:
+
+Retired 2026-08-13: =dev/02_deg_analysis.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
 
 DEG analysis comparing MBRT vs Control, SBRT vs Control, and MBRT vs SBRT at matched timepoints. Wilcoxon rank sum via Seurat FindMarkers, ranked by effect size (log2FC), not p-value. Per-cell-type DEGs at 4h for MBRT vs SBRT.
 
@@ -4186,7 +4228,7 @@ Virtual scientist plan created: =plan-mbrt-signatures.md=, =review-mbrt-signatur
 - Kinetics are more interesting than marginal statistical gain at one timepoint
 - Spatial ecotype for microbeam
 - idea jacob scott genome-based model for adjusting radiotherapy dose- bulk tissue GUARD
-- MALDI lipidomic imaging (Pandey lab, Seul Kee Byeon) at 4h on blocks #3 (control), #14 (SBRT 4Gy), #17 (SBRT 20Gy), #21 (MBRT): no clear peak-vs-valley lipid contrast (consistent with morphology), but global phosphatidylinositol metabolism diverges between MBRT and SBRT — MUFA enrichment and LPI accumulation with MBRT. Integration with 4T1 RNAseq is on Yiqun's plate (Rob, 2026-05-24). [[https://mail.google.com/mail/u/0/#all/19e5f31e3d8acb1b][Gmail: Fw: Tissue Samples]]
+- MALDI lipidomic imaging (Pandey lab, Seul Kee Byeon) at 4h on blocks #3 (control), #14 (SBRT 4Gy), #17 (SBRT 20Gy), #21 (MBRT): no clear peak-vs-valley lipid contrast (consistent with morphology), but global phosphatidylinositol metabolism diverges between MBRT and SBRT: MUFA enrichment and LPI accumulation with MBRT. Integration with 4T1 RNAseq is on Yiqun's plate (Rob, 2026-05-24). [[https://mail.google.com/mail/u/0/#all/19e5f31e3d8acb1b][Gmail: Fw: Tissue Samples]]. *Cross-referenced against smiDE day-2 expression (2026-08-14) -- RETRACTED 2026-08-16:* /the cross-reference below reads off a smiDE configuration with an uncontrolled type I error rate (no overlap-ratio gene filter, no spatial random effect) applied to a between-animal contrast the method is not benchmarked for, so the convergence is not established; the MALDI observation above is unaffected. Original text kept for the record./ lipid-metabolism genes converge with the MALDI finding. Fabp5 (MUFA/PUFA transport) UP in 5 cell types under MBRT_vs_Ctrl, Cyp2u1 (FA hydroxylase) UP in 5, Ptgs1/COX-1 (PI-derived prostaglandin synthesis) UP in 4, Ldlr (lipid uptake) UP in 4, Pparg UP in stroma, Srebf1 (de novo FA synthesis) DOWN in 3: the expression profile (MUFA transport UP, de novo synthesis DOWN, COX-1 UP, HIF1a-driven metabolic shift) is consistent with MALDI MUFA enrichment + LPI accumulation at 4h, suggesting a sustained metabolic adaptation. See =**** Lipidomics cross-reference= under Results.
 
 *** Literature and references
 - [[https://www.reddit.com/r/bioinformatics/comments/1rcvf1p/deg_genes_spatial_transcriptomic_xenium/][Reddit: DEG genes spatial transcriptomic Xenium]]
@@ -4807,9 +4849,9 @@ grid <- d %>%
   mutate(nlab = ifelse(is.na(n), "", as.character(n)))
 
 legend_text <- str_c(
-  "Study design: replication is concentrated in the Mutter_02 day-2 cohort ",
-  "(n = 4 per arm), while the Mutter_01 kinetic series is single-tumour (n = 1) at each ",
-  "arm x timepoint. Cell fill and label give the number of samples; grey cells are ",
+  "Study design: Mutter_02 is a 2x2 (4h + day-2, n = 2 per arm at each timepoint); ",
+  "Mutter_01 is a single-tumour kinetic series (n = 1 per arm x timepoint). ",
+  "Cell fill and label give the number of samples; grey cells are ",
   "design gaps (no sample). Faceted by dataset and tumour model; arms are ",
   "Control (0 Gy), MBRT, and SBRT.")
 
@@ -5007,7 +5049,9 @@ save_plot(p, out, w = 9, h = 6.5)
 
 The platform-sparsity fact behind the cluster-then-annotate typing design: per-cell InSituType is unreachable because each cell detects only ~6% of the panel (median 58/950). The compute step ([[file:workflows/aggregate_differential.smk][aggregate_differential.smk]] rule =agg_qc_panel_sparsity=, script [[file:scripts/aggregate/qc_panel_sparsity.R][qc_panel_sparsity.R]]) joins per-cell detection to the unified compartment labels and arm/dataset design and ends at box quantiles; this block renders the figure.
 
-#+begin_src R :tangle scripts/fig_qc_panel_sparsity.R
+Retired 2026-08-13: =scripts/fig_qc_panel_sparsity.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
+
+#+begin_src R :tangle no
 #!/usr/bin/env Rscript
 
 # -----------------------------------------------------------------------------
@@ -5086,7 +5130,9 @@ The per-sample sensitivity and noise summary (SpatialQM / Plummer et al. 2025 me
 
 Interpretation: the five metrics are not independent axes but one underlying variable -- per-cell capture sensitivity -- measured five ways (across samples, TPC correlates with SNR at rho 0.89, with specificity FDR at rho -0.89, and with sparsity at rho -0.73). The apparent Mutter_01-vs-Mutter_02 separation is therefore a single cohort difference: Mutter_02 is the deeper-sampled cohort (~1.5-2x the transcripts per cell), and its lower specificity FDR follows arithmetically, since FDR is a ratio of a roughly fixed negative-probe background to total signal -- more real transcripts shrink that fraction. The cause of the deeper sampling is not established from these data (candidate contributors: the custom-augmented panel, run chemistry, imaging cycles, tissue and segmentation quality). The implication is bounded: the gap is a between-cohort constant, so it does not confound the within-Mutter_02 day-2 arm contrasts (where the cross-arm balance check confirms the arms are matched), but it does attenuate cross-dataset (M01<->M02) effect-size concordance -- Mutter_01's lower sensitivity compresses and adds noise to its effects, so the concordance understates true agreement rather than reflecting biological divergence.
 
-#+begin_src R :tangle scripts/fig_sample_tech_metrics.R
+Retired 2026-08-13: =scripts/fig_sample_tech_metrics.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
+
+#+begin_src R :tangle no
 #!/usr/bin/env Rscript
 
 # -----------------------------------------------------------------------------
@@ -5148,7 +5194,9 @@ save_plot(p, out, w = 11, h = 4.5)
 
 **** Cross-arm QC balance
 
-#+begin_src R :tangle scripts/fig_qc_arm_balance.R
+Retired 2026-08-13: =scripts/fig_qc_arm_balance.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
+
+#+begin_src R :tangle no
 #!/usr/bin/env Rscript
 
 # -----------------------------------------------------------------------------
@@ -5249,18 +5297,7 @@ p2 <- ggplot(d, aes(arm, mean_r_armmates, color = arm)) +
        subtitle = "Pseudobulk replicate concordance") +
   theme_scifig(base_size = 12)
 
-legend_text <- str_c(
-  "Outlier check on the day-2 composition inference: no single slide drives an arm's effect. ",
-  "Left, principal-component analysis of the scaled per-sample technical metrics; right, each ",
-  "sample's mean pseudobulk Spearman concordance to its same-arm replicates (n = 4 per arm, ",
-  "Mutter_02 day-2). Concordance is 0.93-0.97 with no arm-mate outlier flagged, and no arm ",
-  "separates on the PCA -- the composition shift is not a batch or replicate artifact.")
-
-p <- (p1 | p2) +
-  plot_annotation(caption = str_wrap(legend_text, width = round(11 * 13)),
-                  theme = theme(plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
-                                                            lineheight = 1.3, margin = margin(t = 16)),
-                                plot.caption.position = "plot"))
+p <- (p1 | p2)
 
 save_plot(p, out, w = 11, h = 5.2)
 #+end_src
@@ -5272,7 +5309,9 @@ save_plot(p, out, w = 11, h = 5.2)
 
 An independent cross-check that our QC did not diverge from the delivered pass-list, in two views: how many cells each filter kept (our count vs the provider's), and which cells -- recall, the fraction of the provider's specific passed cells (matched by barcode) that survive our filter. Per Mutter_01 condition; Mutter_02 has no provider pass-list. This block renders the figure from [[file:results/processing/yi_concordance.tsv][yi_concordance.tsv]].
 
-#+begin_src R :tangle scripts/fig_provider_concordance.R
+Retired 2026-08-13: =scripts/fig_provider_concordance.R= was deleted from the repo and this block no longer tangles; it is kept here for the record.
+
+#+begin_src R :tangle no
 #!/usr/bin/env Rscript
 
 # -----------------------------------------------------------------------------
@@ -5392,25 +5431,7 @@ d <- read_tsv(inp, show_col_types = FALSE) %>%
   arrange(compartment, desc(middle)) %>%
   mutate(cell_subtype = fct_inorder(cell_subtype))
 
-rho_k <- signif(d$k_robust_spearman[1], 3)
-
 comp_cols <- c(tumor = "#cc0000", stroma = "#4a86e8", immune = "#e69138")
-
-# purity-vs-abundance association across all subtypes (panel B annotation)
-rho_n <- suppressWarnings(cor(log10(d$n), d$middle, method = "spearman"))
-
-legend_text <- str_c(
-  "Transcriptional neighborhood purity (Plummer et al., Nat Biotechnol 2025): for each cell, ",
-  "the fraction of its 30 nearest neighbors in the scVI integrated latent that share its final ",
-  "cell-subtype label; a coherence check on the locked cross-dataset typing, complementary to ",
-  "marker recall. (A) Per-subtype purity, one box per subtype (5/25/50/75/95th percentile over ",
-  "its cells), the same latent the labels were built in; coarse-compartment purity is near-ceiling ",
-  "by construction. (B) Purity tracks positively with subtype abundance (Spearman ",
-  sprintf("rho = %.2f", rho_n),
-  " over per-subtype medians): rarer subtypes, several of them marker-rescued, form looser ",
-  "neighborhoods. The association is not a rule, with smooth muscle and NK cells sitting purer ",
-  "than more abundant subtypes. Neighborhood size is not load-bearing: per-subtype medians ",
-  sprintf("rank-correlate rho = %s between k = 15 and k = 30.", rho_k))
 
 pA <- ggplot(d, aes(cell_subtype, middle, fill = compartment)) +
   geom_boxplot(aes(ymin = ymin, lower = lower, middle = middle, upper = upper, ymax = ymax),
@@ -5435,11 +5456,7 @@ pB <- ggplot(d, aes(n, middle, color = compartment)) +
   theme_scifig(base_size = 12)
 
 p <- (pA | pB) +
-  plot_layout(widths = c(1.5, 1)) +
-  plot_annotation(caption = str_wrap(legend_text, width = round(11 * 15)),
-                  theme = theme(plot.caption = element_text(size = 10, hjust = 0, color = "gray30",
-                                                            lineheight = 1.3, margin = margin(t = 18)),
-                                plot.caption.position = "plot"))
+  plot_layout(widths = c(1.5, 1))
 
 save_plot(p, out, w = 13, h = 6)
 #+end_src
@@ -5769,6 +5786,46 @@ The dominant day-2 signal was SBRT-driven stromal fibrosis. Myofibroblast-activa
 
 Across the confirmatory family, 578 of 621 rows (93%) fell below the n=4 minimum detectable effect, so most MBRT non-results were underpowered rather than established nulls. M01-to-M02 day-2 effect-size concordance on the unified labels was weak (top Spearman rho 0.21 for MBRT, near zero to negative for SBRT). These results are consistent with and extend the earlier whole-sample finding that MBRT immune stimulation was not supported, and the SBRT-versus-MBRT difference cannot be cleanly attributed to dose pattern given the unrecorded MBRT mean dose and the averaging of peak and valley in any whole-compartment contrast. The single canonical output table is [[file:results/aggregate/results_master.tsv]], produced by the [[file:workflows/aggregate_differential.smk][aggregate_differential.smk]] workflow (split from the former =aggregate.smk= on 2026-07-12; consumes the =aggregate_typing.smk= labels); design, decisions, and limitations are in [[file:plan-mbrt-vs-sbrt.md][plan-mbrt-vs-sbrt.md]].
 
+**** Per-cell smiDE genome-wide DE (CosMx best-practice alignment)
+
+*RETRACTION NOTICE (2026-08-16).* The results reported in the four paragraphs that run from "The pseudobulk DESeq2 method above" to the "End of retracted text" marker came from a smiDE configuration that omitted two things the method's authors require: a pre-test gene filter on the segmentation-contamination overlap ratio, and a spatial random effect. Vasconcelos et al., Genome Biology 2026 (PMC12882255) benchmark a spatially-blind model's type I error at 0.86 to 0.95, against roughly 0.05 to 0.07 with the spatial term, so the hit counts and adjusted p-values below have an uncontrolled false-positive rate and are not reportable. The configuration was also applied to a between-animal arm contrast, which the method is neither designed nor benchmarked for; its authors recommend per-sample fits combined by meta-analysis for cross-sample comparisons, so sample-level pseudobulk, not smiDE, is the structurally correct estimator for an arm contrast.
+
+The arrangement that replaces it, in three layers. Sample-level pseudobulk is the confirmatory arm-level inference: DESeq2 for day 2, and moderated-t by limma-voom for the 4h cohorts, which realize 2 to 3 residual degrees of freedom, with every cohort slide-blocked. A corrected higher-resolution analysis carrying both fixes, with cells as observations, fitted within slide and combined across slides by fixed-effect inverse-variance meta-analysis (replication: the 2 to 3 slides), is the exploratory layer; it supplies effect sizes and ranking and never an arm-level claim. The intermediate screen mode, which applies the gene filter but no spatial term and fits cells as observations under a sample-level random intercept (replication: nominally samples, 2 to 4 per arm, with the between-sample variance component poorly estimated at that n), is only an ordered candidate list feeding the spatial stage and must never be quoted on its own. The output files from the invalid runs were archived off the results tree on the compute host to =/mnt/data/projects/spatial-rads/archive/invalid_smide_2026-08-16/= (two files) so they cannot be silently consumed by a downstream step.
+
+*Inference unit: the standing wording rule for this layer (2026-08-16).* "Per-cell" is smiDE's shorthand for the /observation/ unit, and it has repeatedly been mistaken for the /replication/ unit. The two are different, and the difference is what the p-values mean, so documentation must state the replication unit rather than the observation count: do not write "per-cell resolution" or "per-cell DE" as though it named the inferential unit. Screen mode fits individual cells as observations with a random intercept on sample, so arm replication is nominally by sample, but at 2 to 4 samples per arm the between-sample variance component is poorly estimated, and when it is estimated near zero the fit slides toward treating cells as replicates; the roughly ten-fold hit excess over sample-level pseudobulk on the same contrast (about 5,300 against about 500) is the measure of how far it slips, since a test genuinely operating at the sample level could not find ten times the hits. Spatial mode fits cells within a single slide with a spatial random effect and no sample random intercept, then combines slides by fixed-effect inverse-variance meta-analysis; a fixed-effect combination does not charge between-slide heterogeneity, so its effective replication is the 2 to 3 slides. Acceptable phrasing names both, for example "cells as observations with sample-level random intercept (replication: samples, 2 to 4 per arm, variance component poorly estimated)" and, for spatial mode, "fitted within slide, combined across slides by fixed-effect meta-analysis (replication: 2 to 3 slides)".
+
+*Adjudication criteria, pre-specified 2026-08-16 before any spatial-fit output existed.* A per-cell gene by cell-type result may be reported only if the gene passes the contamination filter (overlap ratio below 1) in that cell type /and/ reaches significance in the spatial fit; screen-mode-only hits are never reportable at any effect size; and arm-level confirmatory claims remain with sample-level pseudobulk regardless of what the per-cell layer shows. A spatial hit count far below the screen's is to be read as the screen having been anticonservative, not as the spatial fit lacking power.
+
+The retracted text is kept below for the record, with inline retraction markers added and nothing deleted. Do not cite it.
+
+The pseudobulk DESeq2 method above collapses per-cell counts to sample-level pseudobulk before modelling, discarding within-sample heterogeneity and segmentation-error structure. As part of the CosMx best-practice alignment (plan at [[file:docs/plans/2026-08-13-cosmx-bestpractice-alignment.md]]), a genome-wide per-cell negative-binomial GLMM was added via smiDE/nebula ([[file:scripts/aggregate/smide_de.R]]). The model is =~ RankNorm(otherct_expr) + offset(log(totalcounts)) + condition + (1|sample_id)=: the neighbor-expression covariate absorbs segmentation error (the smiDE innovation; NanoString CosMx Analysis Scratch Space), the per-cell total-count offset accounts for capture depth, and the sample-level random effect handles pseudoreplication. smiDE is the *primary* DE method for exploratory analysis; pseudobulk DESeq2 is the conservative cross-check. /Retracted 2026-08-16: this ordering is inverted. Pseudobulk is the confirmatory arm-level estimator and the corrected higher-resolution analysis is the exploratory layer; see the retraction notice at the top of this section. The description of the model is also corrected: "the sample-level random effect handles pseudoreplication" overstates that term. The =(1|sample_id)= intercept makes arm replication nominally by sample (2 to 4 per arm), not by cell, but at that n the variance component is poorly estimated, so the fit operates somewhere between the sample and the cell. This is a screen, not a sample-level test./
+
+/[Retracted 2026-08-16.]/ smiDE produces 37,854 rows (950 genes x 15 cell types x 3 day-2 contrasts). /[OVERCLAIM, flagged 2026-08-16, over and above the retraction: the sentence that follows reads the pseudobulk MBRT null as a power artifact which a cell-level test exposed. Under the corrected inference-unit reading it is not. The screen's replication unit is nominally the sample with a poorly estimated variance component, so the excess hits are the screen's anticonservatism rather than added resolution. Do not revive this claim even if a corrected spatial run reproduces part of it, and do not restate any pseudobulk null as underpowered on the strength of a screen-mode hit count.]/ MBRT is NOT null at per-cell resolution: 1,360 MBRT_vs_Ctrl hits at padj < 0.05 versus near-zero in pseudobulk, and 2,136 SBRT_vs_Ctrl hits. Three coherent MBRT day-2 programs emerge: (a) SASP/senescence --- 11 of 17 canonical SASP genes significant in MBRT_vs_Ctrl (Il1b, Il1a, Il6, Cxcl1, Cxcl2, Ccl2, Ccl20, Csf2, Vegfa, Timp1, Igfbp7), each across multiple cell types; (b) early fibrosis --- collagen genes (Col1a1, Col1a2, Col5a2, Col6a3) up in 5--6 cell types, weaker than SBRT; (c) immunosuppressive shift --- Arg1 UP in 6 cell types, Tigit UP in 6, Hif1a UP in 5, with concurrent MHC-II loss (H2-Aa DOWN in 6 cell types) and interferon suppression (Ifi27 DOWN in 6). This is the opposite of the old immunostimulation hypothesis.
+
+/[Retracted 2026-08-16. The current p21 reading, from slide-blocked moderated-t pseudobulk at 4h: Cdkn1a is MBRT > SBRT in five cell types (Adipocyte padj 2.3e-04, ILC 0.0029, Fibroblast 0.0032, T cells 0.017, Macrophages 0.030), but only Macrophages passes the segmentation-contamination filter at an overlap ratio of 0.57; Fibroblast 1.02, ILC 1.03, Adipocyte 1.04 and T cells 1.44 all fail, meaning the gene's expression in neighbouring cells matches or exceeds its own, and Tumor is 2.04. The defensible claim is p21 higher in MBRT than SBRT, attributable specifically to macrophages, exploratory tier.]/ Cdkn1a (p21) is resolved: MBRT_vs_SBRT significant in 6 cell types (Macrophages padj 2e-30), but MBRT_vs_Ctrl only in Tumor (padj 3e-11) and stroma_unresolved (0.015). The strong signal is SBRT driving p21 DOWN more than MBRT driving it UP, consistent with proliferative regrowth of p53-mutant 4T1 survivors under SBRT.
+
+/[Retracted 2026-08-16.]/ Pseudobulk-vs-smiDE concordance: Spearman rho ~0.57, sign agreement ~79%, 299 shared hits, 201 pseudobulk-only, 4,999 smiDE-only. Contamination caveat: smiDE-only hits have higher overlap ratios (median 1.28 vs 0.88 for shared hits), so some smiDE-only signal may reflect segmentation bleed rather than biology. The overlap-ratio QC ([[file:scripts/aggregate/overlap_ratio_qc.R]]) joins a per-gene x cell_subtype contamination ratio onto the master table. Of 2,328 confirmatory rows, 391 (17%) pass smiDE. Master table now 88,945 rows with smiDE integrated as =readout_class="smiDE"=.
+
+/End of retracted text (2026-08-16). The paragraph below describes the corrected protocol and stands./
+
+smiDE runs in two modes per cohort. Both take individual cells as the /observation/ unit; they differ in the /replication/ unit, which is what their p-values are about. The screen mode is the nebula negative-binomial GLMM above, with the overlap-ratio gene filter applied and no spatial term, fitting cells as observations with a random intercept on sample: replication is nominally by sample (2 to 4 per arm), but the between-sample variance component is poorly estimated at that n, so the mode is candidate generation for the spatial stage and is never quoted on its own. The spatial mode fits a Gaussian process per spatial unit (GP_INLA), with a spatial random effect and no sample random intercept, and combines the per-unit estimates by fixed-effect inverse-variance meta-analysis, the smiDE authors' correction for the type I error inflation a single pooled fit produces; because a fixed-effect combination does not charge between-unit heterogeneity, its effective replication is the 2 to 3 slides that supply the units. Both modes prefilter genes per cell type on the overlap ratio. Screen runs for every registered cohort; spatial runs only for =mutter02_day2=, =combined_4h_treated=, and =combined_4h=, because a spatial fit needs both contrast levels inside one slide and the pooled-control cohorts lose their borrowed Control slides under that constraint. A per-cohort expression cache ([[file:scripts/aggregate/build_cohort_counts.R]]) supplies the counts: reading the 20-sample merged object inside every fit made memory rather than cores the binding constraint, and the cache drops each fit's reservation far enough to run several cohorts at once inside the 124 GB budget.
+
+**** Lipidomics cross-reference: MALDI convergence with smiDE
+
+*RETRACTED 2026-08-16.* The MALDI observation itself is unaffected, but every gene-level convergence claim in this section is read off the same invalidated per-cell smiDE output (no overlap-ratio gene filter, no spatial random effect, and an arm contrast the method is not benchmarked for), so the per-gene cell-type counts, log2FC ranges and adjusted p-values below are not reportable and the convergence is not established. See the retraction notice under =**** Per-cell smiDE genome-wide DE=. Re-testing this convergence requires the corrected per-cell layer, or pseudobulk if the claim is to be made at arm level. Original text kept for the record; do not cite it.
+
+MALDI lipidomic imaging from the Pandey lab (Seul Kee Byeon, 4h timepoint) found no peak-vs-valley lipid contrast but a global phosphatidylinositol metabolism divergence between MBRT and SBRT: MUFA enrichment and LPI (lysophosphatidylinositol) accumulation with MBRT. The smiDE day-2 expression data shows convergent lipid-metabolism gene changes under MBRT_vs_Ctrl:
+
+- *Fabp5* UP in 5 cell types (Adipocyte, Endothelial, Fibroblast, Macrophages, stroma_unresolved; log2FC 0.35--1.03): fatty acid binding protein that preferentially transports MUFA/PUFA, directly consistent with MALDI MUFA enrichment.
+- *Cyp2u1* UP in 5 cell types (log2FC 0.33--0.83, padj to 5e-6): cytochrome P450 fatty acid hydroxylase, active on arachidonic acid and long-chain FA.
+- *Ptgs1* (COX-1) UP in 4 cell types: converts PI-derived arachidonic acid to prostaglandins, consistent with PI metabolism divergence and LPI accumulation from the MALDI data.
+- *Ldlr* UP in 4 cell types (log2FC 0.14--0.52): LDL receptor, lipid uptake.
+- *Pparg* UP in stroma_unresolved (log2FC 0.79): master lipid metabolism transcription factor.
+- *Srebf1* DOWN in 3 cell types (Adipocyte, Fibroblast, Tumor): SREBP-1 regulates de novo fatty acid synthesis; downregulation with concurrent Fabp5 upregulation suggests preferential MUFA uptake/transport over de novo synthesis.
+- *Hif1a* UP in 5 cell types (log2FC 0.30--0.46, padj to 7e-25): HIF1a stabilization drives lipid metabolic reprogramming including MUFA pathway activation.
+
+The expression profile at day 2 (MUFA-transport UP, de novo synthesis DOWN, COX-1/prostaglandin UP, HIF1a-driven metabolic shift) is consistent with the MALDI lipid findings at 4h, suggesting a sustained metabolic adaptation. The MBRT_vs_SBRT contrast reinforces this: Gpx1 DOWN in 7 cell types (padj to 2e-53), Sod1 DOWN in 8 cell types (padj to 3e-29), and Ldlr DOWN in 7 cell types (padj to 8e-77), all indicating SBRT drives these pathways harder than MBRT but MBRT has its own distinct lipid-metabolism shift relative to Control.
+
 **** Differential test engines (modularization)
 
 The differential layer was originally written as one bespoke script per readout, with the same statistical machinery copy-pasted into each: build the design matrix from =~0 + condition + slide_id=, form the three arm contrasts (MBRT vs Control, SBRT vs Control, MBRT vs SBRT), fit the model, and adjust p-values. That machinery is being factored into two reusable /test engines/ that every readout calls, so each statistical method exists in exactly one place and reads its contrast, formula, and replication unit from the resolved comparison registry ([[file:results/data_model/comparisons.tsv]]) rather than from literals embedded in the script. Design and task breakdown are in [[file:docs/superpowers/specs/2026-07-12-differential-modularization-design.md][the modularization design doc]] and [[file:docs/superpowers/plans/2026-07-12-differential-modularization.md][implementation plan]].
@@ -5782,6 +5839,20 @@ The 4h MBRT-versus-SBRT contrast runs in its own 2-condition cohort (MBRT and SB
 The *linear-model engine* ([[file:scripts/engines/lm_engine.R]]) does NOT touch transcript counts. It runs a limma moderated-t test on /sample-level derived features/: one number per sample obtained by collapsing that sample's cells. Its primary use is cell-type composition. Stating that fibroblasts are 42% of a sample's cells needs no model; the model exists to /test whether that proportion differs between arms/, computing an effect size, 95% confidence interval, and p-value on the logit-transformed fraction while adjusting for slide, at n=4 mice per arm. That specific test is propeller ([[https://doi.org/10.1093/bioinformatics/btac582][Phipson et al. 2022]]), which is limma applied to logit-transformed cell-type proportions and is a recognized standard for single-cell and spatial composition testing. The same engine runs the analogous arm-comparison test for the other per-sample readouts (pathway module scores, tumor-immune mixing scores, myeloid M1/M2 ratio) via an identity transform; those are sound general-purpose sample-level statistics rather than a CosMx-specific named method, and none of them are new to this refactor, which only relocates code that already existed. The engine reproduces each source script's exact procedure, including whether =eBayes= used its robust variant, verified per engine against the pre-refactor output to floating-point tolerance.
 
 A thin /producer/ script per readout builds the feature table (proportions, niche frequencies, mixing scores) and hands it to the appropriate engine; a single /results/ step then assigns the pre-registered hypotheses (H1 immune, H2 vascular, H3 stromal), applies the cross-family multiple-testing correction, and writes the tier-tagged master table. This is a code-architecture refactor only: the methods and the reported science are unchanged, and the within-tumor peak/valley spatial contrast (a permutation rotation-null test, gated on absent staining) is explicitly out of scope and would need a third engine family it does not preclude.
+
+A third engine covers the low-replication cohorts. [[file:scripts/engines/voom_engine.R]] runs limma-voom on the same pseudobulk SummarizedExperiment, the same registry design, and the same filters as the count engine, and supplies the reported pseudobulk inference for =combined_4h_treated= and =combined_4h=. Those two cohorts are slide-blocked over 6 to 10 samples and realize 1 to 2 residual degrees of freedom per cell type, where a per-gene variance estimate carries almost no information; empirical-Bayes moderation borrows degrees of freedom across genes to give a usable denominator. Day 2 keeps the DESeq2 Wald test, which the results step carries alongside as a secondary column. Every engine rule now takes a cohort wildcard rather than a hardcoded =mutter02_day2=, so composition, pseudobulk DE, niche frequency, spatial mixing, myeloid polarization, sub-state composition, GSEA, and the UCell pathway arm test each run once per registered cohort.
+
+**** Differential detection, spatial module discovery, and per-FOV signal QC
+
+Differential detection asks whether the fraction of cells expressing a gene changed rather than whether the mean level changed, which is the honest descriptor at this panel's sparsity. It runs muscat's =num.detected= aggregation followed by an edgeR pseudobulk test: [[file:scripts/aggregate/dd_prep.R]] exports a SummarizedExperiment from the merged object, and [[file:scripts/aggregate/dd_muscat.R]] fits the test. muscat is neither conda- nor BiocManager-installable on this host, so the test step runs inside a prebuilt biocontainer through apptainer with the data disk bound in, declared on the rule as a =container:= directive. Its rows enter the master table as =readout_class="detection"= and stay exploratory.
+
+[[file:scripts/aggregate/insitucor_discovery.R]] derives spatial gene-gene co-expression modules de novo from the 4h cells across all datasets and arms, at k=100 neighbors with a 100,000-cell subsample cap, conditional on the cell type landscape so that modules reflect spatial co-variation rather than shared cell type identity. It is independent of the curated pathway sets and is a discovery input for the peak/valley signature work rather than a confirmatory readout. The full InSituCor output set is retained: module-level and gene-level cell type attribution ([[file:results/aggregate/insitucor_celltype_attribution.tsv]], [[file:results/aggregate/insitucor_gene_attribution.tsv]]), per-cell and per-neighborhood module scores (parquet in the heavy-intermediates directory), and the conditional correlation network as an edge list ([[file:results/aggregate/insitucor_condcor_edges.tsv]]). [[file:scripts/aggregate/insitucor_prioritize.R]] ranks modules as the method's authors document, by cell type attribution and curated-set overlap. [[file:scripts/aggregate/insitucor_arm_test.R]] then tests module scores across arms; this is our extension of the tool, not part of its documented workflow. The arm test aggregates per-cell scores to one mean per sample and cell type and fits the same registry-driven stratified limma model as the pathway layer; because discovery pooled all 4h cells with no treatment variable, modules were defined blind to treatment and testing them on treatment is not circular. Its rows are exploratory tier only, BH-corrected within cohort, and are reported on the moderated t consistent with the low-residual-df policy for the 4h cohorts.
+
+Discovery assigned 717 of the 950 panel genes to 109 modules, 20 of them with 4 or more genes; a 300-gene catch-all whose per-gene weights sit an order of magnitude below every other module was flagged as diffuse background and excluded from interpretation. The method recapitulated known biology as a positive control: a 24-gene interferon and MHC-I module (Ifit1, Mx1, Cxcl9, Oas3, H2-K1) overlapped HALLMARK_INTERFERON_GAMMA_RESPONSE at 12 of 24 genes and attributed to tumor cells (0.88). The principal discovery product is a 41-gene module combining macrophage identity, MHC-II, and complement genes (Cd74, C1qb, H2-Aa) with fibroblast collagens (Col1a1, Col3a1, Col5a1), the only module with two near-equal driving cell types (macrophages 0.67, fibroblasts 0.66) and at most 32% covered by any single curated set (13 of 41 genes, Fibrosis_remodeling): a macrophage-fibroblast niche program that no curated pathway definition spans. Under a second, independently drawn 100,000-cell subsample, 11 of the 20 modules with 4 or more genes recovered at gene-set Jaccard >= 0.5 (median 0.55); the interpreted modules reproduced (macrophage-fibroblast 0.70, interferon 0.70, damage-response 1.00) while several 4-6-gene modules did not (Jaccard 0.01 to 0.29), so small modules are not interpreted individually. Prioritization table: [[file:results/aggregate/insitucor_module_prioritization.tsv]].
+
+The arm test found one signal surviving correction: a six-gene damage-response module containing Cdkn1a (Coro1b, Cdkn1a, Eng, Sat1, Bax) was lower under SBRT than Control at 4h in endothelium (padj = 2.1e-04 by limma moderated t, residual df 3, n = 3 SBRT vs 2 Control), unresolved stroma (padj = 0.013), fibroblasts (padj = 0.017), and ILC (padj = 0.032), and in the treated-only contrast trended higher under MBRT than SBRT (best padj = 0.15, n = 3 per arm, residual df 2), the module-level counterpart of the gene-level Cdkn1a MBRT-greater-than-SBRT result. The macrophage-fibroblast module trended up under SBRT versus Control across stromal and myeloid compartments (uncorrected P = 0.007 to 0.031, padj >= 0.22) with MBRT below SBRT, and no row reached significance. A keratin-containing module scored significant in ILC, which we read as candidate segmentation spillover rather than lymphocyte biology pending the overlap-ratio check for those genes in that cell type. Module scores are weighted means of member genes, so these rows are not independent of the per-gene results, and all arm rows rest on the same samples as the rest of the 4h analysis. Arm-test tables: [[file:results/aggregate/insitucor_test_combined_4h.tsv]], [[file:results/aggregate/insitucor_test_combined_4h_treated.tsv]]; full report at [[file:.superpowers/sdd/2026-08-14-cross-timepoint-parity/task-insitucor-full-report.md]].
+
+The per-FOV signal-loss check ([[file:scripts/aggregate/qc_fov_signal.R]]) flags any FOV whose mean RNA count falls below 40% of its slide's median per-FOV mean, the CosMx screen for degraded-signal regions such as focal-plane or staining dropout, and reports the arm distribution of the flagged FOVs so a signal-loss confound would be visible. It is report-only and excludes no cells.
 
 **** Workflow
 
@@ -5801,6 +5872,9 @@ configfile: "config/config.yaml"
 
 # --- interpreter (driver runs in basecamp; R steps in spatial-rads) ---
 RSCRIPT = "conda run -n spatial-rads Rscript"
+# muscat is not conda/BiocManager-installable on this host; the differential-detection
+# step runs in the prebuilt biocontainer via apptainer (bind the data disk).
+MUSCAT_SIF = f"{config['datadir']}/containers/muscat.sif"
 
 # --- paths: D_ data dirs, R_ repo locations ---
 D_DATA    = config["datadir"]
@@ -5819,13 +5893,42 @@ MERGED = f"{D_AGG}/merged.rds"
 OBS    = f"{D_FULL}/obs.parquet"
 LATENT = f"{D_FULL}/scvi_latent.parquet"           # tier-1 scVI latent, reused for neighborhood-purity QC
 
+# --- per-cohort expression cache: the per-cell steps' stand-in for MERGED ---
+# MERGED carries all 20 samples, so a per-cohort step that reads it pays whole-study
+# memory to keep a fraction of the cells. The cache exists to raise concurrency: it
+# is built once per cohort and drops each consumer's reservation far enough that
+# several cohorts fit in the 124 GB budget at the same time. Heavy intermediate, so
+# it lives under D_AGG rather than in results/.
+COHORT_CACHE = f"{D_AGG}/cohort_counts/{{cohort}}.counts.rds"
+
 # --- GPU-env Python interpreter (neighborhood-purity QC recomputes kNN on the latent) ---
 PYSCVI = "conda run -n spatial-rads-scvi python"
 
 # --- cohort: flank only ---
 _s    = pd.read_csv(MASTER, sep="\t")
 FLANK = _s.loc[_s["model"] == "flank", "sample_id"].tolist()
-
+DE_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl"]
+LM_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h", "mutter02_day2_pooledctrl"]
+# Cohorts whose reported pseudobulk inference is the limma-voom moderated t rather than
+# the DESeq2 Wald test. The two 4h cohorts are slide-blocked over 6-10 samples and
+# realize 1-2 residual df per cell type, where a per-gene variance estimate carries
+# almost no information; empirical-Bayes shrinkage borrows df across genes to give a
+# usable denominator. Day-2 has adequate df and keeps DESeq2 Wald as reported.
+# assemble_results.R reads the same distinction off which voom_engine files exist, so
+# this list is the single place the swap is declared.
+VOOM_COHORTS = ["combined_4h_treated", "combined_4h"]
+# smiDE model modes: "screen" is the nebula NB GLMM discovery pass, "spatial" is the
+# per-spatial-unit Gaussian-process (GP_INLA) fit plus inverse-variance meta-analysis.
+SMIDE_MODES = ["screen", "spatial"]
+# The two pooled-control cohorts borrow Control blocks from slides that carry no
+# treated block. A spatial fit needs both contrast levels inside one slide, so those
+# borrowed slides drop out and the pooled cohorts reduce to their non-pooled parents;
+# smide_de.R stops rather than emit a result labelled pooled that used no borrowed
+# control. They run screen mode only.
+SMIDE_SPATIAL_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
+# InSituCor module-score arm test runs only where per-cell module scores exist: the 4h
+# cohorts, because discovery pooled 4h cells only.
+INSITUCOR_COHORTS = ["combined_4h_treated", "combined_4h"]
 #+end_src
 
 #+name: aggregate-differential-all
@@ -5835,21 +5938,21 @@ rule all:
         "results/aggregate/composition_by_sample.tsv",
         "results/aggregate/composition_test_m02day2.tsv",
         "results/aggregate/composition_unassigned_sensitivity.tsv",
-        "results/aggregate/engine/composition_engine.tsv",
-        "results/aggregate/engine/de_engine.tsv",
-        "results/aggregate/engine/niche_engine.tsv",
-        "results/aggregate/engine/mixing_engine.tsv",
-        "results/aggregate/engine/myeloid_engine.tsv",
-        "results/aggregate/engine/substate_engine.tsv",
+        expand("results/aggregate/engine/composition_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/de_engine_{coh}.tsv", coh=DE_COHORTS),
+        expand("results/aggregate/engine/voom_engine_{coh}.tsv", coh=VOOM_COHORTS),
+        expand("results/aggregate/engine/niche_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/mixing_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/myeloid_engine_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/substate_engine_{coh}.tsv", coh=LM_COHORTS),
         "results/aggregate/plots/composition_m02day2_bars.png",
         "results/aggregate/plots/composition_m02day2_forest.png",
         "results/aggregate/plots/composition_m01_timecourse.png",
         "results/aggregate/pseudobulk_qc.tsv",
-        "results/aggregate/engine/de_engine.tsv",
-        "results/aggregate/detection_test_m02day2.tsv",
-        "results/aggregate/gsea_pseudobulk_m02day2.tsv",
+        "results/aggregate/differential_detection.tsv",
+        expand("results/aggregate/gsea_pseudobulk_{coh}.tsv", coh=DE_COHORTS),
         "results/aggregate/pathway_scores_summary.tsv",
-        "results/aggregate/pathway_test_m02day2.tsv",
+        expand("results/aggregate/pathway_test_{coh}.tsv", coh=LM_COHORTS),
         "results/aggregate/pathway_ucell_ams_concordance.tsv",
         "results/aggregate/plots/pathway_heatmap_m02day2.png",
         "results/aggregate/plots/pathway_timecourse_m01.png",
@@ -5872,11 +5975,24 @@ rule all:
         "results/aggregate/substate_gate_report.tsv",
         "results/aggregate/detectability_summary.tsv",
         "results/aggregate/results_master.tsv",
+        "results/aggregate/overlap_ratio_qc.tsv",
         "results/aggregate/qc_arm_balance.tsv",
         "results/aggregate/qc_arm_balance_samples.tsv",
         "results/aggregate/qc_reproducibility.tsv",
         "results/aggregate/qc_panel_sparsity.tsv",
+        "results/aggregate/qc_fov_signal.tsv",
         "results/aggregate/celltype_neighborhood_purity.tsv",
+        expand("results/aggregate/engine/smide_de_{coh}_screen.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/engine/smide_de_{coh}_spatial.tsv", coh=SMIDE_SPATIAL_COHORTS),
+        expand("results/aggregate/smide_concordance_{coh}.tsv", coh=LM_COHORTS),
+        expand("results/aggregate/plots/smide_concordance_{coh}.png", coh=LM_COHORTS),
+        "results/aggregate/insitucor_modules.tsv",
+        "results/aggregate/insitucor_module_summary.tsv",
+        "results/aggregate/insitucor_celltype_attribution.tsv",
+        "results/aggregate/insitucor_gene_attribution.tsv",
+        "results/aggregate/insitucor_condcor_edges.tsv",
+        "results/aggregate/insitucor_module_prioritization.tsv",
+        expand("results/aggregate/insitucor_test_{coh}.tsv", coh=INSITUCOR_COHORTS),
 #+end_src
 
 #+name: aggregate-differential-composition
@@ -5910,31 +6026,32 @@ rule composition:
 #+begin_src snakemake
 # --- engine: composition arm test (propeller/logit path) on the per-cell labels ---
 rule composition_engine:
-    message: "composition_engine: lm_engine proportion test on cell-type composition (M02 day2)"
+    message: "composition_engine: lm_engine proportion test ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         cells  = "results/aggregate/engine_inputs/composition_cells.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/composition_engine.tsv",
+        stats = "results/aggregate/engine/composition_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/composition_engine.log",
+        f"{D_LOGS}/composition_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 composition "
+        "{RSCRIPT} {input.script} {input.cells} proportion {wildcards.cohort} composition "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-pseudobulk-build
 #+begin_src snakemake
-# --- Track 2: pseudobulk construction (M02 day2, sample x cell_type count sums) ---
+# --- Track 2: pseudobulk construction (all flank, sample x cell_type count sums) ---
 rule pseudobulk_build:
-    message: "pseudobulk_build: sample x cell_type pseudobulk count sums (M02 day2)"
+    message: "pseudobulk_build: sample x cell_type pseudobulk count sums (all flank)"
     input:
         script = f"{R_SCRIPTS}/pseudobulk_build.R",
-        rds    = MERGED,   # re-pointed off the deleted merged_typed.rds (count-only consumer; labels from full_labels.parquet)
+        rds    = MERGED,
         labels = LABELS,
+        ss     = MASTER,
     output:
         se = f"{D_AGG}/pseudobulk_se.rds",
         qc = "results/aggregate/pseudobulk_qc.tsv",
@@ -5942,7 +6059,7 @@ rule pseudobulk_build:
     log:
         f"{D_LOGS}/pseudobulk_build.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.se} {output.qc} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.ss} {output.se} {output.qc} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-de-engine
@@ -5951,64 +6068,114 @@ rule pseudobulk_build:
 # apeglm two-fit). Sole pseudobulk-DE source: feeds results_master, gsea, and concordance.
 # (Superseded the standalone deg_pseudobulk.R -- retired 2026-07-13, output bit-identical.) ---
 rule de_engine:
-    message: "de_engine: count_engine pseudobulk NB DE (apeglm two-fit) -> sufficient stats"
+    message: "de_engine: count_engine pseudobulk NB DE ({wildcards.cohort}) -> sufficient stats"
     input:
         script = "scripts/engines/count_engine.R",
         se     = f"{D_AGG}/pseudobulk_se.rds",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats   = "results/aggregate/engine/de_engine.tsv",
-        skipped = "results/aggregate/engine/de_engine_skipped.tsv",
+        stats   = "results/aggregate/engine/de_engine_{cohort}.tsv",
+        skipped = "results/aggregate/engine/de_engine_{cohort}_skipped.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/de_engine.log",
+        f"{D_LOGS}/de_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.se} mutter02_day2 {input.comp} {input.params} "
+        "{RSCRIPT} {input.script} {input.se} {wildcards.cohort} {input.comp} {input.params} "
         "{output.stats} {output.skipped} > {log} 2>&1"
 #+end_src
 
-#+name: aggregate-differential-detection-test
+#+name: aggregate-differential-voom-engine
 #+begin_src snakemake
-# --- Track 2: detection-vs-level decomposition + sparsity-aware call_class (Fix 2) ---
-rule detection_test:
-    message: "detection_test: detection-vs-level decomposition + sparsity-aware call_class"
+# --- Track 2 inference: moderated-t view of the same pseudobulk fit (VOOM_COHORTS) ---
+# Same SE, same registry design, same filters as de_engine; limma-voom instead of DESeq2
+# so a 1-2 residual-df cohort is tested against an empirical-Bayes-moderated variance.
+# assemble_results.R reports these p-values for these cohorts and carries the DESeq2
+# Wald p from de_engine alongside as a secondary column.
+rule voom_engine:
+    message: "voom_engine: limma-voom moderated-t pseudobulk DE ({wildcards.cohort}) -> sufficient stats"
     input:
-        script = f"{R_SCRIPTS}/detection_test.R",
+        script = "scripts/engines/voom_engine.R",
         se     = f"{D_AGG}/pseudobulk_se.rds",
+        comp   = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
     output:
-        det = "results/aggregate/detection_test_m02day2.tsv",
+        stats   = "results/aggregate/engine/voom_engine_{cohort}.tsv",
+        skipped = "results/aggregate/engine/voom_engine_{cohort}_skipped.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/detection_test.log",
+        f"{D_LOGS}/voom_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.se} {output.det} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.se} {wildcards.cohort} {input.comp} {input.params} "
+        "{output.stats} {output.skipped} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-dd-prep
+#+begin_src snakemake
+# --- Track 3 differential detection: fraction-of-cells-expressing change (muscat) ---
+# dd_prep exports an SCE from merged.rds (main env has Seurat/arrow); dd_muscat runs
+# muscat's num.detected aggregation + edgeR pbDS INSIDE the biocontainer (aptainer).
+rule dd_prep:
+    message: "dd_prep: merged.rds -> SCE for muscat differential detection (M02 day2)"
+    input:
+        script  = f"{R_SCRIPTS}/dd_prep.R",
+        merged  = f"{D_FULL}/merged.rds",
+        samples = MASTER,
+    output:
+        sce = f"{D_FULL}/dd_sce.rds",
+    threads: 1
+    log:
+        f"{D_LOGS}/dd_prep.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.merged} {input.samples} {output.sce} > {log} 2>&1"
+
+rule dd_muscat:
+    message: "dd_muscat: muscat differential detection (num.detected + edgeR pbDS) in container"
+    input:
+        script = f"{R_SCRIPTS}/dd_muscat.R",
+        sce    = f"{D_FULL}/dd_sce.rds",
+    output:
+        tsv = "results/aggregate/differential_detection.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/dd_muscat.log",
+    shell:
+        "apptainer exec --bind {D_DATA} {MUSCAT_SIF} "
+        "Rscript {input.script} {input.sce} {output.tsv} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-gsea
 #+begin_src snakemake
 # --- Track 2 pathway: GSEA on pseudobulk stat-ranked genes (primary + Hallmark) ---
+# Ranks on the statistic the cohort REPORTS, so enrichment and DE describe one test:
+# moderated t for VOOM_COHORTS, DESeq2 Wald elsewhere. gsea.R resolves that per cohort
+# through scripts/aggregate/inference_source.R -- the same module assemble_results.R
+# reads -- so the voom file is declared as an input for the DAG edge rather than passed
+# on the command line.
 rule gsea:
-    message: "gsea: GSEA on pseudobulk stat-ranked genes (primary + Hallmark)"
+    message: "gsea: GSEA on pseudobulk stat-ranked genes ({wildcards.cohort})"
     input:
         script = f"{R_SCRIPTS}/gsea.R",
-        degs   = "results/aggregate/engine/de_engine.tsv",
+        helper = f"{R_SCRIPTS}/inference_source.R",
+        degs   = "results/aggregate/engine/de_engine_{cohort}.tsv",
+        voom   = lambda w: (f"results/aggregate/engine/voom_engine_{w.cohort}.tsv"
+                            if w.cohort in VOOM_COHORTS else []),
         sets   = "results/data_model/pathway_sets.tsv",
     output:
-        gsea = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
+        gsea = "results/aggregate/gsea_pseudobulk_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/gsea.log",
+        f"{D_LOGS}/gsea_{{cohort}}.log",
     shell:
         "{RSCRIPT} {input.script} {input.degs} {input.sets} {output.gsea} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-pathway-scores
 #+begin_src snakemake
-# --- Track 2 pathway: per-cell UCell + AddModuleScore scoring + M02 limma test ---
+# --- Track 2 pathway: per-cell UCell + AddModuleScore scoring (cohort-agnostic compute) ---
 # threads: 4 -- UCell runs ncores=4 fork (BiocParallel) parallelism, not BLAS.
 rule pathway_scores:
-    message: "pathway_scores: per-cell UCell + AddModuleScore scoring + M02 limma test"
+    message: "pathway_scores: per-cell UCell + AddModuleScore scoring"
     input:
         script = f"{R_SCRIPTS}/pathway_scores.R",
         rds    = MERGED,   # count-only consumer; labels from full_labels.parquet
@@ -6016,14 +6183,33 @@ rule pathway_scores:
         sets   = "results/data_model/pathway_sets.tsv",
     output:
         summary = "results/aggregate/pathway_scores_summary.tsv",
-        test    = "results/aggregate/pathway_test_m02day2.tsv",
         conc    = "results/aggregate/pathway_ucell_ams_concordance.tsv",
     threads: 4
     log:
         f"{D_LOGS}/pathway_scores.log",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.sets} "
-        "{output.summary} {output.test} {output.conc} > {log} 2>&1"
+        "{output.summary} {output.conc} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-pathway-arm-test
+#+begin_src snakemake
+# Per-cohort arm test: reads the cached summary TSV, cheap, parameterized by the comparison
+# registry (no hardcoded day-2 literals) so it runs for every LM_COHORTS entry.
+rule pathway_arm_test:
+    message: "pathway_arm_test: UCell pathway arm test ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/pathway_arm_test.R",
+        summary = "results/aggregate/pathway_scores_summary.tsv",
+        comp    = "results/data_model/comparisons.tsv",
+    output:
+        test = "results/aggregate/pathway_test_{cohort}.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/pathway_arm_test_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.summary} {input.comp} {wildcards.cohort} "
+        "{output.test} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-pathway-plots
@@ -6034,7 +6220,7 @@ rule pathway_plots:
     input:
         script  = f"{R_SCRIPTS}/pathway_plots.R",
         summary = "results/aggregate/pathway_scores_summary.tsv",
-        test    = "results/aggregate/pathway_test_m02day2.tsv",
+        test    = "results/aggregate/pathway_test_mutter02_day2.tsv",
     output:
         heatmap    = "results/aggregate/plots/pathway_heatmap_m02day2.png",
         timecourse = "results/aggregate/plots/pathway_timecourse_m01.png",
@@ -6045,16 +6231,15 @@ rule pathway_plots:
     shell:
         "{RSCRIPT} {input.script} {input.summary} {input.test} "
         "{output.heatmap} {output.timecourse} {output.scatter} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-panel-coverage
+#+begin_src snakemake
 # ============================================================================
 # MBRT-vs-SBRT downstream differential layer (plan-mbrt-vs-sbrt-impl.md T4-T13).
 # All consume the unified per-cell labels (results/aggregate/full_labels.parquet)
 # and the day-2 readout tables, terminating in the tier-tagged results_master.tsv.
 # ============================================================================
-
-#+end_src
-
-#+name: aggregate-differential-panel-coverage
-#+begin_src snakemake
 # --- T5: per-cell-type readout detection report (panel detectability in M02) ---
 rule panel_coverage:
     message: "panel_coverage: per-cell-type readout detection report (panel detectability in M02)"
@@ -6075,21 +6260,24 @@ rule panel_coverage:
 
 #+name: aggregate-differential-power-mde
 #+begin_src snakemake
-# --- T6: power / minimum-detectable-effect table at n=4 ---
+# --- T6: power / minimum-detectable-effect table, per registry comparison x contrast ---
 rule power_mde:
-    message: "power_mde: power / minimum-detectable-effect table at n=4"
+    message: "power_mde: minimum-detectable-effect table per comparison x contrast"
     input:
         script = f"{R_SCRIPTS}/power_mde.R",
         comp   = "results/aggregate/composition_by_sample.tsv",
         se     = f"{D_AGG}/pseudobulk_se.rds",
         path   = "results/aggregate/pathway_scores_summary.tsv",
+        reg    = "results/data_model/comparisons.tsv",
+        params = "config/engine_params.yaml",
     output:
         mde = "results/aggregate/power_mde.tsv",
     threads: 1
     log:
         f"{D_LOGS}/power_mde.log",
     shell:
-        "{RSCRIPT} {input.script} {input.comp} {input.se} {input.path} {output.mde} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.comp} {input.se} {input.path} {output.mde} "
+        "{input.reg} {input.params} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-coords-necrosis
@@ -6132,9 +6320,9 @@ rule celltype_qc:
 
 #+name: aggregate-differential-niches
 #+begin_src snakemake
-# --- T9: data-driven spatial niches (k=20 NN composition -> K=6 k-means) ---
+# --- T9: data-driven spatial niches (k=50 NN composition, SPIN 50%, Mclust BIC K selection) ---
 rule niches:
-    message: "niches: data-driven spatial niches (k=20 NN composition -> K=6 k-means)"
+    message: "niches: data-driven spatial niches (k=50 NN composition, SPIN 50%, Mclust BIC K selection)"
     input:
         script = f"{R_SCRIPTS}/niches.R",
         labels = LABELS,
@@ -6160,27 +6348,27 @@ rule niches:
 #+begin_src snakemake
 # --- engine: niche frequency arm test (propeller/logit path) ---
 rule niche_engine:
-    message: "niche_engine: lm_engine proportion test on niche frequency (M02 day2)"
+    message: "niche_engine: lm_engine proportion test on niche frequency ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         cells  = "results/aggregate/engine_inputs/niche_cells.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/niche_engine.tsv",
+        stats = "results/aggregate/engine/niche_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/niche_engine.log",
+        f"{D_LOGS}/niche_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 niche "
+        "{RSCRIPT} {input.script} {input.cells} proportion {wildcards.cohort} niche "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-spatial-mixing
 #+begin_src snakemake
-# --- T10: tumor-immune spatial mixing (immune-neighbour fraction + Keren score) ---
+# --- T10: tumor-immune spatial mixing (k=50 NN, immune-neighbour fraction + Keren score) ---
 rule spatial_mixing:
-    message: "spatial_mixing: tumor-immune spatial mixing (immune-neighbour fraction + Keren score)"
+    message: "spatial_mixing: tumor-immune spatial mixing (k=50 NN)"
     input:
         script = f"{R_SCRIPTS}/spatial_mixing.R",
         labels = LABELS,
@@ -6203,19 +6391,19 @@ rule spatial_mixing:
 #+begin_src snakemake
 # --- engine: tumor-immune mixing arm test (matrix/identity path, non-robust) ---
 rule mixing_engine:
-    message: "mixing_engine: lm_engine identity test on spatial mixing metrics (M02 day2)"
+    message: "mixing_engine: lm_engine identity test on spatial mixing metrics ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         matrix = "results/aggregate/engine_inputs/mixing_metrics.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/mixing_engine.tsv",
+        stats = "results/aggregate/engine/mixing_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/mixing_engine.log",
+        f"{D_LOGS}/mixing_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 mixing "
+        "{RSCRIPT} {input.script} {input.matrix} matrix {wildcards.cohort} mixing "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
@@ -6227,9 +6415,10 @@ rule mixing_engine:
 rule myeloid_polarization:
     message: "myeloid_polarization: myeloid M1/M2 polarization (UCell M1/M2 panels -> per-sample ratio)"
     input:
-        script = f"{R_SCRIPTS}/myeloid_polarization.R",
-        rds    = MERGED,
-        labels = LABELS,
+        script  = f"{R_SCRIPTS}/myeloid_polarization.R",
+        rds     = MERGED,
+        labels  = LABELS,
+        samples = MASTER,
     output:
         scores = "results/aggregate/myeloid_m1m2_scores.tsv",
         lm_input = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
@@ -6238,27 +6427,27 @@ rule myeloid_polarization:
     log:
         f"{D_LOGS}/myeloid_polarization.log",
     shell:
-        "{RSCRIPT} {input.script} {input.rds} {input.labels} {output.scores} "
-        "{output.lm_input} {output.plot} > {log} 2>&1"
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.samples} "
+        "{output.scores} {output.lm_input} {output.plot} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-myeloid-engine
 #+begin_src snakemake
 # --- engine: myeloid M1/M2 arm test (matrix/identity path, non-robust) ---
 rule myeloid_engine:
-    message: "myeloid_engine: lm_engine identity test on macrophage M1/M2 metrics (M02 day2)"
+    message: "myeloid_engine: lm_engine identity test on macrophage M1/M2 metrics ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         matrix = "results/aggregate/engine_inputs/myeloid_metrics.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/myeloid_engine.tsv",
+        stats = "results/aggregate/engine/myeloid_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/myeloid_engine.log",
+        f"{D_LOGS}/myeloid_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.matrix} matrix mutter02_day2 myeloid "
+        "{RSCRIPT} {input.script} {input.matrix} matrix {wildcards.cohort} myeloid "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
@@ -6271,7 +6460,7 @@ rule concordance_m01_m02:
         script = f"{R_SCRIPTS}/concordance_m01_m02.R",
         rds    = MERGED,
         labels = LABELS,
-        degs   = "results/aggregate/engine/de_engine.tsv",
+        degs   = "results/aggregate/engine/de_engine_mutter02_day2.tsv",
     output:
         tsv     = "results/aggregate/concordance_m01_m02.tsv",
         scatter = "results/aggregate/plots/concordance_scatter.png",
@@ -6326,19 +6515,19 @@ rule substate_composition:
 #+begin_src snakemake
 # --- engine: fibroblast sub-state composition arm test (propeller/logit path) ---
 rule substate_engine:
-    message: "substate_engine: lm_engine proportion test on fibroblast sub-state composition (M02 day2)"
+    message: "substate_engine: lm_engine proportion test on fibroblast sub-state composition ({wildcards.cohort})"
     input:
         script = "scripts/engines/lm_engine.R",
         cells  = "results/aggregate/engine_inputs/substate_cells.tsv",
         comp   = "results/data_model/comparisons.tsv",
         params = "config/engine_params.yaml",
     output:
-        stats = "results/aggregate/engine/substate_engine.tsv",
+        stats = "results/aggregate/engine/substate_engine_{cohort}.tsv",
     threads: 1
     log:
-        f"{D_LOGS}/substate_engine.log",
+        f"{D_LOGS}/substate_engine_{{cohort}}.log",
     shell:
-        "{RSCRIPT} {input.script} {input.cells} proportion mutter02_day2 substate "
+        "{RSCRIPT} {input.script} {input.cells} proportion {wildcards.cohort} substate "
         "{input.comp} {input.params} {output.stats} > {log} 2>&1"
 #+end_src
 
@@ -6364,17 +6553,28 @@ rule assemble_results:
     message: "assemble_results: tier-tagged master results table with confirmatory-family FDR"
     input:
         script  = f"{R_SCRIPTS}/assemble_results.R",
-        comp    = "results/aggregate/engine/composition_engine.tsv",
-        degs    = "results/aggregate/engine/de_engine.tsv",
-        gsea    = "results/aggregate/gsea_pseudobulk_m02day2.tsv",
-        pathway = "results/aggregate/pathway_test_m02day2.tsv",
-        niche   = "results/aggregate/engine/niche_engine.tsv",
-        mixing  = "results/aggregate/engine/mixing_engine.tsv",
-        myeloid = "results/aggregate/engine/myeloid_engine.tsv",
-        mde     = "results/aggregate/power_mde.tsv",
-        sets    = "results/data_model/pathway_sets.tsv",
-        cov     = "results/data_model/gene_set_panel_coverage.tsv",
-        det     = "results/aggregate/detection_test_m02day2.tsv",
+        # Declared expand()-ed lists give Snakemake DAG tracking over the full cohort
+        # roster; assemble_results.R itself globs the per-cohort filename pattern out of
+        # results/aggregate (and results/aggregate/engine) rather than taking one path
+        # per cohort, so this list only needs to be complete, not individually threaded
+        # through to the shell command.
+        comp     = expand("results/aggregate/engine/composition_engine_{coh}.tsv", coh=LM_COHORTS),
+        degs     = expand("results/aggregate/engine/de_engine_{coh}.tsv", coh=DE_COHORTS),
+        voom     = expand("results/aggregate/engine/voom_engine_{coh}.tsv", coh=VOOM_COHORTS),
+        gsea     = expand("results/aggregate/gsea_pseudobulk_{coh}.tsv", coh=DE_COHORTS),
+        pathway  = expand("results/aggregate/pathway_test_{coh}.tsv", coh=LM_COHORTS),
+        niche    = expand("results/aggregate/engine/niche_engine_{coh}.tsv", coh=LM_COHORTS),
+        mixing   = expand("results/aggregate/engine/mixing_engine_{coh}.tsv", coh=LM_COHORTS),
+        myeloid  = expand("results/aggregate/engine/myeloid_engine_{coh}.tsv", coh=LM_COHORTS),
+        substate = expand("results/aggregate/engine/substate_engine_{coh}.tsv", coh=LM_COHORTS),
+        smide    = expand("results/aggregate/engine/smide_de_{coh}_screen.tsv", coh=LM_COHORTS),
+        smide_sp = expand("results/aggregate/engine/smide_de_{coh}_spatial.tsv", coh=SMIDE_SPATIAL_COHORTS),
+        reg      = "results/data_model/comparisons.tsv",
+        mde      = "results/aggregate/power_mde.tsv",
+        sets     = "results/data_model/pathway_sets.tsv",
+        cov      = "results/data_model/gene_set_panel_coverage.tsv",
+        dd       = "results/aggregate/differential_detection.tsv",
+        overlap  = "results/aggregate/overlap_ratio_qc.tsv",
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -6382,9 +6582,87 @@ rule assemble_results:
     log:
         f"{D_LOGS}/assemble_results.log",
     shell:
-        "{RSCRIPT} {input.script} {input.comp} {input.degs} {input.gsea} "
-        "{input.pathway} {input.niche} {input.mixing} {input.myeloid} "
-        "{input.mde} {input.sets} {input.cov} {input.det} {output.master} > {log} 2>&1"
+        "{RSCRIPT} {input.script} results/aggregate {input.reg} {input.mde} {input.sets} "
+        "{input.cov} {input.dd} {input.overlap} {output.master} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-insitucor-discovery
+#+begin_src snakemake
+# ============================================================================
+# Spatial discovery: de novo spatial gene-gene co-expression modules, independent
+# of the curated pathway sets. Discovery input for the planned peak/valley signature
+# work. Runs on 4h timepoint cells only (all datasets, all arms).
+# ============================================================================
+rule insitucor_discovery:
+    message: "insitucor_discovery: spatial gene-correlation modules on 4h cells (InSituCor k=100)"
+    input:
+        script = f"{R_SCRIPTS}/insitucor_discovery.R",
+        rds    = MERGED,
+        labels = LABELS,
+        coords = f"{D_AGG}/coords_necrosis.parquet",
+        obs    = OBS,
+    output:
+        modules    = "results/aggregate/insitucor_modules.tsv",
+        summary    = "results/aggregate/insitucor_module_summary.tsv",
+        ct_attr    = "results/aggregate/insitucor_celltype_attribution.tsv",
+        gene_attr  = "results/aggregate/insitucor_gene_attribution.tsv",
+        scores_sc  = f"{D_AGG}/insitucor_scores_sc.parquet",
+        scores_env = f"{D_AGG}/insitucor_scores_env.parquet",
+        condcor    = "results/aggregate/insitucor_condcor_edges.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/insitucor_discovery.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
+        "{output.modules} {output.summary} {output.ct_attr} {output.gene_attr} "
+        "{output.scores_sc} {output.scores_env} {output.condcor} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-insitucor-prioritize
+#+begin_src snakemake
+# Prioritization is the documented post-discovery workflow (Danaher 2025): attribution +
+# curated-set overlap rank modules for analyst review. No statistics.
+rule insitucor_prioritize:
+    message: "insitucor_prioritize: module prioritization (attribution + curated-set overlap)"
+    input:
+        script    = f"{R_SCRIPTS}/insitucor_prioritize.R",
+        modules   = "results/aggregate/insitucor_modules.tsv",
+        ct_attr   = "results/aggregate/insitucor_celltype_attribution.tsv",
+        gene_attr = "results/aggregate/insitucor_gene_attribution.tsv",
+        sets      = "results/data_model/pathway_sets.tsv",
+    output:
+        tsv = "results/aggregate/insitucor_module_prioritization.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/insitucor_prioritize.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.modules} {input.ct_attr} {input.gene_attr} "
+        "{input.sets} {output.tsv} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-insitucor-arm-test
+#+begin_src snakemake
+# Arm test on module scores is our extension of InSituCor, not the tool's workflow;
+# admissible because discovery pooled all 4h cells blind to treatment. Exploratory tier
+# only (BH within cohort); reported inference is the limma moderated t (the same
+# low-residual-df policy scripts/aggregate/inference_source.R declares for pseudobulk).
+rule insitucor_arm_test:
+    message: "insitucor_arm_test: module-score arm test ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/insitucor_arm_test.R",
+        scores  = f"{D_AGG}/insitucor_scores_sc.parquet",
+        labels  = LABELS,
+        coords  = f"{D_AGG}/coords_necrosis.parquet",
+        modules = "results/aggregate/insitucor_modules.tsv",
+        comp    = "results/data_model/comparisons.tsv",
+    output:
+        test = "results/aggregate/insitucor_test_{cohort}.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/insitucor_arm_test_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.scores} {input.labels} {input.coords} "
+        "{input.modules} {input.comp} {wildcards.cohort} {output.test} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-agg-qc-arm-balance
@@ -6408,6 +6686,140 @@ rule agg_qc_arm_balance:
     shell:
         "{RSCRIPT} {input.script} {input.tech} {input.contam} {input.samples} "
         "{output.tsv} {output.samples} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-overlap-ratio-qc
+#+begin_src snakemake
+# --- QC: smiDE overlap ratio -- per-gene, per-cell_subtype segmentation-contamination
+# metric (avg self expression vs avg neighbor-othertype expression within radius). Joined
+# onto results_master as contamination_ratio so a DE hit's segmentation risk is legible
+# alongside its effect size. ---
+rule overlap_ratio_qc:
+    message: "overlap_ratio_qc: smiDE per-gene per-cell_subtype segmentation contamination metric"
+    input:
+        script = f"{R_SCRIPTS}/overlap_ratio_qc.R",
+        rds    = MERGED,
+        labels = LABELS,
+        coords = f"{D_AGG}/coords_necrosis.parquet",
+    output:
+        tsv = "results/aggregate/overlap_ratio_qc.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/overlap_ratio_qc.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} "
+        "{output.tsv} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-cohort-counts-cache
+#+begin_src snakemake
+# --- per-cohort expression cache for the per-cell steps ---
+# Reads MERGED once, keeps the cohort's counts + log-normalised data matrices and
+# nothing else from the Seurat object. The point is concurrency, not speed: reading
+# MERGED inside every smiDE fit made memory, not cores, the binding constraint, so the
+# 64-core box ran two or three jobs and idled. Consumers detect the cache by class and
+# still accept MERGED, so an in-flight run on the old path is unaffected.
+rule cohort_counts_cache:
+    message: "cohort_counts_cache: per-cohort counts + data matrices ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/build_cohort_counts.R",
+        rds     = MERGED,
+        labels  = LABELS,
+        cohorts = "results/data_model/cohort_samples.tsv",
+    output:
+        rds = COHORT_CACHE,
+    threads: 1
+    resources:
+        # Measured peak RSS on combined_4h_treated is 14.8 GB over a 104 s run, set by
+        # holding MERGED (7.0 GB resident) and the cohort's two subsets at the same
+        # time plus the readRDS transient. The cohort subset is the smaller half, so
+        # the widest cohort here moves this by a couple of GB.
+        mem_mb = 18000,
+    log:
+        f"{D_LOGS}/cohort_counts_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.cohorts} "
+        "{wildcards.cohort} {output.rds} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-smide-de
+#+begin_src snakemake
+# --- genome-wide smiDE per-cell DE (cohort- and mode-parameterized) ---
+# Follows the smiDE authors' published protocol: overlap-ratio gene prefilter per
+# cell type, adjacency-only pre_de with on-the-fly neighbor expression, inverse-
+# distance edge weighting, totalcount-normalized neighbor covariate. Two modes ---
+# "screen" (nebula NB GLMM with a sample random intercept; discovery only) and
+# "spatial" (per-spatial-unit GP_INLA fits combined by inverse-variance meta-
+# analysis; the authors' fix for inflated type I error). Depends on the overlap
+# ratio QC table for the prefilter. Runs BEFORE assemble_results, which maps
+# screen -> readout_class "smiDE_screen" and spatial meta -> "smiDE_spatial".
+#
+# The two modes have opposite resource shapes. nebula parallelizes across genes on
+# light workers, so screen gets the full thread budget. The GP backends show ~1.0x
+# speedup from extra workers while every forked worker holds a 14-22 GB copy of the
+# cohort adjacency machinery, so spatial runs single-threaded and its throughput
+# comes from running several cohorts at once under the mem_mb budget.
+#
+# The skipped output carries the spatial fits dropped by the expressing-cells-per-arm
+# gate, with the per-arm counts behind each decision.
+rule smide_de:
+    message: "smide_de: genome-wide per-cell smiDE DE ({wildcards.cohort}, {wildcards.mode})"
+    wildcard_constraints:
+        mode = "screen|spatial",
+    input:
+        script  = f"{R_SCRIPTS}/smide_de.R",
+        rds     = COHORT_CACHE,
+        labels  = LABELS,
+        coords  = f"{D_AGG}/coords_necrosis.parquet",
+        obs     = OBS,
+        comp    = "results/data_model/comparisons.tsv",
+        samples = MASTER,
+        overlap = "results/aggregate/overlap_ratio_qc.tsv",
+    output:
+        tsv = "results/aggregate/engine/smide_de_{cohort}_{mode}.tsv",
+        skipped = "results/aggregate/engine/smide_de_{cohort}_{mode}_skipped.tsv",
+    threads: lambda wc: 1 if wc.mode == "spatial" else 16
+    resources:
+        # Measured peak RSS of a spatial process on the combined_4h_treated cohort
+        # is 37 GB, dominated by the pre_de adjacency machinery rather than by the
+        # read-in; screen holds the same cohort object and forks its nebula workers
+        # off it. Run with --resources mem_mb so this, not the core count, is what
+        # caps concurrency on the 124 GB box.
+        #
+        # Reading COHORT_CACHE instead of MERGED cut the read-in stage from a
+        # measured 14.8 GB peak to 2.3 GB, but the reservation still tracks the
+        # pre_de peak that comes later, so it is unchanged until a spatial fit is
+        # re-measured on the cache.
+        mem_mb = 34000,
+    log:
+        f"{D_LOGS}/smide_de_{{cohort}}_{{mode}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
+        "{input.comp} {input.samples} {input.overlap} {wildcards.cohort} {wildcards.mode} "
+        "{output.tsv} {output.skipped} > {log} 2>&1"
+#+end_src
+
+#+name: aggregate-differential-smide-concordance
+#+begin_src snakemake
+# --- QC: pseudobulk vs smiDE concordance -- effect-size correlation, hit overlap,
+# contamination-ratio enrichment in discordant hits, confirmatory hit survival. Runs
+# after both assemble_results (results_master.tsv) and overlap_ratio_qc, scoped to
+# one cohort at a time (results_master.tsv rows are filtered by `comparison`). ---
+rule smide_concordance:
+    message: "smide_concordance: pseudobulk vs smiDE effect-size concordance ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/smide_concordance.R",
+        master  = "results/aggregate/results_master.tsv",
+        overlap = "results/aggregate/overlap_ratio_qc.tsv",
+    output:
+        tsv  = "results/aggregate/smide_concordance_{cohort}.tsv",
+        plot = "results/aggregate/plots/smide_concordance_{cohort}.png",
+    threads: 1
+    log:
+        f"{D_LOGS}/smide_concordance_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.master} {input.overlap} {wildcards.cohort} "
+        "{output.tsv} {output.plot} > {log} 2>&1"
 #+end_src
 
 #+name: aggregate-differential-agg-qc-reproducibility
@@ -6448,6 +6860,26 @@ rule agg_qc_panel_sparsity:
         f"{D_LOGS}/qc_panel_sparsity.log",
     shell:
         "{RSCRIPT} {input.script} {input.merged} {input.labels} {input.samples} "
+        "{output.tsv} > {log} 2>&1"
+
+# --- QC: per-FOV signal-loss screening -- flags FOVs whose mean RNA count falls below
+# 40% of the slide's median per-FOV mean (>60% signal loss), a CosMx best-practice check
+# for degraded-signal regions (e.g. focal plane / staining dropout). Report-only: does not
+# exclude cells. Verifies flagged FOVs do not concentrate in one treatment arm. ---
+rule qc_fov_signal:
+    message: "qc_fov_signal: per-FOV signal-loss screening (report-only)"
+    input:
+        script = f"{R_SCRIPTS}/qc_fov_signal.R",
+        rds    = MERGED,
+        labels = LABELS,
+        obs    = OBS,
+    output:
+        tsv = "results/aggregate/qc_fov_signal.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/qc_fov_signal.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.obs} "
         "{output.tsv} > {log} 2>&1"
 
 # --- QC: transcriptional neighborhood purity (Plummer et al. Nat Biotechnol 2025, Fig 4d) --

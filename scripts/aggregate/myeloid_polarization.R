@@ -7,14 +7,14 @@
 # day-2 gets a limma test on the per-sample metric matrix (M1, M2, M2/M1 ratio;
 # ~0+condition+slide_id, 3 contrasts, 95% CIs, BH) - few outcome rows so eBayes
 # moderation is negligible. M01 is descriptive (n=1).
-# Args: <merged.rds> <full_labels.parquet> <out_scores.tsv> <out_test.tsv> <plot_m02>
+# Args: <merged.rds> <full_labels.parquet> <samples.tsv> <out_scores.tsv> <out_test.tsv> <plot_m02>
 suppressPackageStartupMessages({
   library(Seurat); library(arrow); library(UCell)
   library(data.table); library(ggplot2)
 })
 a <- commandArgs(trailingOnly = TRUE)
-merged_path <- a[1]; labels_path <- a[2]
-out_scores <- a[3]; out_lm_input <- a[4]; plot_m02 <- a[5]
+merged_path <- a[1]; labels_path <- a[2]; samples_path <- a[3]
+out_scores <- a[4]; out_lm_input <- a[5]; plot_m02 <- a[6]
 SEED <- 42L; UCELL_CORES <- 8L
 
 m1_markers <- c("Nos2","Tnf","Il6","Il1b","Il12b","Cxcl9","Cxcl10","Cxcl11","Cd86",
@@ -29,6 +29,23 @@ o   <- readRDS(merged_path)
 lab <- as.data.table(read_parquet(labels_path))[, .(cell, cell_subtype)]
 lv  <- setNames(lab$cell_subtype, lab$cell)
 o$cell_subtype <- unname(lv[colnames(o)])
+
+# samples.tsv is the single source of truth for sample-level metadata (condition,
+# timepoint, dataset, slide). merged.rds is a heavy intermediate rebuilt independently of
+# it and its baked-in condition/timepoint_h/dataset/slide_id copies can drift out of sync;
+# join all four from samples.tsv by sample_id (dataset = its "name" column, values
+# "Mutter_01"/"Mutter_02") and overwrite the merged object's copies rather than trust them.
+ss <- fread(samples_path)
+scol <- names(ss)[grepl("sample", names(ss), ignore.case = TRUE)][1]
+smeta <- unique(ss[, .(sample_id = get(scol), condition, timepoint_h, dataset = name, slide_id)])
+midx <- match(o$sample_id, smeta$sample_id)
+o$condition   <- smeta$condition[midx]
+o$timepoint_h <- smeta$timepoint_h[midx]
+o$dataset     <- smeta$dataset[midx]
+o$slide_id    <- smeta$slide_id[midx]
+stopifnot(!anyNA(o$sample_id), !anyNA(o$condition), !anyNA(o$slide_id),
+          !anyNA(o$dataset), !anyNA(o$timepoint_h))
+
 mye <- subset(o, cells = colnames(o)[!is.na(o$cell_subtype) &
                                      o$cell_subtype == "Macrophages"])
 rm(o); invisible(gc())
