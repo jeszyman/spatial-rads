@@ -285,7 +285,7 @@ if (!length(CELL_LEVEL))
 smide_screen  <- if ("screen" %in% CELL_LEVEL)
   read_cohort_family(engine_p, "smide_de_", "smiDE (screen)", suffix = "_screen") else data.table()
 smide_spatial <- if ("spatial" %in% CELL_LEVEL)
-  read_cohort_family(engine_p, "smide_de_", "smiDE (spatial)", suffix = "_spatial") else data.table()
+  read_cohort_family(engine_p, "smide_de_", "smiDE (spatial)", suffix = "_spatial_gated") else data.table()
 if (nrow(smide_spatial) > 0 && "mode" %in% names(smide_spatial)) {
   no_meta <- setdiff(unique(smide_spatial$comparison),
                      unique(smide_spatial[mode == "spatial_meta", comparison]))

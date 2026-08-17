@@ -607,6 +607,7 @@ rule assemble_results:
         cov      = "results/data_model/gene_set_panel_coverage.tsv",
         dd       = "results/aggregate/differential_detection.tsv",
         overlap  = "results/aggregate/overlap_ratio_qc.tsv",
+        spatial  = expand("results/aggregate/engine/smide_de_{coh}_spatial_gated.tsv", coh=DE_COHORTS),
     output:
         master = "results/aggregate/results_master.tsv",
         detect = "results/aggregate/detectability_summary.tsv",
@@ -614,7 +615,8 @@ rule assemble_results:
     log:
         f"{D_LOGS}/assemble_results.log",
     shell:
-        "{RSCRIPT} {input.script} results/aggregate {input.reg} {input.mde} {input.sets} "
+        "{RSCRIPT} {input.script} --cell-level=spatial "
+        "results/aggregate {input.reg} {input.mde} {input.sets} "
         "{input.cov} {input.dd} {input.overlap} {output.master} > {log} 2>&1"
 # ============================================================================
 # Spatial discovery: de novo spatial gene-gene co-expression modules, independent
