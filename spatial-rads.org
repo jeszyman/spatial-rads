@@ -6967,7 +6967,7 @@ Reports are generated programmatically from repository (repo) data and text file
 ......|---- reports \linebreak
 ......|---- src - contains validated code used in project \linebreak
 
-Upon report update, the entire repo is pushed to the shared Wustl Box folder.
+
 * Spatial Rads Update
 :PROPERTIES:
 :ID:       8091391b-231a-441f-8670-c2d5ce47d84c
@@ -7093,6 +7093,35 @@ file:~/repos/spatial-rads/results/aggregate/plots/composition_arm.svg
 *** Arm-level Day 2 Results: Pathway
 #+ATTR_LATEX: :height .9\textheight
 file:~/repos/spatial-rads/results/aggregate/plots/pathway_arm.svg
+
+*** Day-2 interferon: suppression, not delayed induction at 48h
+Both MBRT and SBRT show interferon program suppression versus control at day-2 (GSEA on moderated-t-ranked pseudobulk; SBRT deeper across 9 cell types including macrophages NES minus 2.55 and tumor minus 2.32, MBRT in a narrower stromal set to NES minus 2.21). The MBRT-vs-SBRT contrast is positive (macrophage IFN-gamma NES 2.58, padj 6e-10), but this is driven by SBRT suppressing interferon further below control, not by MBRT inducing it. No pseudobulk evidence supports delayed interferon induction at 48h in either arm.
+
+Interpretation: 48h may sit between the acute response and the delayed cGAS-STING-driven IFN wave. The Potez 2019 synchrotron MRT cascade [cite:@potez2019] is vascular disruption (day 2 to 5) then senescence and p21 (day 2 to 9) then SASP chemokines and leukocyte recruitment (day 9), with cGAS-STING IFN induction requiring cytoplasmic DNA from aberrant mitosis of cells carrying unrepaired damage. In the p53-mutant 4T1 model (checkpoint-deficient, more likely to attempt mitosis with damage), this mitotic-catastrophe-driven IFN trigger may not peak until several days post-irradiation. The existing interferon baseline is suppressed at 48h by cell death and immunosuppressive feedback including PD-L1 upregulation via IFN-gamma [cite:@dutt2020], and the cGAS-STING induction has not yet fired. This is consistent with the Mutter hypothesis that the delayed propagating interferon response emerges at 48 to 72 hours or later; the 48h result is too early rather than contradictory.
+
+Composition versus regulation remains unresolved for this finding. If radiation clears IFN-producing cells, pseudobulk IFN drops without per-cell expression changing; alternatively, surviving cells may genuinely express lower IFN. The gated smiDE spatial layer, once the separation gate is applied and the assembly glob repointed, can separate these (pending).
+
+*** Cross-timepoint program comparison: 4h to day-2
+Gene-level effect sizes between 4h and day-2 are uncorrelated for the MBRT-vs-SBRT contrast (Spearman rho 0.06, direction agreement 52%), confirming these are distinct temporal phases rather than a continuation of the same ranked program.
+
+Two programs persist across both timepoints: (1) Cdkn1a/p21, MBRT higher than SBRT in the same cell types at both 4h (+1.56 macrophages) and day-2 (+1.97 macrophages), the single most stable arm-level difference; (2) fibrosis (Acta2, Col1a1, Col1a2), SBRT higher than MBRT at both timepoints with effect sizes deepening from 4h to day-2.
+
+Two programs flip direction: (1) interferon and MHC-I (IFN-gamma response NES minus 1.31 at 4h to plus 2.58 at day-2 in macrophages; 36 of 47 IFN pathway-by-cell-type combinations flip sign), confirmed by a sign flip in H2-T23/MHC class I across nearly all cell types; (2) Ccl8/MCP-2 (SBRT higher at 4h, MBRT higher at day-2, strongest in T cells +2.13, ILC +1.38, NK +1.37).
+
+Spatial cross-check (gated smiDE on day-2): 19 hits survive after the separation gate plus BH correction. All 19 pass the contamination filter (ratio below 1), all 19 agree in direction with pseudobulk (Spearman 0.59). Top hit H2-T23 in tumor confirms the MHC-I MBRT-over-SBRT direction at day-2.
+
+
+*** Integrated temporal interpretation
+The two-phase temporal structure separates the arms as follows. At 4h, both modalities run the same acute radiation response (damage/arrest, early fibrosis, IFN suppression) but SBRT runs it harder (more genes, larger effects, deeper IFN suppression). By day-2, fibrosis remains SBRT-dominant and deepens, but the IFN/MHC-I axis and macrophage chemokine signaling flip to MBRT-higher.
+
+Ccl8/MCP-2 is a monocyte/macrophage chemoattractant produced under IFN-gamma stimulation. Its flip from SBRT-higher at 4h to MBRT-higher at day-2 tracks the IFN flip and connects to two independent observations: Rob Mutter CyTOF data showing more antigen-presenting monocyte-derived populations after MBRT, and the Potez 2019 day-9 chemokine burst (MCP-1/MIP-1alpha/MIP-1beta/RANTES with concurrent macrophage and CD8 infiltration) [cite:@potez2019]. Ccl8 at day-2 is the same chemokine family as MCP-1/Ccl2 and may represent the leading edge of the SASP-driven recruitment cascade, potentially earlier than Potez due to p53-mutant checkpoint failure allowing earlier aberrant mitosis and DAMP release in 4T1.
+
+The IFN/MHC-I flip does not represent delayed IFN induction under MBRT: both arms are IFN-suppressed versus control at day-2, with SBRT suppressed deeper (9 cell types). MBRT-higher-than-SBRT arises from differential suppression depth, not induction. Two non-exclusive mechanisms: (a) SBRT kills more IFN-producing cells (composition shift consistent with the deeper fibrosis/remodeling), and (b) SBRT stronger acute IFN at 4h triggers stronger PD-L1 negative feedback by day-2 [cite:@dutt2020]. Under either mechanism, MBRT retains more IFN/MHC-I/chemokine capacity at 48h, paired with less fibrosis and more senescence/p21. This is plausibly because the valley cell population preserves viable IFN-competent cells, though arm-level data cannot confirm spatial localization.
+
+Persistent p21 MBRT-over-SBRT across both timepoints: in a p53-mutant model, this reads as SBRT clearing p21-expressing cells more completely via proliferative regrowth of survivors (the Ccnd1/Mki67 signal) while MBRT retains more cells in a quiescent or senescent state, aligning with the Potez day-2-through-9 senescence phase.
+
+Whether the retained IFN capacity under MBRT converts to actual IFN induction above baseline at later timepoints (the day-9 Potez window) is not answered by this dataset.
+
 ** Slide generation reference                                      :noexport:
 #+begin_comment
 Export: python3 ~/repos/latex/scripts/emacs_export_header_to_latex.py --org_file /home/jeszyman/repos/spatial-rads/spatial-rads.org --node_id 8091391b-231a-441f-8670-c2d5ce47d84c
