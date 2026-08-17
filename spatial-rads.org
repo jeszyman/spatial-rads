@@ -7124,6 +7124,24 @@ Persistent p21 MBRT-over-SBRT across both timepoints: in a p53-mutant model, thi
 
 Whether the retained IFN capacity under MBRT converts to actual IFN induction above baseline at later timepoints (the day-9 Potez window) is not answered by this dataset.
 
+
+*** CellChat ligand-receptor communication (descriptive)
+CellChat v2 spatially proximal ligand-receptor inference, one pooled network per arm, all three cohorts. These are descriptive: the p-values come from a Wilcoxon test on cell-type pairs within a single pooled network, not biological replicates, and cannot support arm-level claims. Directional concordance with pseudobulk DE, GSEA, and NanoString annotation GSEA is strong across all axes.
+
+Two pathways flip MBRT-vs-SBRT direction from 4h to day-2: (1) CCL (MBRT higher at 4h +0.48 p 3.6e-4, SBRT higher at day-2 minus 1.33 p 1.7e-8), the ligand-receptor version of the Ccl8 gene flip, consistent with MBRT initiating monocyte/macrophage recruitment earlier via the peak-valley damage interface; (2) Galectin (MBRT higher at 4h, SBRT higher at day-2), an immunosuppressive axis (Galectin-9/Tim-3 suppresses IFN-gamma-producing T cells), consistent with deeper SBRT immunosuppression at day-2.
+
+Three pathways persist SBRT-dominant: SPP1/osteopontin (macrophage-secreted, drives remodeling/fibrosis/M2 polarization), CXCL (deepening from 4h to day-2, broad immune recruitment), and MIF (day-2 only, retains macrophages in tissue, consistent with the remodeling picture).
+
+Day-2 vs control: MHC-I flow MBRT higher than control (p 0.048), confirming the H2-T23 gene finding at the communication level; VEGF flow MBRT higher (p 0.027), consistent with the Potez vascular disruption phase; Collagen flow up in both arms.
+
+
+*** Lipid metabolism: SBRT-dominant, not MBRT
+Lipid-metabolism GSEA programs are consistently SBRT-dominant at the arm level, opposite to the Baranwal hypothesis (lipid remodeling as an early MBRT valley signature). Day-2: Adipogenesis SBRT over MBRT (NES minus 2.18, padj 9.5e-4) and SBRT over Control (NES 1.74, padj 0.039). Fatty-acid metabolism down under MBRT vs Control in adipocytes (NES minus 1.92, padj 0.030). NanoString Lipid Metabolism up under SBRT vs Control in smooth muscle (NES 1.92, padj 0.006). This pattern is consistent with SBRT driving adipocyte-to-myofibroblast transition (a known fibrosis mechanism under TGF-beta). Whether lipid remodeling is valley-specific under MBRT (diluted in whole-section pseudobulk) is the subject of the pre-registered zone-level lipid module test.
+
+
+*** NanoString panel annotation GSEA cross-check
+68 NanoString UCC panel functional annotations (LBL-11176-04 Annotations sheet) extracted as gene sets and run against day-2 moderated-t rankings via fgsea. 106 significant rows (padj below 0.05). All major findings from the Hallmark GSEA confirmed: IFN suppression both arms vs control (SBRT deeper), Collagen up both arms, Antigen Presentation down under SBRT/up under MBRT vs SBRT. New signals not in the Hallmark collection: Mitochondrial Metabolism/TCA and Oxidative Stress are SBRT over MBRT in smooth muscle (padj 1e-4), a coverage gap filled by the vendor annotations.
+
 ** Slide generation reference                                      :noexport:
 #+begin_comment
 Export: python3 ~/repos/latex/scripts/emacs_export_header_to_latex.py --org_file /home/jeszyman/repos/spatial-rads/spatial-rads.org --node_id 8091391b-231a-441f-8670-c2d5ce47d84c
