@@ -5,6 +5,8 @@ suppressPackageStartupMessages({
 a <- commandArgs(trailingOnly = TRUE)
 rds_path <- a[1]; labels_path <- a[2]; coords_path <- a[3]; obs_path <- a[4]
 out_modules <- a[5]; out_summary <- a[6]
+out_ct_attr <- a[7]; out_gene_attr <- a[8]
+out_scores_sc <- a[9]; out_scores_env <- a[10]; out_condcor <- a[11]
 # MAX_CELLS bounds peak memory and is applied before the counts matrix is built or
 # normalized (not after, as previously). At 100k cells, the ~950-gene sparse counts matrix
 # (~6% detection), the k=100 sparse cell-cell neighbor graph, and InSituCor's own dense
@@ -84,16 +86,73 @@ if (nrow(mod_dt) == 0) {
                     gene_weight = numeric(), module_size = integer()), out_modules, sep = "\t")
   fwrite(data.table(module = character(), n_genes = integer(),
                     top_genes = character()), out_summary, sep = "\t")
-} else {
-  setnames(mod_dt, "weight", "gene_weight")
-  mod_dt[, module_size := .N, by = module]
-  fwrite(mod_dt, out_modules, sep = "\t")
-
-  summ <- mod_dt[, .(n_genes = .N,
-                      top_genes = paste(head(gene[order(-abs(gene_weight))], 5), collapse = ", ")),
-                 by = module]
-  fwrite(summ, out_summary, sep = "\t")
-  cat(sprintf("insitucor: %d modules, %d total genes | top modules: %s\n",
-              nrow(summ), nrow(mod_dt),
-              paste(head(summ$module), head(summ$n_genes), sep = "=", collapse = ", ")))
+  fwrite(data.table(module = character(), cell_type = character(),
+                    attribution = numeric()), out_ct_attr, sep = "\t")
+  fwrite(data.table(module = character(), gene = character(), cell_type = character(),
+                    attribution = numeric()), out_gene_attr, sep = "\t")
+  write_parquet(data.frame(cell = character()), out_scores_sc)
+  write_parquet(data.frame(cell = character()), out_scores_env)
+  fwrite(data.table(gene_a = character(), gene_b = character(),
+                    cond_cor = numeric()), out_condcor, sep = "\t")
+  quit(save = "no", status = 0)
 }
+setnames(mod_dt, "weight", "gene_weight")
+mod_dt[, module_size := .N, by = module]
+fwrite(mod_dt, out_modules, sep = "\t")
+
+summ <- mod_dt[, .(n_genes = .N,
+                    top_genes = paste(head(gene[order(-abs(gene_weight))], 5), collapse = ", ")),
+               by = module]
+fwrite(summ, out_summary, sep = "\t")
+cat(sprintf("insitucor: %d modules, %d total genes | top modules: %s\n",
+            nrow(summ), nrow(mod_dt),
+            paste(head(summ$module), head(summ$n_genes), sep = "=", collapse = ", ")))
+
+# module-level cell type attribution: celltypeinvolvement holds the max attribution score
+# of each cell type over each module's genes. Orientation is asserted against the module
+# names rather than assumed (cell type names and module names never collide).
+cti <- as.matrix(isc$celltypeinvolvement)
+if (all(rownames(cti) %in% mod_dt$module)) cti <- t(cti)
+stopifnot(all(colnames(cti) %in% mod_dt$module))
+ct_attr <- as.data.table(as.table(cti))
+setnames(ct_attr, c("cell_type", "module", "attribution"))
+setcolorder(ct_attr, c("module", "cell_type", "attribution"))
+setorder(ct_attr, module, -attribution)
+fwrite(ct_attr, out_ct_attr, sep = "\t")
+
+# gene-level attribution: one cell_type x gene matrix per module
+gene_attr <- rbindlist(lapply(names(isc$attributionmats), function(m) {
+  am <- as.matrix(isc$attributionmats[[m]])
+  if (all(rownames(am) %in% mod_dt$gene)) am <- t(am)
+  dt <- as.data.table(as.table(am))
+  setnames(dt, c("cell_type", "gene", "attribution"))
+  dt[, module := m]
+  dt
+}))
+setcolorder(gene_attr, c("module", "gene", "cell_type", "attribution"))
+setorder(gene_attr, module, gene, -attribution)
+fwrite(gene_attr, out_gene_attr, sep = "\t")
+
+# per-cell and per-neighborhood module scores, keyed by cell id for downstream joins to
+# labels and sample metadata. Large (n_cells x n_modules), so they go to the
+# heavy-intermediates directory as parquet, not results/.
+sc  <- as.matrix(isc$scores_sc)
+env <- as.matrix(isc$scores_env)
+if (is.null(rownames(sc)))  rownames(sc)  <- rownames(norm)
+if (is.null(rownames(env))) rownames(env) <- rownames(norm)
+stopifnot(nrow(sc) == length(cells_4h), nrow(env) == length(cells_4h))
+write_parquet(as.data.table(sc,  keep.rownames = "cell"), out_scores_sc)
+write_parquet(as.data.table(env, keep.rownames = "cell"), out_scores_env)
+
+# conditional correlation network: sparse after roundcortozero, serialized as the nonzero
+# upper-triangle edge list
+cc <- as(isc$condcor, "TsparseMatrix")
+ut <- cc@i < cc@j
+edges <- data.table(gene_a = rownames(cc)[cc@i[ut] + 1L],
+                    gene_b = colnames(cc)[cc@j[ut] + 1L],
+                    cond_cor = cc@x[ut])
+setorder(edges, -cond_cor)
+fwrite(edges, out_condcor, sep = "\t")
+
+cat(sprintf("insitucor: attribution %d module x cell_type rows, %d gene-level rows | scores %d cells x %d modules | condcor %d edges\n",
+            nrow(ct_attr), nrow(gene_attr), nrow(sc), ncol(sc), nrow(edges)))

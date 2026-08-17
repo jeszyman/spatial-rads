@@ -66,6 +66,9 @@ SMIDE_MODES = ["screen", "spatial"]
 # smide_de.R stops rather than emit a result labelled pooled that used no borrowed
 # control. They run screen mode only.
 SMIDE_SPATIAL_COHORTS = ["mutter02_day2", "combined_4h_treated", "combined_4h"]
+# InSituCor module-score arm test runs only where per-cell module scores exist: the 4h
+# cohorts, because discovery pooled 4h cells only.
+INSITUCOR_COHORTS = ["combined_4h_treated", "combined_4h"]
 rule all:
     input:
         "results/aggregate/composition_by_sample.tsv",
@@ -121,6 +124,11 @@ rule all:
         expand("results/aggregate/plots/smide_concordance_{coh}.png", coh=LM_COHORTS),
         "results/aggregate/insitucor_modules.tsv",
         "results/aggregate/insitucor_module_summary.tsv",
+        "results/aggregate/insitucor_celltype_attribution.tsv",
+        "results/aggregate/insitucor_gene_attribution.tsv",
+        "results/aggregate/insitucor_condcor_edges.tsv",
+        "results/aggregate/insitucor_module_prioritization.tsv",
+        expand("results/aggregate/insitucor_test_{coh}.tsv", coh=INSITUCOR_COHORTS),
 # --- Track 1: cell-type composition (M02 day2 propeller test + M01 descriptive) ---
 rule composition:
     message: "composition: cell-type composition M02 day2 propeller test + M01 descriptive"
@@ -622,14 +630,59 @@ rule insitucor_discovery:
         coords = f"{D_AGG}/coords_necrosis.parquet",
         obs    = OBS,
     output:
-        modules = "results/aggregate/insitucor_modules.tsv",
-        summary = "results/aggregate/insitucor_module_summary.tsv",
+        modules    = "results/aggregate/insitucor_modules.tsv",
+        summary    = "results/aggregate/insitucor_module_summary.tsv",
+        ct_attr    = "results/aggregate/insitucor_celltype_attribution.tsv",
+        gene_attr  = "results/aggregate/insitucor_gene_attribution.tsv",
+        scores_sc  = f"{D_AGG}/insitucor_scores_sc.parquet",
+        scores_env = f"{D_AGG}/insitucor_scores_env.parquet",
+        condcor    = "results/aggregate/insitucor_condcor_edges.tsv",
     threads: 1
     log:
         f"{D_LOGS}/insitucor_discovery.log",
     shell:
         "{RSCRIPT} {input.script} {input.rds} {input.labels} {input.coords} {input.obs} "
-        "{output.modules} {output.summary} > {log} 2>&1"
+        "{output.modules} {output.summary} {output.ct_attr} {output.gene_attr} "
+        "{output.scores_sc} {output.scores_env} {output.condcor} > {log} 2>&1"
+# Prioritization is the documented post-discovery workflow (Danaher 2025): attribution +
+# curated-set overlap rank modules for analyst review. No statistics.
+rule insitucor_prioritize:
+    message: "insitucor_prioritize: module prioritization (attribution + curated-set overlap)"
+    input:
+        script    = f"{R_SCRIPTS}/insitucor_prioritize.R",
+        modules   = "results/aggregate/insitucor_modules.tsv",
+        ct_attr   = "results/aggregate/insitucor_celltype_attribution.tsv",
+        gene_attr = "results/aggregate/insitucor_gene_attribution.tsv",
+        sets      = "results/data_model/pathway_sets.tsv",
+    output:
+        tsv = "results/aggregate/insitucor_module_prioritization.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/insitucor_prioritize.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.modules} {input.ct_attr} {input.gene_attr} "
+        "{input.sets} {output.tsv} > {log} 2>&1"
+# Arm test on module scores is our extension of InSituCor, not the tool's workflow;
+# admissible because discovery pooled all 4h cells blind to treatment. Exploratory tier
+# only (BH within cohort); reported inference is the limma moderated t (the same
+# low-residual-df policy scripts/aggregate/inference_source.R declares for pseudobulk).
+rule insitucor_arm_test:
+    message: "insitucor_arm_test: module-score arm test ({wildcards.cohort})"
+    input:
+        script  = f"{R_SCRIPTS}/insitucor_arm_test.R",
+        scores  = f"{D_AGG}/insitucor_scores_sc.parquet",
+        labels  = LABELS,
+        coords  = f"{D_AGG}/coords_necrosis.parquet",
+        modules = "results/aggregate/insitucor_modules.tsv",
+        comp    = "results/data_model/comparisons.tsv",
+    output:
+        test = "results/aggregate/insitucor_test_{cohort}.tsv",
+    threads: 1
+    log:
+        f"{D_LOGS}/insitucor_arm_test_{{cohort}}.log",
+    shell:
+        "{RSCRIPT} {input.script} {input.scores} {input.labels} {input.coords} "
+        "{input.modules} {input.comp} {wildcards.cohort} {output.test} > {log} 2>&1"
 # --- QC: cross-arm balance -- confound check on the day-2 composition result. Joins the per-sample
 # technical metrics + MECR (both from preprocessing.smk) to the arm design; balanced arms => the
 # fraction shift is not a sensitivity/contamination artifact. ---
