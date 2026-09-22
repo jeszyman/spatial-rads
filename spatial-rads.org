@@ -4094,6 +4094,9 @@ By 4h, MBRT tumor cells have +0.07 higher immune neighborhood than SBRT tumor ce
 #+ATTR_ORG: :width 800
 [[file:dev/mbrt_vs_sbrt/plots/nn_immune_density.png]]
 
+***** TODO Redo immune-neighbour kinetics with a background-corrected colocalization index
+The k=20 immune-neighbour fraction above does not correct for total immune-cell abundance, the same weakness behind the retracted "earlier mixing" finding, and it was computed on the retired per-sample labels. Recompute on the aggregate label table using the Spatial EcoTyper colocalization index: the probability of each cell type within a fixed radius of another, corrected for background expectation and combined across samples by Stouffer's method with per-sample scores capped at |5| [cite:@zhang2026]. Sweep the radius (20-100 µm) or k and report whether the MBRT vs SBRT difference holds across the sweep.
+
 **** Cell death, senescence, and necrosis quantification
 
 Three strands in =dev/mbrt_vs_sbrt/04_celldeath_senescence.R=.
@@ -6936,6 +6939,7 @@ rule agg_celltype_purity:
 :END:
 ** Ideas
 - https://jef.works/blog/2024/08/29/the-many-ways-to-detect-svgs-using-moransI/
+- Tumour/stroma labels and Spatial EcoTyper recovery mode: label tumour core vs stroma by a 200 µm grid of non-immune/non-stromal cell fraction (bimodal threshold), refined by >5 cancer cells within 100 µm, to give a distance-to-margin covariate; then apply published spatial ecotype cell-state models via recovery mode with HUGO→MGI mapping of consensus markers. Gated on the cell-typing fix (48.5% of cells unclassified) [cite:@zhang2026]
 
 - _02 additional probe analysis
 - https://claude.ai/design/p/019dd94c-82cc-7402-afca-9a1c4e96427f?file=CosMx+Graphical+Abstract.html
