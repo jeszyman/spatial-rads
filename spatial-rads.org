@@ -25,31 +25,51 @@ kill out - =analysis/= — legacy exploratory =dev/= outputs (objects, figures, 
 
 
 ** Plans
-- [[file:plan-aggregate.md][aggregate workflow — design, decisions, status]] — cross-sample/cross-dataset workflow. /Cell typing executed and locked (2026-06-02): scVI integration + coarse cluster-then-annotate (res=3.0, all four Q4 gates passed; tumor 48.1% / stroma 40.6% / immune 11.2%), tier-2 immune SingleR/ImmGen with marker rescue (macrophage-dominated; B cells near-absent), and tier-2 stroma UCell with marker rescue (fibroblast-dominated; endothelium and adipocytes recovered). All three tiers joined into the unified per-cell table =results/aggregate/full_labels.parquet=. See v2.5 banner. Split 2026-07-12 into two literate, org-tangled workflows at the typing/differential seam: =aggregate_typing.smk= (merge → scVI typing → =full_labels.parquet= + =merged.rds=) and =aggregate_differential.smk= (MBRT-vs-SBRT differential layer → =results_master.tsv=, consuming the typing outputs as leaf inputs); reproducibility-wiring history in =plan-aggregate-refactor.md=./
-- [[file:plan-aggregate-refactor.md][aggregate refactor — reproducibility-wiring, best-practice review, literate transfer]] — decisions resolved 2026-06-22 (=A2 full re-wire= / decision-forcing best-practice review / =C1= orchestration-only literate transfer), harmonized into a seven-step sequence: audit → method shoot-out (scVI vs scANVI/scArches on the 2-slide pilot) → wire the real ~13-node multi-env DAG (authoring =full_scvi.py=, retiring =recover_negprobes= onto the re-based M01 RDS) → full rebuild → re-validate the 4 Q4 gates → refresh =results_master.tsv= → literate transfer. Acceptance = re-validation, not byte-identity. Steps 1–5 executed 2026-06-22 (bit-identical rebuild; =full_scvi.py= authored, DAG wired) and Step 7 literate transfer executed 2026-07-12 as a two-file split (=aggregate_typing.smk= + =aggregate_differential.smk=), not the originally-specified single =aggregate.smk=; Step 6 =results_master.tsv= refresh + =recover_negprobes= retirement remain pending.
-- [[file:plan-m01-peak-valley-signature.md][M01 peak/valley signature]] — define the 4h H2AX-anchored peak/valley signature, rebuilt on current QC'd cells + merged-scale atlas labels; FOV-pseudobulk DE + camera/UCell enrichment + coarse-compartment stratification + orthogonal morphology; within-M01 descriptive (n=1). Adjudicated by a 3-lens panel (spatial-omics/radbio/biostat). Supersedes the retired VM-based =plan-mbrt-signatures.md= (failed autonomous run; post-mortem =retro-mbrt-signatures.md=). M02 replication + gated stripe re-detection split to =plan-m02-signature-replication.md=.
-- [[file:plan-m02-signature-replication.md][M02 peak/valley signature replication]] :: skeleton (2026-07-13). Day-2 cohort (n=4/arm): whole-compartment module test of the frozen M01 signature (sample-level, positive-only), plus a within-slide peak/valley re-analysis gated on a manual FOV overlay now that M02 H2AX exists. Closes by evaluating then deleting =retro-mbrt-signatures.md= after the new run.
-- [[file:plan-rotation-null-reconcile.md][rotation-null reconcile]] :: RESOLVED (2026-07-13, Steps 0-2 executed on beast). Settled the contested tumor peak/valley signature: the 37-gene MHC-I/IFN result is a label/QC plus pseudoreplication artifact. Rerunning the rotation-null statistic reproduces 38 survivors on the retired ImmGen =a= bucket, 7 after swapping to current atlas tumor + QC, and *0* after aggregating to the FOV replicate unit (paired =~ FOV + zone= plus continuous phase regression, flat p-histogram). A phase null was geometrically futile (tumor spans ~4.9 beam periods, p-floor ~0.2-0.47) and skipped. No dose-driven peak/valley signal survives; lone near-miss Clu is a single-gene lead, not the claimed signature. n=1, M02 replication out of scope.
-- [[file:plan-mbrt-vs-sbrt-reanalysis.md][MBRT vs SBRT vs Control — arm-level reanalysis]] — CURRENT canonical framing (2026-06-22, post 4/4 devils-advocate panel). Look at all 3 contrasts effect-size-forward on the reproducible labels; the MBRT arm-level "null" is reframed as spatial DILUTION (the real M01 4h peak signature averaged out), not biological absence; symmetric panel coverage + a detectability table (not a fuzzy decision-gate); never "sparing" (MBRT dose unrecorded); resolving spatial gated on M02 peak/valley staining + MBRT dose physics. Impl: =plan-mbrt-vs-sbrt-reanalysis-impl.md=.
-- [[file:plan-mbrt-vs-sbrt.md][MBRT vs SBRT downstream analysis — design/run record]] — the EXECUTED differential layer (=results_master.tsv=, 2026-06-03): three a priori hypotheses (H1 immune, H2 vascular, H3 stromal) × MBRT/SBRT/Control + exploratory + spatial-structure scans. /Framing superseded 2026-06-22 by the reanalysis above (null → spatial dilution); retained as the run record./
-
-*** Plan status ledger
-Ground-truthed 2026-07-10 against the Change log + committed code + on-disk artifacts, NOT the =Status:= banner in each plan file (those drift). The authoritative record of what actually ran is the Change log timeline, committed code, and produced artifacts.
-
-|  # | Plan                               | State                                                                                                                                                      | Remaining                                                                                                                                     |
-|----+------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------|
-|  4 | [[file:plan-aggregate.md][cross-dataset typing]]               | executed + locked 2026-06-02; reproducible (bit-identical rebuild 2026-06-22); merge now reads norm.rds; typing split into aggregate_typing.smk 2026-07-12 | —                                                                                                                                             |
-|  5 | [[file:plan-aggregate-refactor.md][aggregate reproducibility refactor]] | Steps 1-5 done 2026-06-22; Step 7 literate transfer done 2026-07-12 (two-file split: aggregate_typing.smk + aggregate_differential.smk)                    | Step 6 refresh results_master.tsv; negprobe retirement; re-base integration-QC benchmark label off merged labels                              |
-|  6 | [[file:plan-mbrt-vs-sbrt.md][MBRT/SBRT/Control differential]]     | executed 2026-06-03                                                                                                                                        | framing superseded by #7; kept as run record                                                                                                  |
-|  7 | [[file:plan-mbrt-vs-sbrt-reanalysis.md][arm-level reanalysis]]               | spec + impl written 2026-06-22                                                                                                                             | NOT executed (detectability_summary.tsv missing; master not refreshed)                                                                        |
-|  8 | [[file:plan-differential-robustness.md][differential robustness]]            | code Tasks 1-9 committed; sidecars on disk 2026-06-23                                                                                                      | consolidation rerun (Task 11); master lacks the new columns                                                                                   |
-| 10 | [[file:plan-m01-peak-valley-signature.md][M01 peak/valley signature]]          | spec written 2026-07-13 (3-lens panel); supersedes retired plan-mbrt-signatures.md                                                                         | build: FOV-size gate → rebuild signature on current QC'd cells → camera/UCell + coarse-compartment + morphology                               |
-| 11 | [[file:plan-svg-v2.md][spatially-variable-gene v2]]         | seed + gated                                                                                                                                               | M01-ready; M02 blocked on staining                                                                                                            |
-| 12 | [[file:plan-m02-signature-replication.md][M02 signature replication]]          | skeleton written 2026-07-13; H2AX now exists for M02                                                                                                       | analyst does FOV overlay → whole-compartment module test (now) + within-slide peak/valley (gated on overlay); then eval+delete retro          |
-| 13 | [[file:plan-rotation-null-reconcile.md][rotation-null reconcile]]            | RESOLVED 2026-07-13 (Steps 0-2): 37-gene signature is a label/QC + pseudoreplication artifact; no dose-driven peak/valley signal survives                  | done: 38 survivors (old =a= bucket) → 7 (atlas tumor + QC) → 0 (FOV replicate unit); phase null futile, skipped; Clu lone single-gene near-miss |
-
-Convergence knot: refreshing =results_master.tsv= is the shared pending deliverable of #5 (Step 6), #7 (impl), and #8 (Task 11) — one ~5h rerun, three owners.
-
+:PROPERTIES:
+:TODO_SET: plans
+:PLANS_SINCE: [2026-09-25 Fri]
+:END:
+*** ACTIVE Unified plan (post Rob/Yi meeting)
+:PROPERTIES:
+:ID:       c36b73d6-9474-4c08-9448-713daf0ae2aa
+:END:
+- [[file:docs/plans/2026-08-17-unified-plan.md]]
+- Handoff: [[file:docs/plans/2026-08-17-email-eval-handoff.md]]
+*** FUTURE Peak/valley module pre-registration
+:PROPERTIES:
+:ID:       54ce0cc5-8fb5-4a3a-9b21-127c93719678
+:END:
+[[file:docs/plans/2026-08-17-pv-module-prereg.md]]
+*** COMPLETE M01 4h zone label audit
+:PROPERTIES:
+:ID:       4bf60102-859b-47f3-bffc-cf03ead2485e
+:END:
+[[file:docs/plans/plan-m01-4h-zone-label-audit.md]]
+*** COMPLETE Differential-layer modularization
+:PROPERTIES:
+:ID:       6c21b4fe-f2e2-4c03-b20b-2dbabf13c292
+:END:
+[[file:docs/superpowers/plans/2026-07-12-differential-modularization.md]]
+*** COMPLETE Differential rework, Plan A (registry, FDR, schema)
+:PROPERTIES:
+:ID:       4fced826-53b9-4bef-b7f4-1e3445c88314
+:END:
+[[file:docs/superpowers/plans/2026-07-14-differential-rework-plan-a.md]]
+*** COMPLETE Differential rework, Plan B (beast recompute)
+:PROPERTIES:
+:ID:       293065b4-3326-467e-93c1-c0fcf7d3269b
+:END:
+[[file:docs/superpowers/plans/2026-07-14-differential-rework-plan-b.md]]
+*** COMPLETE M01 4h expression tables
+:PROPERTIES:
+:ID:       8f6256a0-1392-4ec8-b1b8-defe81efe551
+:END:
+[[file:docs/superpowers/plans/2026-08-02-m01-4h-de-tables.md]]
+*** COMPLETE CosMx best-practice alignment
+:PROPERTIES:
+:ID:       a4e3f111-e42a-45d9-8fb5-8d0e4d14a5b4
+:END:
+[[file:docs/superpowers/plans/2026-08-13-cosmx-bestpractice-alignment.md]]
 ** Key results
 :PROPERTIES:
 :ID:       af3003a4-dc06-4a49-8edf-c6660829cf13
@@ -275,6 +295,7 @@ sourced-conda-envs:
 **** Emacs
 ***** Todo states for code
 #+todo: TODO TEST(t) DEBUG(g) REFACTOR(r) DOCUMENT(m) BLOCKED(b&) WAITING(w&) | DONE DELEGATED
+#+todo: FUTURE(h!) ACTIVE(j!) | COMPLETE(c!) SUPERSEDED(y@) DISCARDED(x@)
 
 - TODO: Initial task entry, indicating a new or unstarted task.
 - TEST: A stage for verifying functionality, often running tests to confirm code works as intended.
@@ -3787,6 +3808,9 @@ Who owes next: Rob/Yi (confirm meeting time) + Jeff (send corrected results). Th
 - Yi (co-leads the CosMx core): agreed on program/module scoring for sparse CosMx (already our standard); reply to her directly to align on the separate SPORE TNBC 6K point, loop her in.
 - [2026-08-12 Wed] Reply sent (apology + fix-and-rerun). Rob asked to schedule 3-way call with Yi. Yi confirmed interested.
 - [2026-08-13 Thu] Jeff offered meeting times: 8/14 9:30-12:30 CST, Mon 10-2, Tue after 12, Wed 10-12:30.
+- [2026-08-17 Mon] 3-way meeting with Rob/Yi (9:30 CST). Jeff sent preview: slide-blocking integrates both runs (3 MBRT, 3 SBRT, 2 controls at 4h), SE shrinks ~40%. 21 genes separate MBRT vs SBRT; p21 higher in MBRT in 5 cell types (macrophages +1.56 log2FC, padj 0.03). IFN-I lower in MBRT (3 cell types, padj 1e-5). TGF-beta/fibrosis stronger under SBRT. In progress: day-2 reanalysis under slide blocking, cell-level spatial robustness model, InSituCor unsupervised co-expression modules.
+- Rob replied "Panel" (context unclear).
+
 
 **** DEG visualization
 :PROPERTIES:
@@ -4233,6 +4257,7 @@ Virtual scientist plan created: =plan-mbrt-signatures.md=, =review-mbrt-signatur
 - Kinetics are more interesting than marginal statistical gain at one timepoint
 - Spatial ecotype for microbeam
 - idea jacob scott genome-based model for adjusting radiotherapy dose- bulk tissue GUARD
+- p21/Cdkn1a SBRT suppression in macrophages at 4h and 48h: not a failed DNA-damage checkpoint but a macrophage polarization signal. In macrophages, p21 promotes tolerization (M2/hyporesponsive state) via inhibitory p50-p50 NF-kB and IFN-beta downregulation (Rackov et al., JCI 2017, doi:10.1172/JCI83404). Baseline 4T1 TAMs are M2-polarized with high p21; radiation-driven inflammatory activation (de-tolerization) requires p21 downregulation. SBRT delivers uniform dose, dropping p21 across all macrophages; MBRT averages peak-activated (p21 down) with valley-resident (p21 unchanged), giving a flat arm mean. The MBRT > SBRT contrast therefore reads as MBRT macrophages remaining more tolerized on average, consistent with dose heterogeneity sparing valley-resident TAMs. Separately, p21 in macrophages represses SIRPalpha (phagocytosis-inhibitory receptor), so p21-high = more phagocytic (Camiolo et al., Nat Commun 2022, doi:10.1038/s41467-022-34548-3). In tumor cells, absent p21 induction is expected (4T1 is p53-mutant). [2026-08-31]
 - MALDI lipidomic imaging (Pandey lab, Seul Kee Byeon) at 4h on blocks #3 (control), #14 (SBRT 4Gy), #17 (SBRT 20Gy), #21 (MBRT): no clear peak-vs-valley lipid contrast (consistent with morphology), but global phosphatidylinositol metabolism diverges between MBRT and SBRT: MUFA enrichment and LPI accumulation with MBRT. Integration with 4T1 RNAseq is on Yiqun's plate (Rob, 2026-05-24). [[https://mail.google.com/mail/u/0/#all/19e5f31e3d8acb1b][Gmail: Fw: Tissue Samples]]. *Cross-referenced against smiDE day-2 expression (2026-08-14) -- RETRACTED 2026-08-16:* /the cross-reference below reads off a smiDE configuration with an uncontrolled type I error rate (no overlap-ratio gene filter, no spatial random effect) applied to a between-animal contrast the method is not benchmarked for, so the convergence is not established; the MALDI observation above is unaffected. Original text kept for the record./ lipid-metabolism genes converge with the MALDI finding. Fabp5 (MUFA/PUFA transport) UP in 5 cell types under MBRT_vs_Ctrl, Cyp2u1 (FA hydroxylase) UP in 5, Ptgs1/COX-1 (PI-derived prostaglandin synthesis) UP in 4, Ldlr (lipid uptake) UP in 4, Pparg UP in stroma, Srebf1 (de novo FA synthesis) DOWN in 3: the expression profile (MUFA transport UP, de novo synthesis DOWN, COX-1 UP, HIF1a-driven metabolic shift) is consistent with MALDI MUFA enrichment + LPI accumulation at 4h, suggesting a sustained metabolic adaptation. See =**** Lipidomics cross-reference= under Results.
 
 *** Literature and references
@@ -4245,6 +4270,8 @@ Virtual scientist plan created: =plan-mbrt-signatures.md=, =review-mbrt-signatur
 - [[https://pubmed.ncbi.nlm.nih.gov/37596273/#full-view-affiliation-15][PubMed 37596273]]
 - [[https://chatgpt.com/c/692da348-0a48-8325-b257-46410f227998][ChatGPT analysis session]]
 - [[https://claude.ai/chat/163b2876-8164-4ff4-8005-3181ce4b2445][Claude analysis session]]
+- [[https://pubmed.ncbi.nlm.nih.gov/42236117/][PubMed 42236117: Liu 2026 J Immunother Cancer, spatially resolved single-cell TNBC immunotypes, interferon signaling and plasmacytoid dendritic cells (CosMx 1K)]]; Yi Liu first author; shared by Mutter [2026-08-27] as the lab's CosMx 1K reference ([[https://mail.google.com/mail/u/0/#all/1a0491380763390c][gmail]])
+- [[https://pubmed.ncbi.nlm.nih.gov/42443609/][PubMed 42443609: Carver 2026 Nat Aging, spatial mapping and senolytic targeting of senescent microglia in aged mouse brain (CosMx, mouse)]]; Yi Liu and Kachergus co-authors; from the same [2026-08-27] message
 
 **** TODO Compare Ozirmak Lermi 2025 with Ren 2025 cross-platform benchmarks
 :PROPERTIES:
